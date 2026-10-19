@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.8 — 2026-10-19
+
+1. **Fixed: Overlord Forever showing as "not installed" when it is.** RUIN only looked for Overlord's /ov chat command, and a miss was remembered for 30 seconds. It now finds Overlord in the game's AddOns list (any addon with "Overlord" in its folder name or title) and checks whether it is loaded, so it no longer depends on when or how Overlord registers /ov. The Guild page and Muster now tell "installed but switched off" apart from "not installed". Open uses Overlord's /ov handler when it can find it, and otherwise sends "/ov show" like a typed command. New `/ruin overlord` prints what RUIN can see (AddOns list entry, loaded or not, /ov found or not).
+
 ## 0.3.7 — 2026-10-18
 
 7 changes since 0.3.0, bringing the suite in line with the RUIN Companion brief from the head of RUIN:

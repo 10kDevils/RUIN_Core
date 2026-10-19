@@ -282,33 +282,149 @@ end
 
 ---------------------------------------------------------------------------
 -- Overlord Forever: RUIN works beside it rather than duplicating its
--- campaign. Find its /ov command if it is installed.
+-- campaign. It is found in the game's AddOns list (any addon whose folder
+-- or title says "Overlord"), so it counts as installed however and whenever
+-- it registers its chat command. /ov is only needed to open it.
 ---------------------------------------------------------------------------
-local overlordFn, overlordCheckedAt
-function UI:FindOverlord()
-    if overlordFn then return overlordFn end
-    -- not found: look again at most every 30 seconds (it may load later)
-    if overlordCheckedAt and GetTime() - overlordCheckedAt < 30 then return nil end
-    overlordCheckedAt = GetTime()
+local ovIndex, ovListAt -- where it sits in the AddOns list; when the list was last read
+local ovSlash           -- its /ov handler, once found
+
+local function plainTitle(t)
+    t = tostring(t or "")
+    t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]*:", ""):gsub("|r", ""):gsub("|T.-|t", "")
+    return t
+end
+
+local function addonApi()
+    local C = C_AddOns
+    return (C and C.GetNumAddOns) or GetNumAddOns, (C and C.GetAddOnInfo) or GetAddOnInfo,
+        (C and C.IsAddOnLoaded) or IsAddOnLoaded
+end
+
+-- Returns the AddOns-list entry for Overlord: { index, name, title, loaded, reason } or nil.
+local function overlordEntry()
+    local num, info, loaded = addonApi()
+    if not (num and info) then return nil end
+    local function entry(i)
+        local ok, name, title, _, _, reason = pcall(info, i)
+        if not ok or type(name) ~= "string" then return nil end
+        local t = plainTitle(title)
+        if not (name:lower():find("overlord", 1, true) or t:lower():find("overlord", 1, true)) then return nil end
+        local isLoaded = false
+        if loaded then
+            local ok2, l = pcall(loaded, i)
+            isLoaded = ok2 and l and true or false
+        end
+        return { index = i, name = name, title = t, loaded = isLoaded, reason = reason }
+    end
+    if ovIndex then
+        local e = entry(ovIndex)
+        if e then return e end
+        ovIndex = nil
+    end
+    -- not found yet: read the list at most every 5 seconds (and straight after any addon loads)
+    if ovListAt and GetTime() - ovListAt < 5 then return nil end
+    ovListAt = GetTime()
+    local ok, n = pcall(num)
+    if not ok or type(n) ~= "number" then return nil end
+    for i = 1, n do
+        local e = entry(i)
+        if e then
+            ovIndex = i
+            return e
+        end
+    end
+    return nil
+end
+ns:RegisterEvent("ADDON_LOADED", function() ovListAt = nil end)
+
+-- Overlord's chat-command handler (/ov or /overlord), or nil.
+local function overlordSlash()
+    if ovSlash then return ovSlash end
     if type(SlashCmdList) ~= "table" then return nil end
+    -- the game remembers commands it has already run
+    if type(hash_SlashCmdList) == "table" then
+        local fn = hash_SlashCmdList["/OV"] or hash_SlashCmdList["/OVERLORD"]
+        if type(fn) == "function" then ovSlash = fn; return fn end
+    end
     for key, fn in pairs(SlashCmdList) do
         local i = 1
-        while true do
+        while type(key) == "string" do
             local cmd = _G["SLASH_" .. key .. i]
             if type(cmd) ~= "string" then break end
-            if cmd:lower() == "/ov" or cmd:lower() == "/overlord" then overlordFn = fn; return fn end
+            local c = cmd:lower()
+            if c == "/ov" or c == "/overlord" then
+                if type(fn) == "function" then ovSlash = fn; return fn end
+                break
+            end
             i = i + 1
         end
     end
     return nil
 end
 
+-- "loaded", "off" (in the AddOns list but not running: switched off, or waiting to load) or nil.
+function UI:OverlordState()
+    local e = overlordEntry()
+    if e and e.loaded then return "loaded", e end
+    if overlordSlash() then return "loaded", e end
+    if e then return "off", e end
+    return nil
+end
+
+-- Kept for modules and tests: something non-nil when Overlord is running.
+function UI:FindOverlord()
+    local state = UI:OverlordState()
+    if state == "loaded" then return overlordSlash() or true end
+    return nil
+end
+
+-- Runs "/ov show": through Overlord's handler when it can be found, otherwise
+-- by sending the command through the chat box like a typed command.
+local function sendTyped(text)
+    local eb = (ChatEdit_GetActiveWindow and ChatEdit_GetActiveWindow())
+        or (ChatEdit_ChooseBoxForSend and ChatEdit_ChooseBoxForSend())
+        or (DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.editBox)
+    local send = ChatEdit_SendText or (ChatFrameUtil and ChatFrameUtil.SendText)
+    if not (eb and eb.SetText and send) then return false end
+    local ok = pcall(function()
+        eb:SetText(text)
+        send(eb, 0)
+    end)
+    return ok
+end
+
 function UI:OpenOverlord()
-    local fn = UI:FindOverlord()
-    if not fn then return ns:Print("Overlord Forever isn't installed or loaded.") end
+    local state, e = UI:OverlordState()
+    if state == "off" then
+        return ns:Print("Overlord Forever is in your AddOns list but not loaded" ..
+            (e and e.reason and e.reason ~= "" and (" (" .. tostring(e.reason):lower():gsub("_", " ") .. ")") or "") ..
+            ". Turn it on in the AddOns list and reload.")
+    elseif not state then
+        return ns:Print("Overlord Forever isn't installed.")
+    end
     if InCombatLockdown and InCombatLockdown() then return ns:Print("Open Overlord after combat.") end
-    local ok, err = pcall(fn, "show")
-    if not ok then ns:Debug("Overlord /ov show failed: " .. tostring(err)) end
+    local fn = overlordSlash()
+    if fn then
+        local ok, err = pcall(fn, "show")
+        if ok then return end
+        ns:Debug("Overlord /ov show failed: " .. tostring(err))
+    end
+    if not sendTyped("/ov show") then ns:Print("Type /ov show to open Overlord.") end
+end
+
+-- /ruin overlord: what RUIN can see of it.
+function UI:PrintOverlord()
+    ovListAt = nil
+    local state, e = UI:OverlordState()
+    if e then
+        ns:Print(("Overlord: AddOns list entry %q (%s), %s%s."):format(e.name, e.title ~= "" and e.title or "no title",
+            e.loaded and "loaded" or "not loaded", (not e.loaded and e.reason) and (", " .. tostring(e.reason)) or ""))
+    else
+        ns:Print("Overlord: no addon with \"Overlord\" in its folder name or title is in the AddOns list.")
+    end
+    ns:Print("Overlord /ov command: " .. (overlordSlash() and "found." or "not found."))
+    ns:Print("RUIN treats it as: " .. (state == "loaded" and "installed and running." or state == "off" and "installed, not loaded." or "not installed."))
 end
 
 ---------------------------------------------------------------------------
@@ -544,9 +660,13 @@ local function refreshGuild()
     guild.linksEmpty:SetText(#list == 0 and "No links yet. The org admin adds Discord, the website and streams with Edit (or /ruin key links)." or "")
     guild.editLinks:SetShown(ns.Org:IsAdmin())
 
-    if UI:FindOverlord() then
+    local ovState = UI:OverlordState()
+    if ovState == "loaded" then
         guild.ovText:SetText("Installed. RUIN's world PvP runs on Overlord: its campaign, keeps, captures and Most Wanted. RUIN Muster adds org rallies and bounties.")
         guild.ovButton:Show()
+    elseif ovState == "off" then
+        guild.ovText:SetText(GREY .. "Installed but not loaded. Turn Overlord Forever on in the AddOns list and reload; RUIN uses it for world PvP.|r")
+        guild.ovButton:Hide()
     else
         guild.ovText:SetText(GREY .. "Not installed. RUIN uses Overlord Forever for world PvP (campaign, keeps, Most Wanted); get it on CurseForge.|r")
         guild.ovButton:Hide()

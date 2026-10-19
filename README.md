@@ -49,6 +49,7 @@ Admin changes (adding or removing a guild, rotating) are announced to every guil
 | `/ruin chatframe <n>` | Which chat window shows RUIN lines |
 | `/ruin couch` | Couch mode (larger window) |
 | `/ruin debug` | Debug messages |
+| `/ruin overlord` | Check whether RUIN can see Overlord Forever |
 
 ## Beta test checklist
 

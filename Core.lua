@@ -242,6 +242,7 @@ local HELP = {
     "/ruin chatframe <n> - chat window number for RUIN lines",
     "/ruin couch - toggle couch mode (larger window)",
     "/ruin debug - toggle debug messages",
+    "/ruin overlord - check whether RUIN can see Overlord Forever",
 }
 
 function ns:PrintStatus()
@@ -337,6 +338,8 @@ SlashCmdList.RUIN = function(input)
         ns.db.settings.couchMode = not ns.db.settings.couchMode
         ns.UI:ApplyScale()
         ns:Print("Couch mode " .. (ns.db.settings.couchMode and "on." or "off."))
+    elseif cmd == "overlord" or cmd == "ov" then
+        ns.UI:PrintOverlord()
     elseif cmd == "debug" then
         ns.db.settings.debug = not ns.db.settings.debug
         ns:Print("Debug " .. (ns.db.settings.debug and "on." or "off."))
