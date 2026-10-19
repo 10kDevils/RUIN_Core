@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="RUIN_TOGGLE" header="RUIN" category="ADDONS">
+		RUIN_ToggleWindow()
+	</Binding>
+</Bindings>

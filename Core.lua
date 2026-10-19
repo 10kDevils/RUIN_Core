@@ -1,0 +1,332 @@
+-- RUIN Core
+-- Namespace, saved data, event plumbing, guild state and slash commands.
+local ADDON, ns = ...
+
+ns.ADDON = ADDON
+ns.PREFIX = "RUIN"   -- addon message prefix shared by the whole suite
+ns.PROTOCOL = 1      -- bump when the wire format changes incompatibly
+
+local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+ns.VERSION = (getMeta and getMeta(ADDON, "Version")) or "0.0.0"
+
+local DEFAULTS = {
+    settings = {
+        showOrgChat = true,      -- show other guilds' guild chat
+        showOfficerChat = true,  -- show other guilds' officer chat (officers only)
+        allowBridge = true,      -- may relay lines from guildmates who lack the addon
+        chatFrame = 1,           -- chat window number that shows RUIN lines
+        couchMode = false,       -- larger window for Steam Deck / TV play
+        animations = true,       -- ambient motion in page headers
+        debug = false,
+    },
+}
+
+local function report(err)
+    local handler = geterrorhandler and geterrorhandler()
+    if handler then handler(err) else print(err) end
+end
+ns.ReportError = report
+
+---------------------------------------------------------------------------
+-- Printing
+---------------------------------------------------------------------------
+local TAG = "|cffc41e3aRUIN|r"
+
+function ns:Print(msg)
+    DEFAULT_CHAT_FRAME:AddMessage(TAG .. ": " .. tostring(msg))
+end
+
+function ns:Debug(msg)
+    if ns.db and ns.db.settings.debug then
+        DEFAULT_CHAT_FRAME:AddMessage(TAG .. " |cff888888debug|r: " .. tostring(msg))
+    end
+end
+
+---------------------------------------------------------------------------
+-- Game events
+---------------------------------------------------------------------------
+local eventFrame = CreateFrame("Frame")
+local eventHandlers = {}
+
+-- Events that exist in one client and not another (Classic vs Retail APIs)
+-- are skipped quietly instead of raising an error, so a module can listen
+-- for both styles and use whichever one fires. Returns false when skipped.
+function ns:RegisterEvent(event, fn)
+    if not eventHandlers[event] then
+        if C_EventUtils and C_EventUtils.IsEventValid and not C_EventUtils.IsEventValid(event) then
+            ns:Debug("skipped event not in this client: " .. event)
+            return false
+        end
+        local ok = pcall(eventFrame.RegisterEvent, eventFrame, event)
+        if not ok then
+            ns:Debug("skipped event not in this client: " .. event)
+            return false
+        end
+        eventHandlers[event] = {}
+    end
+    table.insert(eventHandlers[event], fn)
+    return true
+end
+
+eventFrame:SetScript("OnEvent", function(_, event, ...)
+    local list = eventHandlers[event]
+    if not list then return end
+    for i = 1, #list do
+        local ok, err = pcall(list[i], event, ...)
+        if not ok then report(err) end
+    end
+end)
+
+---------------------------------------------------------------------------
+-- Internal callbacks (KEY_CHANGED, PEERS_CHANGED, ROSTER_UPDATED, ...)
+---------------------------------------------------------------------------
+local callbacks = {}
+
+function ns:Subscribe(name, fn)
+    callbacks[name] = callbacks[name] or {}
+    table.insert(callbacks[name], fn)
+end
+
+function ns:Fire(name, ...)
+    local list = callbacks[name]
+    if not list then return end
+    for i = 1, #list do
+        local ok, err = pcall(list[i], ...)
+        if not ok then report(err) end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Saved data
+-- WoW Forever's beta has a SavedVariables loading bug, so the table is
+-- adopted defensively on ADDON_LOADED and checked again on PLAYER_LOGIN.
+---------------------------------------------------------------------------
+local function applyDefaults(dst, src)
+    for k, v in pairs(src) do
+        if type(v) == "table" then
+            if type(dst[k]) ~= "table" then dst[k] = {} end
+            applyDefaults(dst[k], v)
+        elseif dst[k] == nil then
+            dst[k] = v
+        end
+    end
+end
+
+local function adoptDB()
+    if type(RUIN_DB) ~= "table" then RUIN_DB = {} end
+    applyDefaults(RUIN_DB, DEFAULTS)
+    if ns.db ~= RUIN_DB then
+        ns.db = RUIN_DB
+        ns:Fire("DB_READY")
+    end
+end
+
+ns:RegisterEvent("ADDON_LOADED", function(_, name)
+    if name == ADDON then adoptDB() end
+end)
+
+---------------------------------------------------------------------------
+-- Guild state and roster cache
+---------------------------------------------------------------------------
+ns.roster = {}        -- normalized name -> entry
+ns.rosterByGUID = {}  -- GUID -> entry
+
+function ns:RefreshGuild()
+    local name, rank
+    if IsInGuild() then
+        local gName, _, rankIndex = GetGuildInfo("player")
+        name, rank = gName, rankIndex
+    end
+    if name ~= ns.guildName or rank ~= ns.guildRank then
+        ns.guildName, ns.guildRank = name, rank
+        ns:Fire("GUILD_CHANGED")
+    end
+end
+
+function ns:RequestRoster()
+    if not IsInGuild() then return end
+    if C_GuildInfo and C_GuildInfo.GuildRoster then
+        C_GuildInfo.GuildRoster()
+    elseif GuildRoster then
+        GuildRoster()
+    end
+end
+
+function ns:ScanRoster()
+    local roster, byGUID = {}, {}
+    local count = GetNumGuildMembers() or 0
+    for i = 1, count do
+        local name, _, rankIndex, level, _, _, _, _, online, _, classFile,
+              _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        if name then
+            local entry = { name = name, rank = rankIndex, level = level,
+                            online = online, class = classFile, guid = guid }
+            roster[ns.NormalizeName(name)] = entry
+            if guid then byGUID[guid] = entry end
+        end
+    end
+    ns.roster, ns.rosterByGUID = roster, byGUID
+    ns:Fire("ROSTER_UPDATED")
+end
+
+local rosterScanPending = false
+local function scheduleRosterScan()
+    if rosterScanPending then return end
+    rosterScanPending = true
+    C_Timer.After(1, function()
+        rosterScanPending = false
+        ns:ScanRoster()
+    end)
+end
+
+ns:RegisterEvent("GUILD_ROSTER_UPDATE", function()
+    ns:RefreshGuild()
+    scheduleRosterScan()
+end)
+
+ns:RegisterEvent("PLAYER_GUILD_UPDATE", function()
+    ns:RefreshGuild()
+    ns:RequestRoster()
+end)
+
+---------------------------------------------------------------------------
+-- Login
+---------------------------------------------------------------------------
+ns:RegisterEvent("PLAYER_LOGIN", function()
+    adoptDB()
+    ns.playerGUID = UnitGUID("player")
+    ns.playerName = UnitName("player")
+    ns.playerNorm = ns.NormalizeName(ns.playerName)
+    ns.loggedIn = true
+
+    ns:RefreshGuild()
+    ns:RequestRoster()
+
+    -- Guild info is often empty for a few seconds after login; poll briefly.
+    local tries = 0
+    local poll
+    poll = C_Timer.NewTicker(2, function()
+        tries = tries + 1
+        ns:RefreshGuild()
+        if (ns.guildName or not IsInGuild()) and tries > 1 or tries >= 15 then
+            poll:Cancel()
+        end
+    end)
+    C_Timer.NewTicker(60, function() ns:RequestRoster() end)
+
+    ns:Fire("LOGIN")
+end)
+
+---------------------------------------------------------------------------
+-- Slash commands
+---------------------------------------------------------------------------
+local HELP = {
+    "/ruin - open or close the RUIN window",
+    "/ruin status - print connection status",
+    "/ruin versions - list RUIN versions seen online",
+    "/ruin key import | export | send [name] | forget",
+    "/ruin key create <org name>  (guild master who runs the org)",
+    "/ruin key addguild <guild>, <officer rank>[, <tag>]  (org admin)",
+    "/ruin key removeguild <guild>  |  /ruin key rotate  (org admin)",
+    "/ruin bridge on|off - allow relaying for guildmates without RUIN",
+    "/ruin chatframe <n> - chat window number for RUIN lines",
+    "/ruin couch - toggle couch mode (larger window)",
+    "/ruin debug - toggle debug messages",
+}
+
+function ns:PrintStatus()
+    local k = ns.Org:Get()
+    if k then
+        ns:Print(("Org %s, key rev %d%s."):format(k.org, k.rev, ns.Org:IsAdmin() and " (you are admin)" or ""))
+    else
+        ns:Print("No org key loaded.")
+    end
+    ns:Print(("Guild: %s%s%s"):format(ns.guildName or "none",
+        ns.Org:MyGuildInOrg() and " (in org)" or " (not in org key)",
+        ns.Org:AmOfficer() and ", officer" or ""))
+    ns:Print(("Org channel: %s. Officer channel: %s."):format(
+        ns.Comms:IsJoined("ORG") and "connected" or "not connected",
+        ns.Comms:IsJoined("OFFICERS") and "connected" or "not connected"))
+    local bridge = ns.Presence:BridgeGUID()
+    ns:Print("Guild bridge: " .. (bridge and (bridge == ns.playerGUID and "you"
+        or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or "none"))
+    local members, guilds = ns.Presence:CountOnline()
+    ns:Print(("Online with RUIN: %d in %d guild(s). Version %s."):format(members, guilds, ns.VERSION))
+end
+
+local function handleKey(rest)
+    local sub, arg = rest:match("^(%S+)%s*(.*)$")
+    sub = sub and sub:lower() or ""
+    arg = ns.Trim(arg or "")
+    local Org = ns.Org
+
+    if sub == "import" then
+        ns.UI:PromptImport()
+    elseif sub == "export" then
+        ns.UI:ShowExport()
+    elseif sub == "send" then
+        if arg ~= "" then
+            local ok, err = Org:SendFullKey(arg)
+            ns:Print(ok and ("Offered the org key to " .. arg .. ".") or err)
+        else
+            ns.UI:SendKeyToTarget()
+        end
+    elseif sub == "create" then
+        local ok, err = Org:Create(arg ~= "" and arg or "RUIN")
+        ns:Print(ok and "Org key created. Add the other guilds with /ruin key addguild." or err)
+    elseif sub == "addguild" then
+        local name, rank, tag = ns.ParseGuildSpec(arg)
+        local ok, err = Org:AddGuild(name, rank, tag)
+        ns:Print(ok and ("Added " .. name .. " (officer rank " .. rank .. ").") or err)
+    elseif sub == "removeguild" then
+        local ok, err = Org:RemoveGuild(arg)
+        ns:Print(ok and ("Removed " .. arg .. ".") or err)
+    elseif sub == "rotate" then
+        ns.UI:PromptRotate()
+    elseif sub == "forget" then
+        Org:Forget()
+        ns:Print("Org key removed from this account.")
+    else
+        ns:Print("Key commands: import, export, send [name], create, addguild, removeguild, rotate, forget")
+    end
+end
+
+SLASH_RUIN1 = "/ruin"
+SlashCmdList.RUIN = function(input)
+    input = ns.Trim(input or "")
+    local cmd, rest = input:match("^(%S+)%s*(.*)$")
+    cmd = cmd and cmd:lower() or ""
+    rest = rest or ""
+
+    if cmd == "" or cmd == "show" then
+        RUIN_ToggleWindow()
+    elseif cmd == "status" then
+        ns:PrintStatus()
+    elseif cmd == "versions" then
+        ns.Presence:PrintVersions()
+    elseif cmd == "key" then
+        handleKey(rest)
+    elseif cmd == "bridge" then
+        local on = rest:lower() ~= "off"
+        ns.db.settings.allowBridge = on
+        ns:Print("Bridging " .. (on and "allowed." or "disabled."))
+        ns:Fire("SETTINGS_CHANGED")
+    elseif cmd == "chatframe" then
+        local n = tonumber(rest)
+        if n and _G["ChatFrame" .. n] then
+            ns.db.settings.chatFrame = n
+            ns:Print("RUIN lines now show in chat window " .. n .. ".")
+        else
+            ns:Print("Usage: /ruin chatframe <number>")
+        end
+    elseif cmd == "couch" then
+        ns.db.settings.couchMode = not ns.db.settings.couchMode
+        ns.UI:ApplyScale()
+        ns:Print("Couch mode " .. (ns.db.settings.couchMode and "on." or "off."))
+    elseif cmd == "debug" then
+        ns.db.settings.debug = not ns.db.settings.debug
+        ns:Print("Debug " .. (ns.db.settings.debug and "on." or "off."))
+    else
+        for _, line in ipairs(HELP) do ns:Print(line) end
+    end
+end

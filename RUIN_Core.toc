@@ -1,0 +1,21 @@
+## Interface: 16001
+## Title: |cffc41e3aRUIN|r Core
+## Notes: Hub for the RUIN addon suite: org-wide guild chat, cross-guild officer chat, presence and module sync.
+## Author: RUIN
+## Version: 0.3.0
+## SavedVariables: RUIN_DB
+## IconTexture: Interface\Icons\INV_Banner_03
+## AddonCompartmentFunc: RUIN_OnAddonCompartmentClick
+## X-Category: Guild
+
+Core.lua
+Util.lua
+Widgets.lua
+Theme.lua
+Map.lua
+Comms.lua
+OrgKey.lua
+Presence.lua
+Chat.lua
+Modules.lua
+UI.lua
