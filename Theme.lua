@@ -28,7 +28,7 @@ ns.THEMES = {
     Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     order = 60, tab = "Warfront",
                    title = "Warfront (retired)", kicker = APP, tagline = "Retired: use Overlord Forever and RUIN Muster" },
     Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 70, tab = "Intel",
-                   title = "Intel",              kicker = APP, tagline = "See something, say something" },
+                   title = "Intel (retired)",    kicker = APP, tagline = "Retired: sightings and timers moved to RUIN Muster" },
     Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 80, tab = "Exchange",
                    title = "Exchange",           kicker = APP, tagline = "Every member's market knowledge, pooled" },
     Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Settings",

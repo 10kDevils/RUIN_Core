@@ -6,6 +6,13 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.9 — 2026-10-19
+
+2 changes since 0.3.8:
+
+1. New `Module:ListenRaw(fullKind, handler)` and API level 5, so a module can keep understanding messages sent under a retired addon's name. RUIN Muster uses it for old RUIN Intel versions still in the org.
+2. RUIN Intel is retired (its sightings and timers moved to RUIN Muster), so it no longer has its own tab. The theme entry stays, labelled retired, for chat lines.
+
 ## 0.3.8 — 2026-10-19
 
 1. **Fixed: Overlord Forever showing as "not installed" when it is.** RUIN only looked for Overlord's /ov chat command, and a miss was remembered for 30 seconds. It now finds Overlord in the game's AddOns list (any addon with "Overlord" in its folder name or title) and checks whether it is loaded, so it no longer depends on when or how Overlord registers /ov. The Guild page and Muster now tell "installed but switched off" apart from "not installed". Open uses Overlord's /ov handler when it can find it, and otherwise sends "/ov show" like a typed command. New `/ruin overlord` prints what RUIN can see (AddOns list entry, loaded or not, /ov found or not).

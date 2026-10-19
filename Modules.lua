@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 4              -- modules check this to know which API they can use
+API.apiLevel = 5              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- and from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS)
@@ -44,6 +44,16 @@ function Module:Listen(kind, handler)
     end)
 end
 
+-- Listen for a message kind under its full name, e.g. "Intel:SPOT" (level 5).
+-- Lets a module keep understanding messages from a retired addon's old versions.
+function Module:ListenRaw(fullKind, handler)
+    local mod = self
+    ns.Comms:Register(fullKind, function(data, sender, scope)
+        local fn = type(handler) == "string" and mod[handler] or handler
+        if fn then fn(mod, data, sender, scope) end
+    end)
+end
+
 -- opts (level 4): { order = n, label = "Tab text" }; by default the tab's
 -- label and place come from the module's theme.
 function Module:AddTab(title, builder, opts)
@@ -57,7 +67,7 @@ function Module:OpenTab()
 end
 
 -- Module events, for other modules to react to (level 3). Another module
--- listens with RUIN_API:Subscribe("Intel:SPOT", fn); nothing is sent over
+-- listens with RUIN_API:Subscribe("Muster:SPOT", fn); nothing is sent over
 -- the network, so modules work alone and integrate when both are installed.
 function Module:Publish(event, ...)
     ns:Fire(self.name .. ":" .. event, ...)
@@ -176,7 +186,7 @@ function API:GetPlayerGUID() return ns.playerGUID end
 -- Events: "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "GUILD_CHANGED", "CHANNELS_CHANGED"
 function API:Subscribe(eventName, fn) ns:Subscribe(eventName, fn) end
 
--- Module events (see Module:Publish), e.g. "Intel:SPOT" or "Muster:EVENTS".
+-- Module events (see Module:Publish), e.g. "Muster:SPOT" or "Muster:EVENTS".
 function API:Publish(eventName, ...) ns:Fire(eventName, ...) end
 
 ---------------------------------------------------------------------------

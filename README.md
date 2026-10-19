@@ -1,10 +1,10 @@
 # RUIN Core: the RUIN Gaming Companion App
 
-The hub addon of the **RUIN Gaming Companion App** on WoW Forever (and Retail). It draws the RUIN window that every module lives in, holds the Guild page with RUIN's community links, links the guild chats of every RUIN guild, links their officer chats, shows who is online with RUIN across the org, and gives the RUIN addons (Codex, Pathfinder, Finder, Muster, Intel, Exchange) one shared way to talk to each other.
+The hub addon of the **RUIN Gaming Companion App** on WoW Forever (and Retail). It draws the RUIN window that every module lives in, holds the Guild page with RUIN's community links, links the guild chats of every RUIN guild, links their officer chats, shows who is online with RUIN across the org, and gives the RUIN addons (Codex, Pathfinder, Finder, Muster, Exchange) one shared way to talk to each other.
 
 ## The RUIN window
 
-Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top, named after each module and shown only when it is installed: **Codex** (Gear Path, journal, best-in-slot), **Pathfinder** (leveling and quest guide), **Guild**, **Finder**, **Muster**, **Intel**, **Exchange**, **Settings**. The title bar shows whether you're connected to RUIN and which game you're in.
+Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top, named after each module and shown only when it is installed: **Codex** (Gear Path, journal, best-in-slot), **Pathfinder** (leveling and quest guide), **Guild**, **Finder**, **Muster**, **Exchange**, **Settings**. The title bar shows whether you're connected to RUIN and which game you're in.
 
 - **Guild:** who's online in your guild (level, class, online / away / busy, and whether they run RUIN), RUIN members of the other guilds with their tag, the guild message of the day, RUIN's community links with Copy buttons, and Overlord Forever, which runs RUIN's world PvP (the page opens it with `/ov show` when it's installed; RUIN's old Warfront addon is retired).
 - **Settings:** the org key tools, chat and display options (couch mode for Steam Deck and TV), and what RUIN shares: only with RUIN members of your org, never outside the game.
