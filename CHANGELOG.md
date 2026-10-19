@@ -6,6 +6,18 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.7 — 2026-10-18
+
+7 changes since 0.3.0, bringing the suite in line with the RUIN Companion brief from the head of RUIN:
+
+1. The RUIN look: a new RUIN window in dark navy with steel-blue edges, the gold RUIN mark and "Guide · Gear · Quests · Guild" in the title bar, connection state, and page tabs across the top named after each module: Codex, Pathfinder, Guild, Finder, Muster, Intel, Exchange, Settings. Buttons, sub-tabs, lists, cards, dialogs, on-screen frames and page headers all use it, so every module changes with it. Chat lines start with a teal [RUIN].
+2. Guild page (replaces the Org page): who's online in your guild with level, class and status, RUIN members of the other guilds with their tag, the guild message of the day, and RUIN's community links with Copy buttons. RUIN's world PvP now runs on Overlord Forever: the page says whether it is installed and opens it (/ov show).
+3. Community links travel inside the org key: the org admin sets Discord, website, Twitch and the like (Settings → Community links, or /ruin key links) and every member gets them. Older RUIN versions carry the field along untouched.
+4. Settings page: the org key tools, chat and display options (couch mode included) and an About box that says what RUIN shares (only with RUIN, never outside the game).
+5. Retail and WoW Forever from one codebase: the TOC lists both interface numbers (16001 and 120105), and Core reports which game it runs in so data written for one game can stay out of the other. Each game keeps its own saved settings.
+6. Module API level 4: pills (Quick / Medium / Long and evidence tags), progress bars, the RUIN palette and one set of map-marker colors for the suite, tab label and order options, RUIN_API:GetClient(), RUIN_API:GetLinks(), and RUIN_API:HasOverlord() / OpenOverlord().
+7. The suite is now the **RUIN Gaming Companion App**: RUIN Core shows that name in the AddOns list and the window's title bar, every RUIN addon sits in one "RUIN Gaming Companion App" category on clients that group addons, and pages carry the app name above their title. RUIN Warfront is retired (see Muster 0.3.3).
+
 ## 0.3.0 — 2026-10-18
 
 - Suite release: every RUIN addon moves to 0.3.0 together, bringing everything from the 0.2.x entries below. No further code changes.

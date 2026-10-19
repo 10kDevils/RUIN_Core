@@ -1,12 +1,13 @@
-## Interface: 16001
-## Title: |cffc41e3aRUIN|r Core
-## Notes: Hub for the RUIN addon suite: org-wide guild chat, cross-guild officer chat, presence and module sync.
+## Interface: 16001, 120105
+## Title: |cffe6b862RUIN|r Gaming Companion App
+## Notes: RUIN Gaming Companion App (RUIN Core): the RUIN window, guild page and community links, org-wide guild and officer chat, and the modules' shared connection.
 ## Author: RUIN
-## Version: 0.3.0
+## Version: 0.3.7
 ## SavedVariables: RUIN_DB
 ## IconTexture: Interface\Icons\INV_Banner_03
 ## AddonCompartmentFunc: RUIN_OnAddonCompartmentClick
 ## X-Category: Guild
+## Category: RUIN Gaming Companion App
 
 Core.lua
 Util.lua

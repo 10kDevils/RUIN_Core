@@ -65,6 +65,7 @@ local function validKey(k)
     end
     if not validChannel(k.c) then return false end
     if k.oc ~= nil and not validChannel(k.oc) then return false end
+    if k.links ~= nil and type(k.links) ~= "table" then return false end
     return true
 end
 Org.ValidKey = validKey
@@ -216,6 +217,60 @@ function Org:Rotate()
     k.c, k.oc = newChannel(), newChannel()
     k.rev = k.rev + 1
     publishEdit(k, oldOC)
+    return true
+end
+
+---------------------------------------------------------------------------
+-- Community links (Discord, website, streams...) travel inside the org key,
+-- so every member gets them the same way they get the key. Old RUIN versions
+-- simply carry the extra field along.
+---------------------------------------------------------------------------
+local MAX_LINKS = 8
+
+function Org:GetLinks()
+    local k = Org:Get()
+    local out = {}
+    if not (k and type(k.links) == "table") then return out end
+    for _, l in ipairs(k.links) do
+        if #out >= MAX_LINKS then break end
+        if type(l) == "table" and type(l.l) == "string" and type(l.u) == "string" and l.l ~= "" and l.u ~= "" then
+            out[#out + 1] = { label = l.l:sub(1, 24), url = l.u:sub(1, 160) }
+        end
+    end
+    return out
+end
+
+-- "Discord = https://discord.gg/..." one per line.
+function Org.ParseLinks(text)
+    local list = {}
+    for line in tostring(text or ""):gmatch("[^\r\n]+") do
+        local label, url = line:match("^%s*(.-)%s*=%s*(%S+)%s*$")
+        if label and label ~= "" and url and #list < MAX_LINKS then
+            list[#list + 1] = { label = label, url = url }
+        end
+    end
+    return list
+end
+
+function Org.LinksText()
+    local lines = {}
+    for _, l in ipairs(Org:GetLinks()) do lines[#lines + 1] = l.label .. " = " .. l.url end
+    return table.concat(lines, "\n")
+end
+
+function Org:SetLinks(list)
+    local k, err = editableKey()
+    if not k then return false, err end
+    local clean = {}
+    for _, l in ipairs(list or {}) do
+        local label, url = ns.Trim(l.label or l.l or ""), ns.Trim(l.url or l.u or "")
+        if label ~= "" and url ~= "" and #clean < MAX_LINKS then
+            clean[#clean + 1] = { l = label:sub(1, 24), u = url:sub(1, 160) }
+        end
+    end
+    k.links = #clean > 0 and clean or nil
+    k.rev = k.rev + 1
+    publishEdit(k, k.oc and k.oc.n)
     return true
 end
 

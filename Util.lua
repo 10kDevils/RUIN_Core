@@ -5,6 +5,12 @@ local ADDON, ns = ...
 ---------------------------------------------------------------------------
 -- Strings and names
 ---------------------------------------------------------------------------
+-- Text from other players shown in the UI: "|" starts WoW escape codes, so
+-- double it to show it literally.
+function ns.Escape(s)
+    return (tostring(s or ""):gsub("|", "||"))
+end
+
 function ns.Trim(s)
     if type(s) ~= "string" then return "" end
     return (s:gsub("^%s+", ""):gsub("%s+$", ""))

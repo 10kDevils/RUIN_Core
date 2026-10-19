@@ -1,59 +1,91 @@
--- RUIN Core: window shell, Org tab and text dialogs
--- Modules add their own tabs through RUIN_API (Module:AddTab).
+-- RUIN Core: the RUIN window, the Guild and Settings pages, and text dialogs
+-- Modules add their own pages through RUIN_API (Module:AddTab).
+--
+-- The RUIN Gaming Companion App. The look follows the RUIN Companion brief:
+-- a dark navy window with thin steel-blue edges, the gold RUIN mark top left,
+-- page tabs across the top named after each module (Codex, Pathfinder,
+-- Guild, ... Settings) and teal for whatever is selected. Everything is drawn from plain textures, so no art can go missing.
 local ADDON, ns = ...
 
 local UI = {}
 ns.UI = UI
 
-local BACKDROP_TEMPLATE = BackdropTemplateMixin and "BackdropTemplate" or nil
-local BACKDROP = {
-    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 16,
-    insets = { left = 4, right = 4, top = 4, bottom = 4 },
-}
+local Wd = ns.Widgets
+local P = Wd.PALETTE
+local C = Wd.COLORS
 
-local GREEN, RED, YELLOW, GREY = "|cff40ff40", "|cffff6060", "|cffffd100", "|cff888888"
+local GREEN, RED, YELLOW, GREY = C.good, C.bad, C.warn, C.dim
 
-local tabs = {}         -- { title, builder, module, button, panel }
-local main, content, dialog
+local tabs = {}         -- { title, label, order, builder, module, button, panel }
+local main, content, dialog, tabStrip
 local selectedTab
-local org = {}          -- Org tab widgets
+local guild, settings = {}, {}   -- page widgets
+
+local MARK_ICON = "Interface\\Icons\\INV_Sword_39"
+local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
 
 local function styleBox(f)
-    if f.SetBackdrop then
-        f:SetBackdrop(BACKDROP)
-        f:SetBackdropColor(0.05, 0.05, 0.07, 0.96)
-        f:SetBackdropBorderColor(0.6, 0.1, 0.1, 1)
-    end
+    Wd.Skin(f, "bg", 0.97, "border")
 end
 
-local function makeButton(parent, text, width, onClick)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width or 130, 26)
-    b:SetText(text)
+local function sound(kit)
+    if PlaySound and SOUNDKIT and SOUNDKIT[kit] then pcall(PlaySound, SOUNDKIT[kit]) end
+end
+
+-- A small X drawn from two bars, for close buttons.
+local function closeButton(parent, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(22, 22)
+    Wd.Skin(b, "panel", 0.9, "border")
+    local bars = {}
+    for i, angle in ipairs({ 45, -45 }) do
+        local t = b:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1)
+        t:SetSize(12, 2)
+        t:SetPoint("CENTER")
+        t:SetRotation(math.rad(angle))
+        bars[i] = t
+    end
+    b:SetScript("OnEnter", function(self)
+        Wd.SetBorder(self, "glow")
+        for _, t in ipairs(bars) do t:SetColorTexture(1, 1, 1, 1) end
+    end)
+    b:SetScript("OnLeave", function(self)
+        Wd.SetBorder(self, "border")
+        for _, t in ipairs(bars) do t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1) end
+    end)
     b:SetScript("OnClick", onClick)
     return b
 end
 
-local function makeCheck(parent, label, getter, setter)
-    local c = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    c:SetSize(26, 26)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    fs:SetPoint("LEFT", c, "RIGHT", 2, 0)
-    fs:SetText(label)
-    c:SetScript("OnClick", function(self) setter(self:GetChecked() and true or false) end)
-    c.Refresh = function(self) self:SetChecked(getter() and true or false) end
-    return c
+-- The RUIN mark: a gold ring around a sword, then the wordmark.
+local function drawMark(parent, size)
+    local ring = parent:CreateTexture(nil, "ARTWORK")
+    ring:SetSize(size, size)
+    ring:SetColorTexture(P.gold[1], P.gold[2], P.gold[3], 1)
+    pcall(ring.SetMask, ring, ROUND_MASK)
+    local icon = parent:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(size - 4, size - 4)
+    icon:SetPoint("CENTER", ring, "CENTER", 0, 0)
+    icon:SetTexture(MARK_ICON)
+    pcall(icon.SetMask, icon, ROUND_MASK)
+    return ring
 end
 
 ---------------------------------------------------------------------------
 -- Generic text dialog (import, export, prompts)
 ---------------------------------------------------------------------------
+local function dialogTitle(d)
+    d.title = d:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    d.title:SetPoint("TOP", 0, -14)
+    d.title:SetTextColor(P.gold[1], P.gold[2], P.gold[3])
+end
+
 local function getDialog()
     if dialog then return dialog end
-    local d = CreateFrame("Frame", "RUIN_TextDialog", UIParent, BACKDROP_TEMPLATE)
-    d:SetSize(480, 230)
+    local d = CreateFrame("Frame", "RUIN_TextDialog", UIParent)
+    d:SetSize(500, 250)
     d:SetPoint("CENTER", 0, 80)
     d:SetFrameStrata("DIALOG")
     d:SetClampedToScreen(true)
@@ -65,21 +97,26 @@ local function getDialog()
     d:SetScript("OnDragStop", d.StopMovingOrSizing)
     d:Hide()
 
-    d.title = d:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    d.title:SetPoint("TOP", 0, -14)
+    dialogTitle(d)
     d.hint = d:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     d.hint:SetPoint("TOPLEFT", 18, -40)
     d.hint:SetPoint("TOPRIGHT", -18, -40)
     d.hint:SetJustifyH("LEFT")
+    d.hint:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
+
+    local inset = CreateFrame("Frame", nil, d)
+    inset:SetPoint("TOPLEFT", 14, -76)
+    inset:SetPoint("BOTTOMRIGHT", -14, 50)
+    Wd.Skin(inset, "panel", 1, "border")
 
     local sf = CreateFrame("ScrollFrame", nil, d, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 18, -72)
-    sf:SetPoint("BOTTOMRIGHT", -38, 50)
+    sf:SetPoint("TOPLEFT", 20, -82)
+    sf:SetPoint("BOTTOMRIGHT", -38, 56)
     local eb = CreateFrame("EditBox", nil, sf)
     eb:SetMultiLine(true)
     eb:SetAutoFocus(false)
     eb:SetFontObject(ChatFontNormal)
-    eb:SetWidth(410)
+    eb:SetWidth(420)
     eb:SetHeight(100)
     eb:SetMaxLetters(0)
     eb:SetScript("OnEscapePressed", function() d:Hide() end)
@@ -88,13 +125,13 @@ local function getDialog()
     sf:SetScript("OnMouseDown", function() eb:SetFocus() end)
     d.edit = eb
 
-    local ok = makeButton(d, OKAY or "OK", 110, function()
+    local ok = Wd.Button(d, OKAY or "OK", 110, function()
         local cb, text = d.onAccept, eb:GetText()
         d:Hide()
         if cb then cb(text) end
     end)
     ok:SetPoint("BOTTOMRIGHT", d, "BOTTOM", -6, 16)
-    local cancel = makeButton(d, CANCEL or "Cancel", 110, function() d:Hide() end)
+    local cancel = Wd.Button(d, CANCEL or "Cancel", 110, function() d:Hide() end)
     cancel:SetPoint("BOTTOMLEFT", d, "BOTTOM", 6, 16)
 
     tinsert(UISpecialFrames, "RUIN_TextDialog")
@@ -120,27 +157,26 @@ end
 local confirm
 local function getConfirm()
     if confirm then return confirm end
-    local d = CreateFrame("Frame", "RUIN_ConfirmDialog", UIParent, BACKDROP_TEMPLATE)
-    d:SetSize(420, 170)
+    local d = CreateFrame("Frame", "RUIN_ConfirmDialog", UIParent)
+    d:SetSize(430, 170)
     d:SetPoint("TOP", 0, -160)
     d:SetFrameStrata("DIALOG")
     d:SetClampedToScreen(true)
     styleBox(d)
     d:EnableMouse(true)
     d:Hide()
-    d.title = d:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    d.title:SetPoint("TOP", 0, -14)
+    dialogTitle(d)
     d.text = d:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     d.text:SetPoint("TOPLEFT", 18, -42)
     d.text:SetPoint("TOPRIGHT", -18, -42)
     d.text:SetJustifyH("LEFT")
-    local yes = makeButton(d, ACCEPT or "Accept", 120, function()
+    local yes = Wd.Button(d, ACCEPT or "Accept", 120, function()
         local cb = d.onAccept
         d:Hide()
         if cb then cb() end
     end)
     yes:SetPoint("BOTTOMRIGHT", d, "BOTTOM", -6, 16)
-    local no = makeButton(d, DECLINE or "Decline", 120, function() d:Hide() end)
+    local no = Wd.Button(d, DECLINE or "Decline", 120, function() d:Hide() end)
     no:SetPoint("BOTTOMLEFT", d, "BOTTOM", 6, 16)
     tinsert(UISpecialFrames, "RUIN_ConfirmDialog")
     confirm = d
@@ -228,181 +264,461 @@ function UI:PromptRotate()
     end)
 end
 
----------------------------------------------------------------------------
--- Org tab
----------------------------------------------------------------------------
-local function buildOrgPanel(p)
-    org.status = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    org.status:SetPoint("TOPLEFT", 4, -2)
-    org.status:SetWidth(540)
-    org.status:SetJustifyH("LEFT")
-    org.status:SetJustifyV("TOP")
-    if org.status.SetSpacing then org.status:SetSpacing(3) end
-
-    org.import = makeButton(p, "Import key", 130, function() UI:PromptImport() end)
-    org.import:SetPoint("TOPLEFT", 0, -130)
-    org.export = makeButton(p, "Export key", 130, function() UI:ShowExport() end)
-    org.export:SetPoint("LEFT", org.import, "RIGHT", 6, 0)
-    org.send = makeButton(p, "Send key to target", 170, function() UI:SendKeyToTarget() end)
-    org.send:SetPoint("LEFT", org.export, "RIGHT", 6, 0)
-
-    org.create = makeButton(p, "Create org key", 130, function() UI:PromptCreate() end)
-    org.create:SetPoint("TOPLEFT", org.import, "BOTTOMLEFT", 0, -6)
-    org.addGuild = makeButton(p, "Add guild", 130, function() UI:PromptAddGuild() end)
-    org.addGuild:SetPoint("LEFT", org.create, "RIGHT", 6, 0)
-    org.rotate = makeButton(p, "Rotate key", 170, function() UI:PromptRotate() end)
-    org.rotate:SetPoint("LEFT", org.addGuild, "RIGHT", 6, 0)
-
-    local s = function() return ns.db.settings end
-    org.checks = {
-        makeCheck(p, "Show other guilds' chat", function() return s().showOrgChat end,
-            function(v) s().showOrgChat = v end),
-        makeCheck(p, "Show other guilds' officer chat", function() return s().showOfficerChat end,
-            function(v) s().showOfficerChat = v end),
-        makeCheck(p, "Relay for guildmates without RUIN", function() return s().allowBridge end,
-            function(v) s().allowBridge = v; ns:Fire("SETTINGS_CHANGED") end),
-        makeCheck(p, "Couch mode (larger window)", function() return s().couchMode end,
-            function(v) s().couchMode = v; UI:ApplyScale() end),
-        makeCheck(p, "Animated page headers", function() return s().animations end,
-            function(v) s().animations = v end),
-    }
-    org.checks[1]:SetPoint("TOPLEFT", org.create, "BOTTOMLEFT", -4, -10)
-    org.checks[2]:SetPoint("TOPLEFT", org.checks[1], "BOTTOMLEFT", 0, -2)
-    org.checks[3]:SetPoint("TOPLEFT", org.checks[1], "TOPLEFT", 280, 0)
-    org.checks[4]:SetPoint("TOPLEFT", org.checks[3], "BOTTOMLEFT", 0, -2)
-    org.checks[5]:SetPoint("TOPLEFT", org.checks[2], "BOTTOMLEFT", 0, -2)
-
-    local header = ns.Widgets.Header(p, "Online with RUIN")
-    header:SetPoint("TOPLEFT", org.checks[5], "BOTTOMLEFT", 4, -12)
-
-    local sf = CreateFrame("ScrollFrame", nil, p, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
-    sf:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -26, 0)
-    org.listChild = CreateFrame("Frame", nil, sf)
-    org.listChild:SetSize(500, 10)
-    sf:SetScrollChild(org.listChild)
-    org.list = org.listChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    org.list:SetPoint("TOPLEFT")
-    org.list:SetWidth(500)
-    org.list:SetJustifyH("LEFT")
-    org.list:SetJustifyV("TOP")
-
-    UI:Refresh()
+function UI:PromptLinks()
+    if not ns.Org:IsAdmin() then
+        ns:Print("Only the org admin sets the community links. They reach everyone with the org key.")
+        return
+    end
+    UI:ShowText("RUIN community links", "One link per line as  Name = address  (up to 8). Example:\nDiscord = https://discord.gg/yourcode     Keep donation links (Patreon) on the website: Blizzard's add-on rules forbid them in game.",
+        ns.Org.LinksText(), function(text)
+            local ok, err = ns.Org:SetLinks(ns.Org.ParseLinks(text))
+            ns:Print(ok and "Community links updated for the whole org." or err)
+        end)
 end
 
-local function classColored(name, class)
-    local color = class and ((C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(class))
-        or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]))
-    local short = ns.ShortName(name)
-    if color and color.WrapTextInColorCode then return color:WrapTextInColorCode(short) end
-    return short
+function UI:CopyLink(label, url)
+    UI:ShowText(label, "Press Ctrl+C to copy, then paste it into your browser or Discord.", url, nil, true)
 end
 
-local function channelState(scope)
+---------------------------------------------------------------------------
+-- Overlord Forever: RUIN works beside it rather than duplicating its
+-- campaign. Find its /ov command if it is installed.
+---------------------------------------------------------------------------
+local overlordFn, overlordCheckedAt
+function UI:FindOverlord()
+    if overlordFn then return overlordFn end
+    -- not found: look again at most every 30 seconds (it may load later)
+    if overlordCheckedAt and GetTime() - overlordCheckedAt < 30 then return nil end
+    overlordCheckedAt = GetTime()
+    if type(SlashCmdList) ~= "table" then return nil end
+    for key, fn in pairs(SlashCmdList) do
+        local i = 1
+        while true do
+            local cmd = _G["SLASH_" .. key .. i]
+            if type(cmd) ~= "string" then break end
+            if cmd:lower() == "/ov" or cmd:lower() == "/overlord" then overlordFn = fn; return fn end
+            i = i + 1
+        end
+    end
+    return nil
+end
+
+function UI:OpenOverlord()
+    local fn = UI:FindOverlord()
+    if not fn then return ns:Print("Overlord Forever isn't installed or loaded.") end
+    if InCombatLockdown and InCombatLockdown() then return ns:Print("Open Overlord after combat.") end
+    local ok, err = pcall(fn, "show")
+    if not ok then ns:Debug("Overlord /ov show failed: " .. tostring(err)) end
+end
+
+---------------------------------------------------------------------------
+-- Guild page: who's online, the message of the day, community links
+---------------------------------------------------------------------------
+local STATUS = { [0] = { "Online", "good" }, [1] = { "Away", "warn" }, [2] = { "Busy", "bad" } }
+
+local function className(class, fallback)
+    if fallback and fallback ~= "" then return fallback end
+    local names = LOCALIZED_CLASS_NAMES_MALE
+    if names and class and names[class] then return names[class] end
+    return class and (class:sub(1, 1) .. class:sub(2):lower()) or ""
+end
+
+-- Online guildmates (with or without RUIN) plus RUIN members of the other guilds.
+function UI:GuildRows()
+    local rows, ruin = {}, {}
+    for _, p in ipairs(ns.Presence:GetOnlineList()) do
+        if p.guid then ruin[p.guid] = p end
+    end
+    local inGuild, total = 0, 0
+    for _, e in pairs(ns.roster or {}) do
+        total = total + 1
+        if e.online then
+            inGuild = inGuild + 1
+            rows[#rows + 1] = { name = e.name, class = e.class, className = e.className, level = e.level,
+                                zone = e.zone, status = tonumber(e.status) or 0, own = true,
+                                ruin = e.guid and ruin[e.guid] ~= nil }
+        end
+    end
+    local tags = {}
+    local k = ns.Org:Get()
+    for name, g in pairs(k and k.guilds or {}) do tags[name] = g.tag end
+    local others = 0
+    for _, p in pairs(ruin) do
+        if p.guild and p.guild ~= ns.guildName then
+            others = others + 1
+            rows[#rows + 1] = { name = p.name, class = p.class, level = p.level, status = 0, ruin = true,
+                                guild = p.guild, tag = tags[p.guild] or p.guild }
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.own ~= b.own then return a.own == true end
+        if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) > (b.level or 0) end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    local ruinCount = 0
+    for _ in pairs(ruin) do ruinCount = ruinCount + 1 end
+    return rows, { online = inGuild, total = total, others = others, ruin = ruinCount }
+end
+
+local function channelDot(scope)
     if ns.Comms:IsJoined(scope) then return GREEN .. "connected|r" end
     if ns.Comms:HasChannel(scope) then return YELLOW .. "joining|r" end
     return GREY .. "off|r"
+end
+
+local function buildGuildPanel(p)
+    guild.page = p
+    guild.orgLine = Wd.Label(p, "", "GameFontHighlightSmall")
+    guild.orgLine:SetPoint("TOPLEFT", 2, 0)
+    guild.orgLine:SetPoint("RIGHT", p, "RIGHT", -2, 0)
+    guild.orgLine:SetWordWrap(false)
+
+    -- Left: who's online
+    local left = Wd.Card(p)
+    left:SetPoint("TOPLEFT", 0, -20)
+    left:SetPoint("BOTTOMLEFT", 0, 0)
+    left:SetWidth(392)
+    guild.rosterHeader = Wd.Header(left, "Guild online")
+    guild.rosterHeader:SetPoint("TOPLEFT", 10, -8)
+    guild.rosterCount = Wd.Label(left, "", "GameFontHighlightSmall")
+    guild.rosterCount:SetPoint("LEFT", guild.rosterHeader, "RIGHT", 8, 0)
+    guild.rosterCount:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
+    guild.roster = Wd.List(left, 24, function(row)
+        row.icon = Wd.Label(row, "")
+        row.icon:SetPoint("LEFT", 4, 0)
+        row.name = Wd.Label(row, "")
+        row.name:SetPoint("LEFT", 26, 0)
+        row.name:SetWidth(118)
+        row.name:SetWordWrap(false)
+        row.level = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.level:SetPoint("LEFT", 146, 0)
+        row.level:SetWidth(24)
+        row.class = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.class:SetPoint("LEFT", 172, 0)
+        row.class:SetWidth(66)
+        row.class:SetWordWrap(false)
+        row.state = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.state:SetPoint("LEFT", 240, 0)
+        row.state:SetWidth(54)
+        row.badge = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.badge:SetPoint("RIGHT", -6, 0)
+    end, function(row, r)
+        row.icon:SetText(Wd.ClassIcon(r.class, 16))
+        row.name:SetText(Wd.ClassName(r.name, r.class))
+        row.level:SetText(r.level and tostring(r.level) or "")
+        row.class:SetText(GREY .. className(r.class, r.className) .. "|r")
+        local st = STATUS[r.status or 0] or STATUS[0]
+        row.state:SetText(Wd.Hex(st[2]) .. st[1] .. "|r")
+        if r.tag then
+            row.badge:SetText(C.gold .. "[" .. ns.Escape(r.tag) .. "]|r")
+        else
+            row.badge:SetText(r.ruin and (C.accent .. "RUIN|r") or "")
+        end
+        row.tip = function(tt)
+            tt:AddLine(ns.Escape(ns.ShortName(r.name)))
+            if r.zone and r.zone ~= "" then tt:AddLine(r.zone, 0.8, 0.8, 0.8) end
+            tt:AddLine(r.guild and ("RUIN · " .. ns.Escape(r.guild)) or (r.ruin and "Runs RUIN" or "Not running RUIN yet"), 0.6, 0.7, 0.8)
+        end
+    end)
+    guild.roster:SetEmptyText("Nobody online yet.")
+    guild.roster.frame:SetPoint("TOPLEFT", left, "TOPLEFT", 6, -30)
+    guild.roster.frame:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -26, 24)
+    local together = Wd.Label(left, "Because great games are better together.", "GameFontHighlightSmall")
+    together:SetPoint("BOTTOM", left, "BOTTOM", 0, 7)
+    together:SetTextColor(P.glow[1], P.glow[2], P.glow[3])
+
+    -- Right column
+    local motd = Wd.Card(p)
+    motd:SetPoint("TOPLEFT", left, "TOPRIGHT", 10, 0)
+    motd:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    motd:SetHeight(112)
+    local mh = Wd.Header(motd, "Guild message of the day")
+    mh:SetPoint("TOPLEFT", 10, -8)
+    guild.motd = Wd.Label(motd, "", "GameFontHighlightSmall")
+    guild.motd:SetPoint("TOPLEFT", 12, -30)
+    guild.motd:SetPoint("RIGHT", motd, "RIGHT", -12, 0)
+    guild.motd:SetJustifyV("TOP")
+    guild.motd:SetHeight(58)
+    if guild.motd.SetSpacing then guild.motd:SetSpacing(2) end
+    local sig = Wd.Label(motd, "- Leadership", "GameFontHighlightSmall")
+    sig:SetPoint("BOTTOMRIGHT", -12, 8)
+    sig:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
+
+    local links = Wd.Card(p)
+    links:SetPoint("TOPLEFT", motd, "BOTTOMLEFT", 0, -10)
+    links:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    links:SetHeight(196)
+    local lh = Wd.Header(links, "RUIN community links")
+    lh:SetPoint("TOPLEFT", 10, -8)
+    guild.editLinks = Wd.Button(links, "Edit", 56, function() UI:PromptLinks() end)
+    guild.editLinks:SetPoint("TOPRIGHT", -8, -6)
+    guild.linkRows = {}
+    for i = 1, 6 do
+        local row = CreateFrame("Frame", nil, links)
+        row:SetHeight(24)
+        row:SetPoint("TOPLEFT", 10, -30 - (i - 1) * 26)
+        row:SetPoint("RIGHT", links, "RIGHT", -10, 0)
+        row.dot = row:CreateTexture(nil, "ARTWORK")
+        row.dot:SetSize(8, 8)
+        row.dot:SetPoint("LEFT", 2, 0)
+        row.dot:SetColorTexture(P.glow[1], P.glow[2], P.glow[3], 1)
+        row.dot:SetRotation(math.pi / 4)
+        row.label = Wd.Label(row, "")
+        row.label:SetPoint("LEFT", 18, 0)
+        row.label:SetWidth(110)
+        row.label:SetWordWrap(false)
+        row.url = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.url:SetPoint("LEFT", 130, 0)
+        row.url:SetPoint("RIGHT", row, "RIGHT", -60, 0)
+        row.url:SetWordWrap(false)
+        row.url:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
+        row.copy = Wd.Button(row, "Copy", 52)
+        row.copy:SetPoint("RIGHT", 0, 0)
+        row:Hide()
+        guild.linkRows[i] = row
+    end
+    guild.linksEmpty = Wd.Label(links, "", "GameFontDisableSmall")
+    guild.linksEmpty:SetPoint("TOPLEFT", 12, -34)
+    guild.linksEmpty:SetPoint("RIGHT", links, "RIGHT", -12, 0)
+
+    local ov = Wd.Card(p)
+    ov:SetPoint("TOPLEFT", links, "BOTTOMLEFT", 0, -10)
+    ov:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    ov:SetHeight(70)
+    local oh = Wd.Header(ov, "Overlord Forever")
+    oh:SetPoint("TOPLEFT", 10, -8)
+    guild.ovText = Wd.Label(ov, "", "GameFontHighlightSmall")
+    guild.ovText:SetPoint("TOPLEFT", 12, -30)
+    guild.ovText:SetPoint("RIGHT", ov, "RIGHT", -110, 0)
+    guild.ovText:SetJustifyV("TOP")
+    guild.ovButton = Wd.Button(ov, "Open  /ov show", 96, function() UI:OpenOverlord() end)
+    guild.ovButton:SetPoint("TOPRIGHT", -8, -28)
+
+    local unites = p:CreateFontString(nil, "OVERLAY")
+    unites:SetFontObject(GameFontNormal)
+    unites:SetFont(TITLE_FONT, 16, "")
+    unites:SetTextColor(P.gold[1], P.gold[2], P.gold[3])
+    unites:SetText("RUIN unites us")
+    unites:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 2)
+
+    p:SetScript("OnShow", function() UI:Refresh() end)
+    UI:Refresh()
+end
+
+local function refreshGuild()
+    if not (guild.page and guild.page:IsVisible()) then return end
+    local k = ns.Org:Get()
+    local parts = {}
+    if k then
+        local n = 0
+        for _ in pairs(k.guilds) do n = n + 1 end
+        parts[#parts + 1] = C.gold .. ns.Escape(k.org) .. "|r"
+        parts[#parts + 1] = ("%d guild%s"):format(n, n == 1 and "" or "s")
+        parts[#parts + 1] = "Org chat " .. channelDot("ORG")
+        if ns.Org:AmOfficer() then parts[#parts + 1] = "Officer chat " .. channelDot("OFFICERS") end
+    else
+        parts[#parts + 1] = RED .. "No org key yet.|r An officer shares it automatically, or import it under Settings."
+    end
+    guild.orgLine:SetText(table.concat(parts, GREY .. "   ·   |r"))
+
+    local rows, counts = UI:GuildRows()
+    guild.rosterCount:SetText(ns.guildName and ("%d/%d in %s  ·  %d with RUIN"):format(counts.online, counts.total,
+        ns.Escape(ns.guildName), counts.ruin) or "")
+    guild.roster:SetItems(rows)
+
+    local text = GetGuildRosterMOTD and GetGuildRosterMOTD() or ""
+    guild.motd:SetText((text and text ~= "") and ns.Escape(text) or (GREY .. "No message of the day.|r"))
+
+    local list = ns.Org:GetLinks()
+    for i, row in ipairs(guild.linkRows) do
+        local l = list[i]
+        if l then
+            row.label:SetText(ns.Escape(l.label))
+            row.url:SetText(ns.Escape(l.url))
+            row.copy:SetScript("OnClick", function() UI:CopyLink(l.label, l.url) end)
+            row:Show()
+        else
+            row:Hide()
+        end
+    end
+    guild.linksEmpty:SetText(#list == 0 and "No links yet. The org admin adds Discord, the website and streams with Edit (or /ruin key links)." or "")
+    guild.editLinks:SetShown(ns.Org:IsAdmin())
+
+    if UI:FindOverlord() then
+        guild.ovText:SetText("Installed. RUIN's world PvP runs on Overlord: its campaign, keeps, captures and Most Wanted. RUIN Muster adds org rallies and bounties.")
+        guild.ovButton:Show()
+    else
+        guild.ovText:SetText(GREY .. "Not installed. RUIN uses Overlord Forever for world PvP (campaign, keeps, Most Wanted); get it on CurseForge.|r")
+        guild.ovButton:Hide()
+    end
+end
+
+---------------------------------------------------------------------------
+-- Settings page: the org key, display options, about
+---------------------------------------------------------------------------
+local function buildSettingsPanel(p)
+    settings.page = p
+    local keyCard = Wd.Card(p)
+    keyCard:SetPoint("TOPLEFT", 0, 0)
+    keyCard:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    keyCard:SetHeight(176)
+    local kh = Wd.Header(keyCard, "Org key")
+    kh:SetPoint("TOPLEFT", 10, -8)
+    settings.status = Wd.Label(keyCard, "", "GameFontHighlightSmall")
+    settings.status:SetPoint("TOPLEFT", 12, -30)
+    settings.status:SetPoint("RIGHT", keyCard, "RIGHT", -12, 0)
+    settings.status:SetJustifyV("TOP")
+    if settings.status.SetSpacing then settings.status:SetSpacing(3) end
+
+    settings.import = Wd.Button(keyCard, "Import key", 130, function() UI:PromptImport() end)
+    settings.import:SetPoint("BOTTOMLEFT", 10, 40)
+    settings.export = Wd.Button(keyCard, "Export key", 130, function() UI:ShowExport() end)
+    settings.export:SetPoint("LEFT", settings.import, "RIGHT", 6, 0)
+    settings.send = Wd.Button(keyCard, "Send key to target", 170, function() UI:SendKeyToTarget() end)
+    settings.send:SetPoint("LEFT", settings.export, "RIGHT", 6, 0)
+    settings.create = Wd.Button(keyCard, "Create org key", 130, function() UI:PromptCreate() end)
+    settings.create:SetPoint("TOPLEFT", settings.import, "BOTTOMLEFT", 0, -6)
+    settings.addGuild = Wd.Button(keyCard, "Add guild", 130, function() UI:PromptAddGuild() end)
+    settings.addGuild:SetPoint("LEFT", settings.create, "RIGHT", 6, 0)
+    settings.rotate = Wd.Button(keyCard, "Rotate key", 170, function() UI:PromptRotate() end)
+    settings.rotate:SetPoint("LEFT", settings.addGuild, "RIGHT", 6, 0)
+    settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
+    settings.links:SetPoint("LEFT", settings.rotate, "RIGHT", 6, 0)
+
+    local disp = Wd.Card(p)
+    disp:SetPoint("TOPLEFT", keyCard, "BOTTOMLEFT", 0, -10)
+    disp:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    disp:SetHeight(108)
+    local dh = Wd.Header(disp, "Chat and display")
+    dh:SetPoint("TOPLEFT", 10, -8)
+    local s = function() return ns.db.settings end
+    settings.checks = {
+        Wd.Check(disp, "Show other guilds' chat", function() return s().showOrgChat end,
+            function(v) s().showOrgChat = v end),
+        Wd.Check(disp, "Show other guilds' officer chat", function() return s().showOfficerChat end,
+            function(v) s().showOfficerChat = v end),
+        Wd.Check(disp, "Relay for guildmates without RUIN", function() return s().allowBridge end,
+            function(v) s().allowBridge = v; ns:Fire("SETTINGS_CHANGED") end),
+        Wd.Check(disp, "Couch mode (larger window, for Steam Deck and TV)", function() return s().couchMode end,
+            function(v) s().couchMode = v; UI:ApplyScale() end),
+        Wd.Check(disp, "Animated page headers", function() return s().animations end,
+            function(v) s().animations = v end),
+    }
+    settings.checks[1]:SetPoint("TOPLEFT", 8, -28)
+    settings.checks[2]:SetPoint("TOPLEFT", settings.checks[1], "BOTTOMLEFT", 0, -2)
+    settings.checks[5]:SetPoint("TOPLEFT", settings.checks[2], "BOTTOMLEFT", 0, -2)
+    settings.checks[3]:SetPoint("TOPLEFT", settings.checks[1], "TOPLEFT", 330, 0)
+    settings.checks[4]:SetPoint("TOPLEFT", settings.checks[3], "BOTTOMLEFT", 0, -2)
+
+    local about = Wd.Card(p)
+    about:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
+    about:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+    local ah = Wd.Header(about, "About RUIN")
+    ah:SetPoint("TOPLEFT", 10, -8)
+    settings.about = Wd.Label(about, "", "GameFontHighlightSmall")
+    settings.about:SetPoint("TOPLEFT", 12, -30)
+    settings.about:SetPoint("RIGHT", about, "RIGHT", -12, 0)
+    settings.about:SetJustifyV("TOP")
+    if settings.about.SetSpacing then settings.about:SetSpacing(3) end
+
+    p:SetScript("OnShow", function() UI:Refresh() end)
+    UI:Refresh()
 end
 
 local function setEnabled(button, on)
     if on then button:Enable() else button:Disable() end
 end
 
-function UI:Refresh()
-    if not main or not main:IsShown() then return end
+local function refreshSettings()
+    if not (settings.page and settings.page:IsVisible()) then return end
     local k = ns.Org:Get()
-
-    if org.status then
-        local lines = {}
-        if k then
-            lines[#lines + 1] = ("Org: |cffffffff%s|r   key rev %d%s"):format(k.org, k.rev,
-                ns.Org:IsAdmin() and "   (you are the org admin)" or "")
-        else
-            lines[#lines + 1] = RED .. "No org key yet.|r An officer shares it automatically, or use Import key."
-        end
-        if ns.guildName then
-            lines[#lines + 1] = ("Guild: |cffffffff%s|r   %s%s"):format(ns.guildName,
-                ns.Org:MyGuildInOrg() and (GREEN .. "in org|r") or (RED .. "not in org key|r"),
-                ns.Org:AmOfficer() and "   (officer)" or "")
-        else
-            lines[#lines + 1] = RED .. "You are not in a guild.|r"
-        end
-        lines[#lines + 1] = ("Org channel: %s     Officer channel: %s"):format(channelState("ORG"), channelState("OFFICERS"))
-        local bridge = ns.Presence:BridgeGUID()
-        lines[#lines + 1] = "Guild bridge: " .. (bridge and (bridge == ns.playerGUID and "you"
-            or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or GREY .. "none|r")
-        local members, guilds = ns.Presence:CountOnline()
-        lines[#lines + 1] = ("Online with RUIN: %d in %d guild(s)     Version %s"):format(members, guilds, ns.VERSION)
-        local mods = {}
-        for _, m in ipairs(RUIN_API:GetModules()) do mods[#mods + 1] = m.name .. " " .. tostring(m.version or "") end
-        lines[#lines + 1] = "Modules: " .. (#mods > 0 and table.concat(mods, ", ") or (GREY .. "none installed|r"))
-        org.status:SetText(table.concat(lines, "\n"))
-
-        local admin = ns.Org:IsAdmin()
-        setEnabled(org.export, k ~= nil)
-        setEnabled(org.send, k ~= nil and (admin or (k.oc ~= nil and ns.Org:AmOfficer())))
-        setEnabled(org.create, k == nil)
-        setEnabled(org.addGuild, admin)
-        setEnabled(org.rotate, admin)
-        for _, c in ipairs(org.checks) do c:Refresh() end
-
-        -- Online list grouped by guild
-        local byGuild, order = {}, {}
-        for _, r in ipairs(ns.Presence:GetOnlineList()) do
-            local g = r.guild or "?"
-            if not byGuild[g] then byGuild[g] = {}; order[#order + 1] = g end
-            table.insert(byGuild[g], r)
-        end
-        table.sort(order)
-        local out = {}
-        for _, g in ipairs(order) do
-            out[#out + 1] = YELLOW .. g .. "|r"
-            table.sort(byGuild[g], function(a, b) return tostring(a.name) < tostring(b.name) end)
-            for _, r in ipairs(byGuild[g]) do
-                out[#out + 1] = ("    %s   %s%s  v%s|r"):format(classColored(r.name, r.class), GREY,
-                    r.level and ("level " .. r.level) or "", r.version or "?")
-            end
-        end
-        org.list:SetText(#out > 0 and table.concat(out, "\n") or (GREY .. "Nobody online yet.|r"))
-        org.listChild:SetHeight(math.max(10, (org.list:GetStringHeight() or 0) + 4))
+    local lines = {}
+    if k then
+        lines[#lines + 1] = ("Org: |cffffffff%s|r   key rev %d%s"):format(ns.Escape(k.org), k.rev,
+            ns.Org:IsAdmin() and ("   " .. C.gold .. "you are the org admin|r") or "")
+    else
+        lines[#lines + 1] = RED .. "No org key yet.|r An officer shares it automatically, or use Import key."
     end
+    if ns.guildName then
+        lines[#lines + 1] = ("Guild: |cffffffff%s|r   %s%s"):format(ns.Escape(ns.guildName),
+            ns.Org:MyGuildInOrg() and (GREEN .. "in org|r") or (RED .. "not in org key|r"),
+            ns.Org:AmOfficer() and "   (officer)" or "")
+    else
+        lines[#lines + 1] = RED .. "You are not in a guild.|r"
+    end
+    lines[#lines + 1] = ("Org channel: %s     Officer channel: %s"):format(channelDot("ORG"), channelDot("OFFICERS"))
+    local bridge = ns.Presence:BridgeGUID()
+    lines[#lines + 1] = "Guild bridge: " .. (bridge and (bridge == ns.playerGUID and "you"
+        or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or GREY .. "none|r")
+    settings.status:SetText(table.concat(lines, "\n"))
+
+    local admin = ns.Org:IsAdmin()
+    setEnabled(settings.export, k ~= nil)
+    setEnabled(settings.send, k ~= nil and (admin or (k.oc ~= nil and ns.Org:AmOfficer())))
+    setEnabled(settings.create, k == nil)
+    setEnabled(settings.addGuild, admin)
+    setEnabled(settings.rotate, admin)
+    setEnabled(settings.links, admin)
+    for _, c in ipairs(settings.checks) do c:Refresh() end
+
+    local mods = {}
+    for _, m in ipairs(RUIN_API:GetModules()) do mods[#mods + 1] = m.name .. " " .. tostring(m.version or "") end
+    local members, guilds = ns.Presence:CountOnline()
+    settings.about:SetText(table.concat({
+        ("%s, RUIN Core %s, on %s.   Online with RUIN: %d in %d guild(s)."):format(ns.APP_NAME or "RUIN Gaming Companion App", ns.VERSION, ns.CLIENT_NAME, members, guilds),
+        "Modules: " .. (#mods > 0 and table.concat(mods, ", ") or (GREY .. "none installed|r")),
+        GREY .. "RUIN shares only with RUIN members of your org, never outside the game. No ads.|r",
+        GREY .. "Commands: /ruin help.  Key binding: Key Bindings > AddOns > RUIN.|r",
+    }, "\n"))
 end
 
 ---------------------------------------------------------------------------
--- The window: Blizzard's own portrait window (ButtonFrameTemplate) with tabs
--- along the bottom, like the Character and Collections windows. If this
--- client lacks the template, a plain RUIN frame is used instead.
+-- The window
 ---------------------------------------------------------------------------
-local Wd = ns.Widgets
-local WINDOW_W, WINDOW_H = 724, 640
-
-local function sound(kit)
-    if PlaySound and SOUNDKIT and SOUNDKIT[kit] then pcall(PlaySound, SOUNDKIT[kit]) end
-end
+local WINDOW_W, WINDOW_H = 780, 660
+local TITLE_H, TAB_H, TAB_GAP = 50, 26, 4
 
 local function themeForTab(t)
     if t.module then return ns.ThemeFor(t.module.name, t.module) end
     return ns.ThemeFor(t.title)
 end
 
--- Window title and portrait follow the open page.
-local function setWindowChrome(t)
+-- Tabs show the job ("Gear Path", "Leveling") and sort the way the brief
+-- lays them out; Settings is always last.
+local function tabLabel(t)
     local theme = themeForTab(t)
-    -- "RUIN - Finder" for modules; the Org page's own title already says RUIN.
-    local name = theme.title or t.title
-    local title = name:find("^RUIN") and name or ("RUIN  -  " .. name)
-    if main.SetTitle then
-        main:SetTitle(title)
-    elseif main.TitleText then
-        main.TitleText:SetText(title)
-    elseif main.title then
-        main.title:SetText(title)
+    return t.label or theme.tab or t.title
+end
+
+local function tabOrder(t)
+    local theme = themeForTab(t)
+    return t.order or theme.order or 50
+end
+
+local function paintTab(t)
+    local b = t.button
+    if not b then return end
+    local on = selectedTab ~= nil and tabs[selectedTab] == t
+    if on then
+        Wd.Skin(b, "panelHi", 1, "glow")
+        b.text:SetTextColor(1, 1, 1)
+    elseif b.hover then
+        Wd.Skin(b, "panelHi", 0.9, "border")
+        b.text:SetTextColor(P.text[1], P.text[2], P.text[3])
+    else
+        Wd.Skin(b, "panel", 0.92, "border")
+        b.text:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
     end
-    if main.SetPortraitToAsset then
-        pcall(main.SetPortraitToAsset, main, theme.icon)
-    elseif main.portrait and SetPortraitToTexture then
-        pcall(SetPortraitToTexture, main.portrait, theme.icon)
-    end
+    b.line:SetShown(on)
+end
+
+local function updateChrome()
+    if not main then return end
+    local connected = ns.Comms:IsJoined("ORG")
+    main.state:SetText((connected and (GREEN .. "connected to RUIN|r") or (GREY .. "not connected|r"))
+        .. GREY .. "   ·   " .. ns.CLIENT_NAME .. "|r")
+    local c = connected and P.good or P.sub
+    main.stateDot:SetColorTexture(c[1], c[2], c[3], 1)
 end
 
 function UI:SelectTab(index)
@@ -416,79 +732,106 @@ function UI:SelectTab(index)
                 t.panel:SetAllPoints(content)
                 local headerHeight = Wd.PageHeader(t.panel, theme)
                 t.body = CreateFrame("Frame", nil, t.panel)
-                t.body:SetPoint("TOPLEFT", 8, -(headerHeight + 10))
-                t.body:SetPoint("BOTTOMRIGHT", -8, 8)
+                t.body:SetPoint("TOPLEFT", 10, -(headerHeight + 10))
+                t.body:SetPoint("BOTTOMRIGHT", -10, 10)
                 Wd.currentTheme = theme
                 local ok, err = pcall(t.builder, t.body, t.module)
                 Wd.currentTheme = nil
                 if not ok then ns.ReportError(err) end
             end
             t.panel:Show()
-            setWindowChrome(t)
         elseif t.panel then
             t.panel:Hide()
         end
     end
-    if main.usesBlizzardTabs and PanelTemplates_SetTab then
-        pcall(PanelTemplates_SetTab, main, index)
-    else
-        for i, t in ipairs(tabs) do
-            if t.button then
-                if i == index then t.button:LockHighlight() else t.button:UnlockHighlight() end
-            end
-        end
-    end
+    for _, t in ipairs(tabs) do paintTab(t) end
     if changed and main:IsShown() then sound("IG_CHARACTER_INFO_TAB") end
 end
 
 function UI:LayoutTabs()
     if not main then return end
-    local prev, rowStart, rowWidth = nil, nil, 0
     for i, t in ipairs(tabs) do
         if not t.button then
-            local b
-            if main.usesBlizzardTabs then
-                local ok, tab = pcall(CreateFrame, "Button", "RUIN_MainFrameTab" .. i, main, "PanelTabButtonTemplate")
-                if ok and tab then b = tab else main.usesBlizzardTabs = false end
-            end
-            if not b then b = makeButton(main, t.title, 92, nil) end
-            if b.SetID then b:SetID(i) end
-            b:SetText(t.title)
+            local theme = themeForTab(t)
+            local b = CreateFrame("Button", nil, tabStrip)
+            b:SetHeight(TAB_H)
+            b.icon = b:CreateTexture(nil, "ARTWORK")
+            b.icon:SetSize(14, 14)
+            b.icon:SetPoint("LEFT", 7, 0)
+            b.icon:SetTexture(theme.icon)
+            pcall(b.icon.SetMask, b.icon, ROUND_MASK)
+            b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            b.text:SetPoint("LEFT", b.icon, "RIGHT", 5, 0)
+            b.text:SetText(tabLabel(t))
+            b.line = b:CreateTexture(nil, "OVERLAY")
+            b.line:SetColorTexture(P.glow[1], P.glow[2], P.glow[3], 1)
+            b.line:SetHeight(2)
+            b.line:SetPoint("BOTTOMLEFT", 1, 1)
+            b.line:SetPoint("BOTTOMRIGHT", -1, 1)
+            b:SetWidth(math.max(60, (b.text:GetStringWidth() or 50) + 36))
             b:SetScript("OnClick", function() UI:SelectTab(i) end)
-            if main.usesBlizzardTabs and PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, b, 0) end
+            b:SetScript("OnEnter", function(self) self.hover = true; paintTab(t) end)
+            b:SetScript("OnLeave", function(self) self.hover = false; paintTab(t) end)
             t.button = b
         end
-        -- Tabs run along the bottom edge; extras wrap onto a second row.
-        local w = (t.button.GetWidth and t.button:GetWidth()) or 90
-        t.button:ClearAllPoints()
-        if not prev then
-            t.button:SetPoint("TOPLEFT", main, "BOTTOMLEFT", 12, main.usesBlizzardTabs and 2 or -2)
-            rowStart, rowWidth = t.button, w
-        elseif rowWidth + 2 + w > WINDOW_W - 24 then
-            t.button:SetPoint("TOPLEFT", rowStart, "BOTTOMLEFT", 0, 0)
-            rowStart, rowWidth = t.button, w
-        else
-            t.button:SetPoint("LEFT", prev, "RIGHT", 2, 0)
-            rowWidth = rowWidth + 2 + w
-        end
-        prev = t.button
     end
-    if main.usesBlizzardTabs and PanelTemplates_SetNumTabs then pcall(PanelTemplates_SetNumTabs, main, #tabs) end
-    if not selectedTab and tabs[1] then UI:SelectTab(1) end
+    -- Sorted by order; extras wrap onto a second row.
+    local sorted = {}
+    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
+    table.sort(sorted, function(a, b)
+        local oa, ob = tabOrder(a.t), tabOrder(b.t)
+        if oa ~= ob then return oa < ob end
+        return a.i < b.i
+    end)
+    local x, row = 0, 0
+    local width = WINDOW_W - 24
+    for _, e in ipairs(sorted) do
+        local b = e.t.button
+        local w = b:GetWidth() or 90
+        if x > 0 and x + w > width then x, row = 0, row + 1 end
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", tabStrip, "TOPLEFT", x, -row * (TAB_H + TAB_GAP))
+        x = x + w + TAB_GAP
+        paintTab(e.t)
+    end
+    local rows = row + 1
+    tabStrip:SetHeight(rows * (TAB_H + TAB_GAP))
+    content:ClearAllPoints()
+    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + rows * (TAB_H + TAB_GAP) + 2))
+    content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
+    if not selectedTab and sorted[1] then UI:SelectTab(sorted[1].i) end
 end
 
-function UI:AddTab(title, builder, module)
-    tabs[#tabs + 1] = { title = title, builder = builder, module = module }
+-- Tab labels in the order they appear along the top.
+function UI:TabLabels()
+    local sorted = {}
+    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
+    table.sort(sorted, function(a, b)
+        local oa, ob = tabOrder(a.t), tabOrder(b.t)
+        if oa ~= ob then return oa < ob end
+        return a.i < b.i
+    end)
+    local out = {}
+    for _, e in ipairs(sorted) do out[#out + 1] = tabLabel(e.t) end
+    return out
+end
+
+-- opts: { order = n, label = "Tab text", alias = "Other name" }
+function UI:AddTab(title, builder, module, opts)
+    opts = opts or {}
+    tabs[#tabs + 1] = { title = title, builder = builder, module = module,
+                        order = opts.order, label = opts.label, alias = opts.alias }
     if main then UI:LayoutTabs() end
     return #tabs
 end
 
--- Open the window on a page, by title or index.
+-- Open the window on a page, by title, tab label, module name or index.
 function UI:OpenTab(which)
     if not ns.db then return end
     if not main then UI:CreateMain() end
     for i, t in ipairs(tabs) do
-        if i == which or t.title == which then
+        if i == which or t.title == which or t.alias == which or tabLabel(t) == which
+            or (t.module and t.module.name == which) then
             main:Show()
             UI:SelectTab(i)
             return true
@@ -498,32 +841,72 @@ function UI:OpenTab(which)
 end
 
 function UI:CreateMain()
-    local ok, f = pcall(CreateFrame, "Frame", "RUIN_MainFrame", UIParent, "ButtonFrameTemplate")
-    if ok and f then
-        main = f
-        main.usesBlizzardTabs = true
-        if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, main) end
-        content = CreateFrame("Frame", nil, main.Inset or main)
-        if main.Inset then
-            content:SetPoint("TOPLEFT", main.Inset, "TOPLEFT", 3, -3)
-            content:SetPoint("BOTTOMRIGHT", main.Inset, "BOTTOMRIGHT", -3, 3)
-        else
-            content:SetPoint("TOPLEFT", 10, -62)
-            content:SetPoint("BOTTOMRIGHT", -10, 10)
-        end
-    else
-        main = CreateFrame("Frame", "RUIN_MainFrame", UIParent, BACKDROP_TEMPLATE)
-        styleBox(main)
-        main.usesBlizzardTabs = false
-        main.title = main:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-        main.title:SetPoint("TOP", 0, -12)
-        local close = CreateFrame("Button", nil, main, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", -4, -4)
-        content = CreateFrame("Frame", nil, main)
-        content:SetPoint("TOPLEFT", 10, -40)
-        content:SetPoint("BOTTOMRIGHT", -10, 10)
-    end
+    main = CreateFrame("Frame", "RUIN_MainFrame", UIParent)
     main:SetSize(WINDOW_W, WINDOW_H)
+    Wd.Skin(main, "bg", 0.97, "border")
+    local shade = main:CreateTexture(nil, "BACKGROUND", nil, -8)
+    shade:SetPoint("TOPLEFT", -4, 4)
+    shade:SetPoint("BOTTOMRIGHT", 4, -4)
+    shade:SetColorTexture(0, 0, 0, 0.55)
+
+    -- Title bar: the RUIN mark, the brief's tagline, connection state, close.
+    local bar = CreateFrame("Frame", nil, main)
+    bar:SetPoint("TOPLEFT", 1, -1)
+    bar:SetPoint("TOPRIGHT", -1, -1)
+    bar:SetHeight(TITLE_H)
+    local barBg = bar:CreateTexture(nil, "BACKGROUND")
+    barBg:SetAllPoints()
+    barBg:SetColorTexture(1, 1, 1, 1)
+    local ok = CreateColor and barBg.SetGradient and pcall(barBg.SetGradient, barBg, "VERTICAL",
+        CreateColor(P.bg[1], P.bg[2], P.bg[3], 1), CreateColor(P.panelHi[1], P.panelHi[2], P.panelHi[3], 1))
+    if not ok then barBg:SetColorTexture(P.panel[1], P.panel[2], P.panel[3], 1) end
+    local rule = bar:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(P.border[1], P.border[2], P.border[3], 1)
+    rule:SetHeight(1)
+    rule:SetPoint("BOTTOMLEFT", 0, 0)
+    rule:SetPoint("BOTTOMRIGHT", 0, 0)
+
+    local ring = drawMark(bar, 32)
+    ring:SetPoint("LEFT", 12, 0)
+    local word = bar:CreateFontString(nil, "OVERLAY")
+    word:SetFontObject(GameFontNormalHuge)
+    word:SetFont(TITLE_FONT, 28, "")
+    word:SetTextColor(P.gold[1], P.gold[2], P.gold[3])
+    word:SetShadowOffset(1, -1)
+    word:SetShadowColor(0, 0, 0, 1)
+    word:SetText("RUIN")
+    word:SetPoint("LEFT", ring, "RIGHT", 8, 1)
+    local divider = bar:CreateTexture(nil, "ARTWORK")
+    divider:SetColorTexture(P.border[1], P.border[2], P.border[3], 1)
+    divider:SetSize(1, 28)
+    divider:SetPoint("LEFT", word, "RIGHT", 14, -1)
+    local tagline = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    tagline:SetText("GAMING COMPANION APP")
+    tagline:SetTextColor(P.gold[1] * 0.9, P.gold[2] * 0.9, P.gold[3] * 0.9)
+    tagline:SetPoint("BOTTOMLEFT", divider, "RIGHT", 14, 1)
+    local motto = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    motto:SetText("Guide  ·  Gear  ·  Quests  ·  Guild")
+    motto:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
+    motto:SetPoint("TOPLEFT", divider, "RIGHT", 14, -2)
+
+    local close = closeButton(bar, function() main:Hide() end)
+    close:SetPoint("RIGHT", -10, 0)
+    main.state = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    main.state:SetPoint("RIGHT", close, "LEFT", -12, 0)
+    main.stateDot = bar:CreateTexture(nil, "OVERLAY")
+    main.stateDot:SetSize(7, 7)
+    main.stateDot:SetRotation(math.pi / 4)
+    main.stateDot:SetPoint("RIGHT", main.state, "LEFT", -6, 0)
+
+    tabStrip = CreateFrame("Frame", nil, main)
+    tabStrip:SetPoint("TOPLEFT", main, "TOPLEFT", 12, -(TITLE_H + 8))
+    tabStrip:SetPoint("RIGHT", main, "RIGHT", -12, 0)
+    tabStrip:SetHeight(TAB_H)
+    content = CreateFrame("Frame", nil, main)
+    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + TAB_H + TAB_GAP + 2))
+    content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
+    Wd.Skin(content, "panel", 0.55, "border")
+
     main:SetFrameStrata("HIGH")
     if main.SetToplevel then main:SetToplevel(true) end
     main:SetClampedToScreen(true)
@@ -552,6 +935,14 @@ function UI:CreateMain()
     main:SetScript("OnHide", function() sound("IG_CHARACTER_INFO_CLOSE") end)
     UI:ApplyScale()
     UI:LayoutTabs()
+    updateChrome()
+end
+
+function UI:Refresh()
+    if not main or not main:IsShown() then return end
+    updateChrome()
+    refreshGuild()
+    refreshSettings()
 end
 
 function UI:ApplyScale()
@@ -575,7 +966,8 @@ end
 BINDING_HEADER_RUIN = "RUIN"
 BINDING_NAME_RUIN_TOGGLE = "Toggle RUIN window"
 
-UI:AddTab("Org", buildOrgPanel)
+UI:AddTab("Guild", buildGuildPanel, nil, { alias = "Org" })
+UI:AddTab("Settings", buildSettingsPanel)
 
 for _, ev in ipairs({ "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "CHANNELS_CHANGED", "GUILD_CHANGED" }) do
     ns:Subscribe(ev, function() UI:Refresh() end)

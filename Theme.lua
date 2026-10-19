@@ -9,16 +9,32 @@ local W = ns.Widgets
 local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
 local BODY_FONT = "Fonts\\FRIZQT__.TTF"
 
+-- Pages are named after their module (Codex, Pathfinder, ...), with the app's
+-- name above the title. tab/order: the label and place of the page's tab
+-- along the top of the window (Settings always last).
+local APP = "RUIN Gaming Companion App"
+ns.APP_NAME = APP
 ns.THEMES = {
-    Org        = { color = { 0.18, 0.36, 0.83 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", title = "RUIN Core",  tagline = "One banner for every RUIN guild" },
-    Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   title = "Finder",     tagline = "Who in RUIN wants to group, right now" },
-    Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     title = "Warfront",   tagline = "Name the ground. Take it. Hold the line." },
-    Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   title = "Pathfinder", tagline = "The road ahead, one step at a time" },
-    Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Misc_Book_09",      motif = "tome",    title = "Codex",      tagline = "Know the dungeon before you zone in" },
-    Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  title = "Exchange",   tagline = "Every member's market knowledge, pooled" },
-    Muster     = { color = { 0.85, 0.38, 0.17 }, icon = "Interface\\Icons\\INV_Misc_Note_02",      motif = "torches", title = "Muster",     tagline = "One call, and every guild answers" },
-    Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   title = "Intel",      tagline = "See something, say something" },
+    Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Chest_Cloth_17",     motif = "tome",    order = 10, tab = "Codex",
+                   title = "Codex",              kicker = APP, tagline = "Gear Path, journal and best-in-slot" },
+    Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 20, tab = "Pathfinder",
+                   title = "Pathfinder",         kicker = APP, tagline = "Leveling and quest guide" },
+    Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 30, tab = "Guild",
+                   title = "Guild & Community",  kicker = APP, tagline = "One banner for every RUIN guild" },
+    Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 40, tab = "Finder",
+                   title = "Finder",             kicker = APP, tagline = "Who in RUIN wants to group, right now" },
+    Muster     = { color = { 0.85, 0.38, 0.17 }, icon = "Interface\\Icons\\INV_Misc_Note_02",      motif = "torches", order = 50, tab = "Muster",
+                   title = "Muster",             kicker = APP, tagline = "Events, rallies and bounties" },
+    Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     order = 60, tab = "Warfront",
+                   title = "Warfront (retired)", kicker = APP, tagline = "Retired: use Overlord Forever and RUIN Muster" },
+    Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 70, tab = "Intel",
+                   title = "Intel",              kicker = APP, tagline = "See something, say something" },
+    Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 80, tab = "Exchange",
+                   title = "Exchange",           kicker = APP, tagline = "Every member's market knowledge, pooled" },
+    Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Settings",
+                   title = "Settings",           kicker = APP, tagline = "Org key, chat and display" },
 }
+ns.THEMES.Org = ns.THEMES.Guild
 
 local DEFAULT_THEME = { color = { 0.55, 0.58, 0.66 }, icon = "Interface\\Icons\\INV_Misc_QuestionMark", motif = nil, tagline = "" }
 
@@ -285,10 +301,13 @@ end
 ---------------------------------------------------------------------------
 -- Page header
 ---------------------------------------------------------------------------
--- Builds the themed header at the top of `page` and returns its height.
+-- Builds the themed header at the top of `page` and returns its height:
+-- a navy band, the page icon in a ring of its color, a small kicker naming
+-- the addon, the page title and tagline, and the page's animated scene.
 function W.PageHeader(page, theme)
     local HEIGHT = 66
     local c = theme.color
+    local P = W.PALETTE
     local h = CreateFrame("Frame", nil, page)
     h:SetPoint("TOPLEFT")
     h:SetPoint("TOPRIGHT")
@@ -298,43 +317,54 @@ function W.PageHeader(page, theme)
     bg:SetAllPoints()
     bg:SetColorTexture(1, 1, 1, 1)
     local ok = CreateColor and bg.SetGradient and pcall(bg.SetGradient, bg, "HORIZONTAL",
-        CreateColor(c[1], c[2], c[3], 0.55), CreateColor(c[1], c[2], c[3], 0.04))
-    if not ok then bg:SetColorTexture(c[1], c[2], c[3], 0.28) end
+        CreateColor(P.panelHi[1] + c[1] * 0.10, P.panelHi[2] + c[2] * 0.10, P.panelHi[3] + c[3] * 0.10, 1),
+        CreateColor(P.bg[1], P.bg[2], P.bg[3], 1))
+    if not ok then bg:SetColorTexture(P.panelHi[1], P.panelHi[2], P.panelHi[3], 1) end
 
-    local ico = icon(h, theme.icon, 46)
-    ico:SetPoint("LEFT", 10, 0)
+    local ring = h:CreateTexture(nil, "ARTWORK")
+    ring:SetSize(48, 48)
+    ring:SetPoint("LEFT", 12, 0)
+    ring:SetColorTexture(c[1], c[2], c[3], 1)
+    pcall(ring.SetMask, ring, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    local ico = icon(h, theme.icon, 44, "OVERLAY")
+    ico:SetPoint("CENTER", ring, "CENTER", 0, 0)
     pcall(ico.SetMask, ico, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+
+    local kicker = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    kicker:SetText((theme.kicker or "RUIN"):upper())
+    kicker:SetTextColor(P.gold[1], P.gold[2], P.gold[3])
+    kicker:SetPoint("TOPLEFT", ring, "TOPRIGHT", 12, 2)
 
     local title = h:CreateFontString(nil, "OVERLAY")
     title:SetFontObject(GameFontNormalHuge)        -- fallback if the font file can't load
-    title:SetFont(TITLE_FONT, 26, "")
-    title:SetTextColor(1, 0.82, 0)
+    title:SetFont(BODY_FONT, 20, "")
+    title:SetTextColor(P.text[1], P.text[2], P.text[3])
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
     title:SetText(theme.title or "")
-    title:SetPoint("TOPLEFT", ico, "TOPRIGHT", 12, -2)
+    title:SetPoint("TOPLEFT", kicker, "BOTTOMLEFT", 0, -2)
 
     local tag = h:CreateFontString(nil, "OVERLAY")
     tag:SetFontObject(GameFontHighlightSmall)
     tag:SetFont(BODY_FONT, 11, "")
-    tag:SetTextColor(0.88, 0.86, 0.80)
+    tag:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
     tag:SetText(theme.tagline or "")
     tag:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -3)
 
-    local rule = tex(h, "ARTWORK", c[1], c[2], c[3], 1)
-    rule:SetHeight(2)
-    rule:SetPoint("BOTTOMLEFT", 0, 1)
-    rule:SetPoint("BOTTOMRIGHT", 0, 1)
-    local gold = tex(h, "ARTWORK", 0.85, 0.66, 0.28, 0.9)
-    gold:SetHeight(1)
-    gold:SetPoint("BOTTOMLEFT", 0, 0)
-    gold:SetPoint("BOTTOMRIGHT", 0, 0)
+    local rule = tex(h, "ARTWORK", P.border[1], P.border[2], P.border[3], 1)
+    rule:SetHeight(1)
+    rule:SetPoint("BOTTOMLEFT", 0, 0)
+    rule:SetPoint("BOTTOMRIGHT", 0, 0)
+    local accent = tex(h, "OVERLAY", c[1], c[2], c[3], 1)
+    accent:SetSize(72, 2)
+    accent:SetPoint("BOTTOMLEFT", 0, 0)
 
     local draw = theme.motif and MOTIFS[theme.motif]
     if draw then
         local box = CreateFrame("Frame", nil, h)
         box:SetSize(250, HEIGHT - 6)
         box:SetPoint("TOPRIGHT", -4, -2)
+        box:SetAlpha(0.75)
         if box.SetClipsChildren then box:SetClipsChildren(true) end
         local ok2, animate = pcall(draw, box, theme)
         if ok2 and type(animate) == "function" then

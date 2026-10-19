@@ -6,10 +6,104 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
-W.COLORS = {
-    accent = "|cffc41e3a", good = "|cff40ff40", bad = "|cffff6060",
-    gold = "|cffffd100", dim = "|cff888888", white = "|cffffffff",
+-- The RUIN look (from the RUIN Companion brief): dark navy panels with thin
+-- steel-blue edges, teal for focus and selection, gold for the RUIN mark.
+W.PALETTE = {
+    bg      = { 0.027, 0.043, 0.075 },   -- window body
+    panel   = { 0.047, 0.071, 0.114 },   -- cards and rows
+    panelHi = { 0.075, 0.110, 0.169 },   -- buttons, raised rows
+    border  = { 0.165, 0.267, 0.400 },   -- steel-blue edges
+    glow    = { 0.329, 0.718, 0.851 },   -- teal: selected tab, hover, links
+    gold    = { 0.902, 0.722, 0.384 },   -- the RUIN mark and headline accents
+    text    = { 0.925, 0.941, 0.965 },
+    sub     = { 0.584, 0.651, 0.749 },
+    good    = { 0.361, 0.851, 0.451 },
+    warn    = { 0.949, 0.749, 0.247 },
+    bad     = { 0.949, 0.400, 0.349 },
 }
+
+W.COLORS = {
+    accent = "|cff54b7d9", good = "|cff5cd973", bad = "|cfff26659",
+    gold = "|cffe6b862", dim = "|cff95a6bf", white = "|cffffffff", warn = "|cfff2bf3f",
+}
+
+-- Priority and evidence tags, drawn as small pills (W.Pill) or as colored
+-- text (W.TagText). Quick/Medium/Long follow the brief's Gear Path.
+W.TAGS = {
+    Quick      = { bg = { 0.09, 0.33, 0.16 }, fg = { 0.62, 1.00, 0.62 } },
+    Medium     = { bg = { 0.40, 0.30, 0.05 }, fg = { 1.00, 0.86, 0.38 } },
+    Long       = { bg = { 0.38, 0.17, 0.07 }, fg = { 1.00, 0.64, 0.40 } },
+    Verified   = { bg = { 0.09, 0.30, 0.26 }, fg = { 0.55, 0.95, 0.85 } },
+    Unverified = { bg = { 0.33, 0.24, 0.08 }, fg = { 1.00, 0.80, 0.45 } },
+    Sample     = { bg = { 0.20, 0.22, 0.28 }, fg = { 0.80, 0.83, 0.90 } },
+    Group      = { bg = { 0.12, 0.22, 0.40 }, fg = { 0.60, 0.80, 1.00 } },
+    Solo       = { bg = { 0.20, 0.16, 0.32 }, fg = { 0.82, 0.72, 1.00 } },
+}
+
+-- Map and tracker markers share one color code across every module, matching
+-- the brief's legend: quest, turn-in, dungeon, class quest, flight path,
+-- waypoint, group event (plus RUIN's enemy and objective marks).
+W.MARKERS = {
+    quest    = { 1.00, 0.82, 0.10 },
+    turnin   = { 0.30, 0.62, 1.00 },
+    dungeon  = { 0.90, 0.22, 0.22 },
+    class    = { 0.66, 0.42, 0.98 },
+    trainer  = { 0.66, 0.42, 0.98 },
+    flight   = { 0.45, 0.78, 1.00 },
+    waypoint = { 0.30, 0.62, 1.00 },
+    event    = { 1.00, 0.55, 0.15 },
+    enemy    = { 0.95, 0.30, 0.25 },
+    objective= { 0.90, 0.72, 0.38 },
+}
+
+local function rgb(key)
+    if type(key) == "table" then return key[1], key[2], key[3] end
+    local c = W.PALETTE[key] or W.PALETTE.panel
+    return c[1], c[2], c[3]
+end
+W.RGB = rgb
+
+function W.Hex(key)
+    local r, g, b = rgb(key)
+    return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
+end
+
+-- Give any frame RUIN's panel look: a filled background and 1-pixel edges.
+-- bgKey/borderKey are palette names (or {r,g,b}); returns the frame.
+function W.Skin(f, bgKey, alpha, borderKey)
+    if not f.skinBg then
+        f.skinBg = f:CreateTexture(nil, "BACKGROUND", nil, -7)
+        f.skinBg:SetAllPoints()
+        f.skinEdges = {}
+        for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+            local e = f:CreateTexture(nil, "BORDER", nil, 7)
+            if side == "TOP" or side == "BOTTOM" then
+                e:SetHeight(1)
+                e:SetPoint(side .. "LEFT", 0, 0)
+                e:SetPoint(side .. "RIGHT", 0, 0)
+            else
+                e:SetWidth(1)
+                e:SetPoint("TOP" .. side, 0, 0)
+                e:SetPoint("BOTTOM" .. side, 0, 0)
+            end
+            f.skinEdges[side] = e
+        end
+    end
+    local r, g, b = rgb(bgKey or "panel")
+    f.skinBg:SetColorTexture(r, g, b, alpha or 0.96)
+    W.SetBorder(f, borderKey or "border")
+    return f
+end
+
+function W.SetBorder(f, key, alpha)
+    if not f.skinEdges then return end
+    local r, g, b = rgb(key or "border")
+    for side, e in pairs(f.skinEdges) do
+        -- the top edge catches a little more light
+        local a = (alpha or 1) * (side == "TOP" and 1 or 0.8)
+        e:SetColorTexture(r, g, b, a)
+    end
+end
 
 function W.Label(parent, text, font)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
@@ -22,26 +116,62 @@ end
 -- and lists pick up that module's colors without the module doing anything.
 W.currentTheme = nil
 
--- Section heading: gold title with a short underline in the page's color.
+-- Section heading: light title with a short teal rule beneath.
 function W.Header(parent, text)
     local fs = W.Label(parent, text, "GameFontNormal")
-    local t = W.currentTheme
-    if t then
-        local c = t.color
-        local rule = parent:CreateTexture(nil, "ARTWORK")
-        rule:SetColorTexture(c[1], c[2], c[3], 0.9)
-        rule:SetSize(48, 2)
-        rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
-    end
+    fs:SetTextColor(rgb("text"))
+    local rule = parent:CreateTexture(nil, "ARTWORK")
+    rule:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.85)
+    rule:SetSize(40, 2)
+    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -3)
+    fs.rule = rule
     return fs
 end
 
+-- Navy button with a steel edge that lights teal on hover. LockHighlight
+-- marks a button as selected (used by list-of-buttons pickers).
+local function paintButton(b)
+    if not b.skinBg then return end
+    if not b:IsEnabled() then
+        W.Skin(b, "panel", 0.85, "border")
+        b.label:SetTextColor(0.45, 0.50, 0.58)
+    elseif b.locked then
+        W.Skin(b, "panelHi", 1, "glow")
+        b.label:SetTextColor(1, 1, 1)
+    elseif b.hover then
+        W.Skin(b, "panelHi", 1, "glow")
+        b.label:SetTextColor(1, 1, 1)
+    else
+        W.Skin(b, "panelHi", 1, "border")
+        b.label:SetTextColor(rgb("text"))
+    end
+end
+W.PaintButton = paintButton
+
 function W.Button(parent, text, width, onClick)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    local b = CreateFrame("Button", nil, parent)
     b:SetSize(width or 120, 24)
-    b:SetText(text)
+    b.label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    b.label:SetPoint("LEFT", 6, 0)
+    b.label:SetPoint("RIGHT", -6, 0)
+    b.label:SetWordWrap(false)
+    b:SetFontString(b.label)
+    b:SetPushedTextOffset(1, -1)
+    W.Skin(b, "panelHi", 1, "border")
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.10)
+    b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:HookScript("OnEnter", function(self) self.hover = true; paintButton(self) end)
+    b:HookScript("OnLeave", function(self) self.hover = false; paintButton(self) end)
+    b:HookScript("OnEnable", paintButton)
+    b:HookScript("OnDisable", paintButton)
+    local lock, unlock = b.LockHighlight, b.UnlockHighlight
+    b.LockHighlight = function(self) self.locked = true; if lock then lock(self) end; paintButton(self) end
+    b.UnlockHighlight = function(self) self.locked = false; if unlock then unlock(self) end; paintButton(self) end
     if onClick then b:SetScript("OnClick", onClick) end
+    paintButton(b)
     return b
 end
 
@@ -97,7 +227,7 @@ end
 -- (a function(tooltip)) adds any other tooltip. list:SetEmptyText(text)
 -- shows a line when there is nothing to list.
 local function rowEnter(r)
-    r.zebra:SetAlpha(0.22)
+    r.zebra:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.14)
     if (r.link or r.tip) and GameTooltip then
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
         if r.link then pcall(GameTooltip.SetHyperlink, GameTooltip, r.link) end
@@ -107,7 +237,8 @@ local function rowEnter(r)
 end
 
 local function rowLeave(r)
-    r.zebra:SetAlpha(r.zebraAlpha or 0)
+    local c = W.PALETTE.panelHi
+    r.zebra:SetColorTexture(c[1], c[2], c[3], r.zebraAlpha or 0)
     if (r.link or r.tip) and GameTooltip then GameTooltip:Hide() end
 end
 
@@ -133,19 +264,18 @@ function W.List(parent, rowHeight, setupRow, updateRow)
             if not row then
                 row = CreateFrame("Frame", nil, child)
                 row:SetHeight(rowHeight)
-                -- Zebra rows tinted with the page color; brighter on hover.
+                -- Navy zebra rows; teal on hover.
                 row.zebra = row:CreateTexture(nil, "BACKGROUND")
                 row.zebra:SetAllPoints()
-                local c = self.theme and self.theme.color or { 1, 1, 1 }
-                row.zebra:SetColorTexture(c[1], c[2], c[3], 1)
                 row:EnableMouse(true)
                 row:SetScript("OnEnter", rowEnter)
                 row:SetScript("OnLeave", rowLeave)
                 setupRow(row)
                 self.rows[i] = row
             end
-            row.zebraAlpha = (i % 2 == 0) and 0.10 or 0.04
-            row.zebra:SetAlpha(row.zebraAlpha)
+            row.zebraAlpha = (i % 2 == 0) and 0.85 or 0.35
+            local zc = W.PALETTE.panelHi
+            row.zebra:SetColorTexture(zc[1], zc[2], zc[3], row.zebraAlpha)
             row.link, row.tip = nil, nil
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(i - 1) * rowHeight)
@@ -171,28 +301,34 @@ end
 --   build into tabs.pages[1], tabs.pages[2]; tabs:Select(1)
 -- Each page frame sits below the tab row and fills the rest of the panel.
 ---------------------------------------------------------------------------
-W.SUBTAB_HEIGHT = 30
+W.SUBTAB_HEIGHT = 32
 
 function W.SubTabs(parent, names, onSelect)
-    local t = W.currentTheme
-    local c = t and t.color or { 0.77, 0.12, 0.23 }
     local bar = CreateFrame("Frame", nil, parent)
     bar:SetPoint("TOPLEFT", 0, 0)
     bar:SetPoint("TOPRIGHT", 0, 0)
     bar:SetHeight(24)
     local base = bar:CreateTexture(nil, "BACKGROUND")
-    base:SetColorTexture(c[1], c[2], c[3], 0.45)
+    base:SetColorTexture(W.PALETTE.border[1], W.PALETTE.border[2], W.PALETTE.border[3], 0.8)
     base:SetHeight(1)
-    base:SetPoint("BOTTOMLEFT", 0, 0)
-    base:SetPoint("BOTTOMRIGHT", 0, 0)
+    base:SetPoint("BOTTOMLEFT", 0, -3)
+    base:SetPoint("BOTTOMRIGHT", 0, -3)
 
     local obj = { bar = bar, buttons = {}, pages = {}, names = names }
     local function paint(i)
         local b = obj.buttons[i]
         local on = obj.selected == i
-        b.bg:SetAlpha(on and 0.38 or 0.08)
+        if on then
+            W.Skin(b, "panelHi", 1, "glow")
+            b.text:SetTextColor(1, 1, 1)
+        elseif b.hover then
+            W.Skin(b, "panelHi", 0.9, "border")
+            b.text:SetTextColor(rgb("text"))
+        else
+            W.Skin(b, "panel", 0.9, "border")
+            b.text:SetTextColor(rgb("sub"))
+        end
         b.line:SetShown(on)
-        if on then b.text:SetTextColor(1, 1, 1) else b.text:SetTextColor(1, 0.82, 0) end
     end
     function obj:Select(i)
         if not self.buttons[i] then return end
@@ -212,28 +348,26 @@ function W.SubTabs(parent, names, onSelect)
         local b = self.buttons[i]
         if not b then return end
         b.text:SetText(text)
-        b:SetWidth(math.max(72, (b.text:GetStringWidth() or 60) + 26))
+        b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28))
     end
 
     local prev
     for i, name in ipairs(names) do
         local b = CreateFrame("Button", nil, bar)
         b:SetHeight(24)
-        b.bg = b:CreateTexture(nil, "BACKGROUND")
-        b.bg:SetAllPoints()
-        b.bg:SetColorTexture(c[1], c[2], c[3], 1)
+        W.Skin(b, "panel", 0.9, "border")
         b.line = b:CreateTexture(nil, "ARTWORK")
-        b.line:SetColorTexture(1, 0.82, 0, 1)
+        b.line:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 1)
         b.line:SetHeight(2)
-        b.line:SetPoint("BOTTOMLEFT", 0, 0)
-        b.line:SetPoint("BOTTOMRIGHT", 0, 0)
-        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        b.line:SetPoint("BOTTOMLEFT", 1, 1)
+        b.line:SetPoint("BOTTOMRIGHT", -1, 1)
+        b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         b.text:SetPoint("CENTER", 0, 1)
         b.text:SetText(name)
-        b:SetWidth(math.max(72, (b.text:GetStringWidth() or 60) + 26))
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 3, 0) else b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
-        b:SetScript("OnEnter", function(self) if obj.selected ~= i then self.bg:SetAlpha(0.22) end end)
-        b:SetScript("OnLeave", function() paint(i) end)
+        b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28))
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0) else b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
+        b:SetScript("OnEnter", function(self) self.hover = true; paint(i) end)
+        b:SetScript("OnLeave", function(self) self.hover = false; paint(i) end)
         b:SetScript("OnClick", function() obj:Select(i) end)
         obj.buttons[i] = b
 
@@ -244,35 +378,87 @@ function W.SubTabs(parent, names, onSelect)
         obj.pages[i] = page
         prev = b
     end
+    for i = 1, #names do paint(i) end
     return obj
 end
 
 ---------------------------------------------------------------------------
--- Card: a faintly tinted box in the page's color, for grouping controls.
+-- Card: a navy panel with steel edges, for grouping controls. The page's
+-- own color shows as a short accent along the top edge.
 ---------------------------------------------------------------------------
 function W.Card(parent)
     local t = W.currentTheme
-    local c = t and t.color or { 0.5, 0.5, 0.55 }
     local f = CreateFrame("Frame", nil, parent)
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(c[1], c[2], c[3], 0.07)
-    local edges = {}
-    for i, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-        local e = f:CreateTexture(nil, "BORDER")
-        e:SetColorTexture(c[1], c[2], c[3], i == 1 and 0.7 or 0.3)
-        if side == "TOP" or side == "BOTTOM" then
-            e:SetHeight(1)
-            e:SetPoint(side .. "LEFT", 0, 0)
-            e:SetPoint(side .. "RIGHT", 0, 0)
-        else
-            e:SetWidth(1)
-            e:SetPoint("TOP" .. side, 0, 0)
-            e:SetPoint("BOTTOM" .. side, 0, 0)
-        end
-        edges[side] = e
+    W.Skin(f, "panel", 0.92, "border")
+    if t and t.color then
+        local c = t.color
+        local accent = f:CreateTexture(nil, "ARTWORK")
+        accent:SetColorTexture(c[1], c[2], c[3], 0.9)
+        accent:SetSize(36, 2)
+        accent:SetPoint("TOPLEFT", 1, -1)
+        f.accent = accent
     end
-    f.edges = edges
+    f.edges = f.skinEdges
+    return f
+end
+
+---------------------------------------------------------------------------
+-- Pills: small colored tags such as Quick / Medium / Long.
+--   local p = W.Pill(row, 58); p:SetTag("Quick")  or  p:SetTag("Sample", "Classic sample")
+-- W.TagText("Quick") gives the same tag as colored text for list lines.
+---------------------------------------------------------------------------
+function W.Pill(parent, width, height)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetSize(width or 58, height or 16)
+    p.bg = p:CreateTexture(nil, "BACKGROUND")
+    p.bg:SetAllPoints()
+    p.edge = p:CreateTexture(nil, "BORDER")
+    p.edge:SetPoint("TOPLEFT", 0, 0)
+    p.edge:SetPoint("TOPRIGHT", 0, 0)
+    p.edge:SetHeight(1)
+    p.text = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    p.text:SetPoint("CENTER", 0, 0)
+    function p:SetTag(tag, label)
+        local t = W.TAGS[tag] or W.TAGS.Sample
+        self.bg:SetColorTexture(t.bg[1], t.bg[2], t.bg[3], 0.95)
+        self.edge:SetColorTexture(t.fg[1], t.fg[2], t.fg[3], 0.35)
+        self.text:SetTextColor(t.fg[1], t.fg[2], t.fg[3])
+        self.text:SetText(label or tag)
+        self:Show()
+    end
+    return p
+end
+
+function W.TagText(tag, label)
+    local t = W.TAGS[tag] or W.TAGS.Sample
+    return ("|cff%02x%02x%02x%s|r"):format(t.fg[1] * 255, t.fg[2] * 255, t.fg[3] * 255, label or tag)
+end
+
+---------------------------------------------------------------------------
+-- Progress bar ("4/6 collected"). bar:SetValue(0..1), bar:SetColor(key).
+---------------------------------------------------------------------------
+function W.Progress(parent, width, height)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(width or 200, height or 8)
+    W.Skin(f, "bg", 1, "border")
+    f.fill = f:CreateTexture(nil, "ARTWORK")
+    f.fill:SetPoint("TOPLEFT", 1, -1)
+    f.fill:SetPoint("BOTTOMLEFT", 1, 1)
+    f.fill:SetWidth(1)
+    function f:SetColor(key)
+        local r, g, b = rgb(key or "good")
+        self.fill:SetColorTexture(r, g, b, 1)
+    end
+    function f:SetValue(v)
+        v = math.max(0, math.min(1, tonumber(v) or 0))
+        self.value = v
+        local w = (self:GetWidth() or 0) - 2
+        self.fill:SetWidth(math.max(1, w * v))
+        self.fill:SetShown(v > 0)
+    end
+    f:SetScript("OnSizeChanged", function(self) self:SetValue(self.value or 0) end)
+    f:SetColor("good")
+    f:SetValue(0)
     return f
 end
 
@@ -288,21 +474,18 @@ end
 
 function W.HudFrame(name, themeKey, store, key, point)
     local theme = ns.ThemeFor and ns.ThemeFor(themeKey) or nil
-    local c = theme and theme.color or { 0.77, 0.12, 0.23 }
-    local f = CreateFrame("Frame", name, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    if f.SetBackdrop then
-        f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-                        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16,
-                        edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-        f:SetBackdropColor(0.03, 0.03, 0.05, 0.88)
-        f:SetBackdropBorderColor(c[1] * 0.9 + 0.1, c[2] * 0.9 + 0.1, c[3] * 0.9 + 0.1, 1)
-    end
+    local c = theme and theme.color or W.PALETTE.glow
+    local f = CreateFrame("Frame", name, UIParent)
+    W.Skin(f, "bg", 0.90, "border")
+    -- Modules written for Blizzard backdrops can still tint the frame.
+    f.SetBackdropBorderColor = function(self, r, g, b, a) W.SetBorder(self, { r, g, b }, a) end
+    f.SetBackdropColor = function(self, r, g, b, a) self.skinBg:SetColorTexture(r, g, b, a or 0.9) end
     -- A thin band in the module color along the top edge.
     local band = f:CreateTexture(nil, "ARTWORK")
     band:SetColorTexture(c[1], c[2], c[3], 0.85)
     band:SetHeight(2)
-    band:SetPoint("TOPLEFT", 4, -4)
-    band:SetPoint("TOPRIGHT", -4, -4)
+    band:SetPoint("TOPLEFT", 1, -1)
+    band:SetPoint("TOPRIGHT", -1, -1)
     f.band = band
     f.themeColor = c
     f:SetClampedToScreen(true)

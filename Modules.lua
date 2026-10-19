@@ -1,6 +1,6 @@
 -- RUIN Core: public API for suite modules
 --
--- A module (RUIN_Warfront, RUIN_Codex, ...) declares
+-- A module (RUIN_Codex, RUIN_Muster, ...) declares
 --   ## Dependencies: RUIN_Core
 -- and then:
 --
@@ -20,9 +20,11 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 3              -- modules check this to know which API they can use
+API.apiLevel = 4              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
-API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast...)
+API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
+                              -- and from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS)
+API.client = ns.CLIENT        -- "forever" or "retail" (level 4)
 API.Map = ns.Map              -- positions, distances, and pins on the world map and minimap (level 3)
 
 local modules, ordered = {}, {}
@@ -42,9 +44,11 @@ function Module:Listen(kind, handler)
     end)
 end
 
-function Module:AddTab(title, builder)
+-- opts (level 4): { order = n, label = "Tab text" }; by default the tab's
+-- label and place come from the module's theme.
+function Module:AddTab(title, builder, opts)
     self.tabTitle = title
-    return ns.UI:AddTab(title, builder, self)
+    return ns.UI:AddTab(title, builder, self, opts)
 end
 
 -- Open the RUIN window on this module's page.
@@ -158,6 +162,14 @@ function API:GetPlayer()
              class = classFile, level = UnitLevel("player"), faction = faction }
 end
 function API:IsConnected() return ns.Comms:IsJoined("ORG") end
+-- "forever" or "retail" (level 4). Data written for one game checks this.
+function API:GetClient() return ns.CLIENT, ns.CLIENT_NAME end
+-- The org's community links, { { label, url }, ... } (level 4).
+function API:GetLinks() return ns.Org:GetLinks() end
+-- Overlord Forever runs RUIN's world PvP (level 4): is it installed, and open it.
+function API:HasOverlord() return ns.UI:FindOverlord() ~= nil end
+function API:OpenOverlord() return ns.UI:OpenOverlord() end
+API.appName = "RUIN Gaming Companion App"
 function API:GetOnlineMembers() return ns.Presence:GetOnlineList() end
 function API:GetPlayerGUID() return ns.playerGUID end
 

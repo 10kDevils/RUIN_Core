@@ -1,11 +1,11 @@
 -- RUIN Core: map pins and positions
 -- Modules put markers on the world map and the minimap through RUIN_API.Map:
 --
---   RUIN_API.Map:SetPin("Warfront", id, { map = uiMapID, x = 0.41, y = 0.33,
+--   RUIN_API.Map:SetPin("Muster", id, { map = uiMapID, x = 0.41, y = 0.33,
 --       icon = "Interface\\Icons\\INV_BannerPVP_01", color = { 0.77, 0.12, 0.23 },
 --       title = "Crossroads", text = "Held by Briar Fang", alpha = 1,
 --       minimap = true, worldmap = true })
---   RUIN_API.Map:RemovePin("Warfront", id)    RUIN_API.Map:ClearPins("Warfront")
+--   RUIN_API.Map:RemovePin("Muster", id)    RUIN_API.Map:ClearPins("Muster")
 --
 -- Positions are a uiMapID plus 0-1 coordinates, the same as
 -- C_Map.GetPlayerMapPosition. Pins show on that map and on maps that contain

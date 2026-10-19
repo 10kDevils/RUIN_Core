@@ -9,6 +9,13 @@ ns.PROTOCOL = 1      -- bump when the wire format changes incompatibly
 local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 ns.VERSION = (getMeta and getMeta(ADDON, "Version")) or "0.0.0"
 
+-- Which game this is. One codebase serves WoW Forever and Retail; data that
+-- only fits one of them (routes, dungeon lists) checks ns.CLIENT. Each game
+-- keeps its own SavedVariables, so profiles stay separate by themselves.
+local mainline = WOW_PROJECT_MAINLINE or 1
+ns.CLIENT = (WOW_PROJECT_ID ~= nil and WOW_PROJECT_ID == mainline) and "retail" or "forever"
+ns.CLIENT_NAME = ns.CLIENT == "retail" and "Retail" or "WoW Forever"
+
 local DEFAULTS = {
     settings = {
         showOrgChat = true,      -- show other guilds' guild chat
@@ -30,10 +37,11 @@ ns.ReportError = report
 ---------------------------------------------------------------------------
 -- Printing
 ---------------------------------------------------------------------------
-local TAG = "|cffc41e3aRUIN|r"
+-- "[RUIN] Waypoint set: ..." in RUIN teal, as in the brief's chat lines.
+local TAG = "|cff54b7d9[RUIN]|r"
 
 function ns:Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage(TAG .. ": " .. tostring(msg))
+    DEFAULT_CHAT_FRAME:AddMessage(TAG .. " " .. tostring(msg))
 end
 
 function ns:Debug(msg)
@@ -156,11 +164,11 @@ function ns:ScanRoster()
     local roster, byGUID = {}, {}
     local count = GetNumGuildMembers() or 0
     for i = 1, count do
-        local name, _, rankIndex, level, _, _, _, _, online, _, classFile,
+        local name, _, rankIndex, level, className, zone, _, _, online, status, classFile,
               _, _, _, _, _, guid = GetGuildRosterInfo(i)
         if name then
-            local entry = { name = name, rank = rankIndex, level = level,
-                            online = online, class = classFile, guid = guid }
+            local entry = { name = name, rank = rankIndex, level = level, className = className, zone = zone,
+                            online = online, status = status, class = classFile, guid = guid }
             roster[ns.NormalizeName(name)] = entry
             if guid then byGUID[guid] = entry end
         end
@@ -222,12 +230,14 @@ end)
 ---------------------------------------------------------------------------
 local HELP = {
     "/ruin - open or close the RUIN window",
+    "/ruin guild | settings - open the Guild or Settings page",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
     "/ruin key import | export | send [name] | forget",
     "/ruin key create <org name>  (guild master who runs the org)",
     "/ruin key addguild <guild>, <officer rank>[, <tag>]  (org admin)",
     "/ruin key removeguild <guild>  |  /ruin key rotate  (org admin)",
+    "/ruin key links - edit the org's community links  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
     "/ruin couch - toggle couch mode (larger window)",
@@ -283,11 +293,13 @@ local function handleKey(rest)
         ns:Print(ok and ("Removed " .. arg .. ".") or err)
     elseif sub == "rotate" then
         ns.UI:PromptRotate()
+    elseif sub == "links" then
+        ns.UI:PromptLinks()
     elseif sub == "forget" then
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, export, send [name], create, addguild, removeguild, rotate, forget")
+        ns:Print("Key commands: import, export, send [name], create, addguild, removeguild, rotate, links, forget")
     end
 end
 
@@ -300,6 +312,8 @@ SlashCmdList.RUIN = function(input)
 
     if cmd == "" or cmd == "show" then
         RUIN_ToggleWindow()
+    elseif cmd == "guild" or cmd == "settings" then
+        ns.UI:OpenTab(cmd == "guild" and "Guild" or "Settings")
     elseif cmd == "status" then
         ns:PrintStatus()
     elseif cmd == "versions" then
