@@ -633,7 +633,7 @@ local function refreshGuild()
         parts[#parts + 1] = "Org chat " .. channelDot("ORG")
         if ns.Org:AmOfficer() then parts[#parts + 1] = "Officer chat " .. channelDot("OFFICERS") end
     else
-        parts[#parts + 1] = RED .. "No org key yet.|r An officer shares it automatically, or import it under Settings."
+        parts[#parts + 1] = RED .. "No org key yet.|r An officer shares it automatically, or import it under Options."
     end
     guild.orgLine:SetText(table.concat(parts, GREY .. "   ·   |r"))
 

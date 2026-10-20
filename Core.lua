@@ -230,7 +230,7 @@ end)
 ---------------------------------------------------------------------------
 local HELP = {
     "/ruin - open or close the RUIN window",
-    "/ruin guild | settings - open the Guild or Settings page",
+    "/ruin guild | options - open the Guild or Options page",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
     "/ruin key import | export | send [name] | forget",
@@ -313,7 +313,7 @@ SlashCmdList.RUIN = function(input)
 
     if cmd == "" or cmd == "show" then
         RUIN_ToggleWindow()
-    elseif cmd == "guild" or cmd == "settings" then
+    elseif cmd == "guild" or cmd == "settings" or cmd == "options" then
         ns.UI:OpenTab(cmd == "guild" and "Guild" or "Settings")
     elseif cmd == "status" then
         ns:PrintStatus()

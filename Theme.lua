@@ -11,28 +11,28 @@ local BODY_FONT = "Fonts\\FRIZQT__.TTF"
 
 -- Pages are named after their module (Codex, Pathfinder, ...), with the app's
 -- name above the title. tab/order: the label and place of the page's tab
--- along the top of the window (Settings always last).
+-- along the top of the window (Options always last).
 local APP = "RUIN Gaming Companion App"
 ns.APP_NAME = APP
 ns.THEMES = {
-    Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Chest_Cloth_17",     motif = "tome",    order = 10, tab = "Codex",
-                   title = "Codex",              kicker = APP, tagline = "Gear Path, journal and best-in-slot" },
-    Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 20, tab = "Pathfinder",
-                   title = "Pathfinder",         kicker = APP, tagline = "Leveling and quest guide" },
-    Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 30, tab = "Guild",
-                   title = "Guild & Community",  kicker = APP, tagline = "One banner for every RUIN guild" },
-    Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 40, tab = "Finder",
-                   title = "Finder",             kicker = APP, tagline = "Who in RUIN wants to group, right now" },
-    Muster     = { color = { 0.85, 0.38, 0.17 }, icon = "Interface\\Icons\\INV_Misc_Note_02",      motif = "torches", order = 50, tab = "Muster",
-                   title = "Muster",             kicker = APP, tagline = "Events, rallies and bounties" },
-    Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     order = 60, tab = "Warfront",
-                   title = "Warfront (retired)", kicker = APP, tagline = "Retired: use Overlord Forever and RUIN Muster" },
-    Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 70, tab = "Intel",
-                   title = "Intel (retired)",    kicker = APP, tagline = "Retired: sightings and timers moved to RUIN Muster" },
-    Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 80, tab = "Exchange",
-                   title = "Exchange",           kicker = APP, tagline = "Every member's market knowledge, pooled" },
-    Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Settings",
-                   title = "Settings",           kicker = APP, tagline = "Org key, chat and display" },
+    Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Chest_Cloth_17",     motif = "tome",    order = 50, tab = "Gear",
+                   title = "Gear & Dungeons", kicker = APP, tagline = "Gear Path, journal, best-in-slot and macros" },
+    Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 40, tab = "Leveling",
+                   title = "Leveling & Quest Guide", kicker = APP, tagline = "Leveling and quest guide" },
+    Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 10, tab = "Guild",
+                   title = "Guild & Community", kicker = APP, tagline = "One banner for every RUIN guild" },
+    Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 20, tab = "Groups",
+                   title = "Group Finder", kicker = APP, tagline = "Who in RUIN wants to group, right now" },
+    Muster     = { color = { 0.85, 0.38, 0.17 }, icon = "Interface\\Icons\\INV_Misc_Note_02",      motif = "torches", order = 30, tab = "Events",
+                   title = "Events & Rallies", kicker = APP, tagline = "Events, rallies, bounties and world sightings" },
+    Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     order = 70, tab = "Warfront",
+                   title = "Warfront (retired)", kicker = APP, tagline = "Retired: use Overlord Forever and the Events page" },
+    Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 75, tab = "Intel",
+                   title = "Intel (retired)", kicker = APP, tagline = "Retired: sightings and timers moved to the Events page" },
+    Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 60, tab = "Market",
+                   title = "Market", kicker = APP, tagline = "Every member's market knowledge, pooled" },
+    Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Options",
+                   title = "Options", kicker = APP, tagline = "Org key, chat and display" },
 }
 ns.THEMES.Org = ns.THEMES.Guild
 

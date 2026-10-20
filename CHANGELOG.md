@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.10 — 2026-10-19
+
+1 change since 0.3.9:
+
+1. **Tabs reordered and renamed.** Guild, Groups, Events, Leveling, Gear, Market, Options (was Settings; `/ruin options` works as well as `/ruin settings`). Page headers read Group Finder, Events & Rallies, Leveling & Quest Guide, Gear & Dungeons, Market and Options, and RUIN's chat lines use the same names. The tabs now read in the brief's plain language. Only what players see changed: the addon folder, repository, command and saved-data names stay the same, so nothing needs reinstalling or re-setting.
+
 ## 0.3.9 — 2026-10-19
 
 2 changes since 0.3.8:

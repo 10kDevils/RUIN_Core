@@ -80,7 +80,7 @@ local function tag(mod)
         local c = t and t.color or { 0.67, 0.67, 0.67 }
         -- lift dark colors a little so they stay readable on chat backgrounds
         local r, g, b = math.min(1, c[1] + 0.15), math.min(1, c[2] + 0.15), math.min(1, c[3] + 0.15)
-        mod.tagText = ("|cff%02x%02x%02x%s:|r "):format(r * 255, g * 255, b * 255, mod.name)
+        mod.tagText = ("|cff%02x%02x%02x%s:|r "):format(r * 255, g * 255, b * 255, (t and t.tab) or mod.name)
     end
     return mod.tagText
 end
