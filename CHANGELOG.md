@@ -6,6 +6,14 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.12 — 2026-10-19
+
+3 changes since 0.3.11:
+
+1. **Each page in its addon's color.** Guild and Options keep RUIN's navy, teal and gold. A module's page (and its tab) now takes that addon's color throughout: the selected tab, sub-tabs, edges, button and row highlights, section rules, check marks and a faint tint in the panels. Each tab along the top also shows a thin line in its addon's color.
+2. **Tidier controls that match the RUIN look.** Check boxes and text boxes are drawn in RUIN's style instead of Blizzard's (you can click a check box's label too). Text boxes show a grey hint of what goes in them while empty. Buttons that step through choices have a small arrow and say on hover how they work.
+3. **Options is simpler.** Members see only the org-key buttons they can use (Import, Export); the org admin's tools sit on their own row, shown only to the admin. Officer chat appears only for officers, every option explains itself on hover, and the guild relay option now says what it does ("Share chat from guildmates without RUIN"). Page subtitles say plainly what each page is for. API level 6.
+
 ## 0.3.11 — 2026-10-19
 
 1 change since 0.3.10:

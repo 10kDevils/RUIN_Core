@@ -3,8 +3,10 @@
 --
 -- The RUIN Gaming Companion App. The look follows the RUIN Companion brief:
 -- a dark navy window with thin steel-blue edges, the gold RUIN mark top left,
--- page tabs across the top named after each module (Codex, Pathfinder,
--- Guild, ... Settings) and teal for whatever is selected. Everything is drawn from plain textures, so no art can go missing.
+-- page tabs across the top named after each module (Guild, Finder, ...
+-- Options). Guild and Options use RUIN's teal and gold; each module's page
+-- and tab use that addon's own color. Everything is drawn from plain
+-- textures, so no art can go missing.
 local ADDON, ns = ...
 
 local UI = {}
@@ -690,20 +692,16 @@ local function buildSettingsPanel(p)
     settings.status:SetJustifyV("TOP")
     if settings.status.SetSpacing then settings.status:SetSpacing(3) end
 
-    settings.import = Wd.Button(keyCard, "Import key", 130, function() UI:PromptImport() end)
-    settings.import:SetPoint("BOTTOMLEFT", 10, 40)
-    settings.export = Wd.Button(keyCard, "Export key", 130, function() UI:ShowExport() end)
-    settings.export:SetPoint("LEFT", settings.import, "RIGHT", 6, 0)
-    settings.send = Wd.Button(keyCard, "Send key to target", 170, function() UI:SendKeyToTarget() end)
-    settings.send:SetPoint("LEFT", settings.export, "RIGHT", 6, 0)
+    -- Everyone's key actions, then the org admin's (shown only to the admin).
+    settings.import = Wd.Button(keyCard, "Import key", 120, function() UI:PromptImport() end)
+    settings.export = Wd.Button(keyCard, "Export key", 120, function() UI:ShowExport() end)
+    settings.send = Wd.Button(keyCard, "Send key to target", 160, function() UI:SendKeyToTarget() end)
     settings.create = Wd.Button(keyCard, "Create org key", 130, function() UI:PromptCreate() end)
-    settings.create:SetPoint("TOPLEFT", settings.import, "BOTTOMLEFT", 0, -6)
-    settings.addGuild = Wd.Button(keyCard, "Add guild", 130, function() UI:PromptAddGuild() end)
-    settings.addGuild:SetPoint("LEFT", settings.create, "RIGHT", 6, 0)
-    settings.rotate = Wd.Button(keyCard, "Rotate key", 170, function() UI:PromptRotate() end)
-    settings.rotate:SetPoint("LEFT", settings.addGuild, "RIGHT", 6, 0)
+    settings.adminLabel = Wd.Label(keyCard, C.gold .. "Org admin|r", "GameFontNormalSmall")
+    settings.addGuild = Wd.Button(keyCard, "Add guild", 110, function() UI:PromptAddGuild() end)
+    settings.rotate = Wd.Button(keyCard, "Rotate key", 110, function() UI:PromptRotate() end)
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
-    settings.links:SetPoint("LEFT", settings.rotate, "RIGHT", 6, 0)
+    settings.keyCard = keyCard
 
     local disp = Wd.Card(p)
     disp:SetPoint("TOPLEFT", keyCard, "BOTTOMLEFT", 0, -10)
@@ -717,13 +715,18 @@ local function buildSettingsPanel(p)
             function(v) s().showOrgChat = v end),
         Wd.Check(disp, "Show other guilds' officer chat", function() return s().showOfficerChat end,
             function(v) s().showOfficerChat = v end),
-        Wd.Check(disp, "Relay for guildmates without RUIN", function() return s().allowBridge end,
+        Wd.Check(disp, "Share chat from guildmates without RUIN", function() return s().allowBridge end,
             function(v) s().allowBridge = v; ns:Fire("SETTINGS_CHANGED") end),
         Wd.Check(disp, "Couch mode (larger window, for Steam Deck and TV)", function() return s().couchMode end,
             function(v) s().couchMode = v; UI:ApplyScale() end),
         Wd.Check(disp, "Animated page headers", function() return s().animations end,
             function(v) s().animations = v end),
     }
+    settings.checks[1].tip = "Show guild chat from the other RUIN guilds in your guild chat."
+    settings.checks[2].tip = "Show officer chat from the other RUIN guilds in your officer chat."
+    settings.checks[3].tip = "Guildmates who don't run RUIN can't send to the other guilds. When this is on, one RUIN member online passes their guild chat along."
+    settings.checks[4].tip = "Bigger window and on-screen frames, easier to read on a Steam Deck or a TV."
+    settings.checks[5].tip = "The small moving scene in each page's header."
     settings.checks[1]:SetPoint("TOPLEFT", 8, -28)
     settings.checks[2]:SetPoint("TOPLEFT", settings.checks[1], "BOTTOMLEFT", 0, -2)
     settings.checks[5]:SetPoint("TOPLEFT", settings.checks[2], "BOTTOMLEFT", 0, -2)
@@ -772,14 +775,36 @@ local function refreshSettings()
         or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or GREY .. "none|r")
     settings.status:SetText(table.concat(lines, "\n"))
 
+    -- Only the buttons that do something for you, in one or two rows.
     local admin = ns.Org:IsAdmin()
-    setEnabled(settings.export, k ~= nil)
-    setEnabled(settings.send, k ~= nil and (admin or (k.oc ~= nil and ns.Org:AmOfficer())))
-    setEnabled(settings.create, k == nil)
-    setEnabled(settings.addGuild, admin)
-    setEnabled(settings.rotate, admin)
-    setEnabled(settings.links, admin)
+    local row1 = { settings.import }
+    if k then row1[#row1 + 1] = settings.export end
+    if k and (admin or (k.oc ~= nil and ns.Org:AmOfficer())) then row1[#row1 + 1] = settings.send end
+    if not k then row1[#row1 + 1] = settings.create end
+    local row2 = admin and { settings.addGuild, settings.rotate, settings.links } or {}
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.addGuild, settings.rotate, settings.links }
+    for _, b in ipairs(all) do b:Hide() end
+    local function place(list, y, x0)
+        local prev
+        for _, b in ipairs(list) do
+            b:ClearAllPoints()
+            if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0) else b:SetPoint("TOPLEFT", settings.keyCard, "TOPLEFT", x0, y) end
+            b:Show()
+            prev = b
+        end
+    end
+    place(row1, -98, 10)
+    settings.adminLabel:ClearAllPoints()
+    settings.adminLabel:SetPoint("TOPLEFT", settings.keyCard, "TOPLEFT", 12, -136)
+    settings.adminLabel:SetShown(#row2 > 0)
+    place(row2, -130, 82)
+    settings.keyCard:SetHeight(#row2 > 0 and 164 or 132)
     for _, c in ipairs(settings.checks) do c:Refresh() end
+    -- Officer chat only matters to officers.
+    local officer = ns.Org:AmOfficer()
+    settings.checks[2]:SetShown(officer)
+    settings.checks[5]:ClearAllPoints()
+    settings.checks[5]:SetPoint("TOPLEFT", officer and settings.checks[2] or settings.checks[1], "BOTTOMLEFT", 0, -2)
 
     local mods = {}
     for _, m in ipairs(RUIN_API:GetModules()) do mods[#mods + 1] = m.name .. " " .. tostring(m.version or "") end
@@ -815,6 +840,8 @@ local function tabOrder(t)
     return t.order or theme.order or 50
 end
 
+-- Each tab wears its page's colors: RUIN's teal for Guild and Options, the
+-- addon's own color for module pages (a thin strip shows it even unselected).
 local function paintTab(t)
     local b = t.button
     if not b then return end
@@ -823,13 +850,20 @@ local function paintTab(t)
         Wd.Skin(b, "panelHi", 1, "glow")
         b.text:SetTextColor(1, 1, 1)
     elseif b.hover then
-        Wd.Skin(b, "panelHi", 0.9, "border")
+        Wd.Skin(b, "panelHi", 0.95, "border")
         b.text:SetTextColor(P.text[1], P.text[2], P.text[3])
     else
         Wd.Skin(b, "panel", 0.92, "border")
         b.text:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
     end
     b.line:SetShown(on)
+    b.strip:SetShown(not on)
+end
+
+-- The content area takes the selected page's edge color and tint.
+local function paintContent(theme)
+    local s = Wd.SchemeFor(theme)
+    Wd.Skin(content, s.panel, 0.55, s.edge)
 end
 
 local function updateChrome()
@@ -846,9 +880,11 @@ function UI:SelectTab(index)
     selectedTab = index
     for i, t in ipairs(tabs) do
         if i == index then
+            local theme = themeForTab(t)
+            paintContent(theme)
             if not t.panel then
-                local theme = themeForTab(t)
                 t.panel = CreateFrame("Frame", nil, content)
+                t.panel.ruinTheme = theme
                 t.panel:SetAllPoints(content)
                 local headerHeight = Wd.PageHeader(t.panel, theme)
                 t.body = CreateFrame("Frame", nil, t.panel)
@@ -874,6 +910,7 @@ function UI:LayoutTabs()
         if not t.button then
             local theme = themeForTab(t)
             local b = CreateFrame("Button", nil, tabStrip)
+            b.ruinTheme = theme
             b:SetHeight(TAB_H)
             b.icon = b:CreateTexture(nil, "ARTWORK")
             b.icon:SetSize(14, 14)
@@ -883,11 +920,18 @@ function UI:LayoutTabs()
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             b.text:SetPoint("LEFT", b.icon, "RIGHT", 5, 0)
             b.text:SetText(tabLabel(t))
+            local ac = Wd.SchemeFor(theme).accent
             b.line = b:CreateTexture(nil, "OVERLAY")
-            b.line:SetColorTexture(P.glow[1], P.glow[2], P.glow[3], 1)
+            b.line:SetColorTexture(ac[1], ac[2], ac[3], 1)
             b.line:SetHeight(2)
             b.line:SetPoint("BOTTOMLEFT", 1, 1)
             b.line:SetPoint("BOTTOMRIGHT", -1, 1)
+            local tc = theme.color or P.glow
+            b.strip = b:CreateTexture(nil, "OVERLAY")
+            b.strip:SetColorTexture(tc[1], tc[2], tc[3], 0.55)
+            b.strip:SetHeight(1)
+            b.strip:SetPoint("BOTTOMLEFT", 6, 1)
+            b.strip:SetPoint("BOTTOMRIGHT", -6, 1)
             b:SetWidth(math.max(60, (b.text:GetStringWidth() or 50) + 36))
             b:SetScript("OnClick", function() UI:SelectTab(i) end)
             b:SetScript("OnEnter", function(self) self.hover = true; paintTab(t) end)

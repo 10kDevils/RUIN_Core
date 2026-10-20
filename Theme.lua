@@ -18,11 +18,11 @@ ns.THEMES = {
     Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Chest_Cloth_17",     motif = "tome",    order = 50, tab = "Codex",
                    title = "Codex", kicker = APP, tagline = "Gear Path, journal, best-in-slot and macros" },
     Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 40, tab = "Pathfinder",
-                   title = "Pathfinder", kicker = APP, tagline = "Leveling and quest guide" },
+                   title = "Pathfinder", kicker = APP, tagline = "Step-by-step leveling routes and quest guide" },
     Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 10, tab = "Guild",
-                   title = "Guild & Community", kicker = APP, tagline = "One banner for every RUIN guild" },
+                   title = "Guild & Community", kicker = APP, tagline = "Who's online, guild news and RUIN's links", core = true },
     Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 20, tab = "Finder",
-                   title = "Finder", kicker = APP, tagline = "Who in RUIN wants to group, right now" },
+                   title = "Finder", kicker = APP, tagline = "Find people in RUIN to group with, right now" },
     Muster     = { color = { 0.85, 0.38, 0.17 }, icon = "Interface\\Icons\\INV_Misc_Note_02",      motif = "torches", order = 30, tab = "Muster",
                    title = "Muster", kicker = APP, tagline = "Events, rallies, bounties and world sightings" },
     Warfront   = { color = { 0.77, 0.12, 0.23 }, icon = "Interface\\Icons\\INV_BannerPVP_01",      motif = "war",     order = 70, tab = "Warfront",
@@ -30,9 +30,9 @@ ns.THEMES = {
     Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 75, tab = "Intel",
                    title = "Intel (retired)", kicker = APP, tagline = "Retired: sightings and timers moved to RUIN Muster" },
     Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 60, tab = "Exchange",
-                   title = "Exchange", kicker = APP, tagline = "Every member's market knowledge, pooled" },
+                   title = "Exchange", kicker = APP, tagline = "Auction prices, crafters and craft requests across RUIN" },
     Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Options",
-                   title = "Options", kicker = APP, tagline = "Org key, chat and display" },
+                   title = "Options", kicker = APP, tagline = "Your org key, chat and display settings", core = true },
 }
 ns.THEMES.Org = ns.THEMES.Guild
 
@@ -351,12 +351,13 @@ function W.PageHeader(page, theme)
     tag:SetText(theme.tagline or "")
     tag:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 1, -3)
 
-    local rule = tex(h, "ARTWORK", P.border[1], P.border[2], P.border[3], 1)
+    local edge = W.SchemeFor(theme).edge
+    local rule = tex(h, "ARTWORK", edge[1], edge[2], edge[3], 1)
     rule:SetHeight(1)
     rule:SetPoint("BOTTOMLEFT", 0, 0)
     rule:SetPoint("BOTTOMRIGHT", 0, 0)
     local accent = tex(h, "OVERLAY", c[1], c[2], c[3], 1)
-    accent:SetSize(72, 2)
+    accent:SetSize(120, 2)
     accent:SetPoint("BOTTOMLEFT", 0, 0)
 
     local draw = theme.motif and MOTIFS[theme.motif]

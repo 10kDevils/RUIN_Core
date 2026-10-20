@@ -63,6 +63,72 @@ local function rgb(key)
 end
 W.RGB = rgb
 
+---------------------------------------------------------------------------
+-- Page colors. Guild and Options keep RUIN's own navy, steel blue, teal and
+-- gold. A module's page takes on that addon's color throughout: selected
+-- tabs, edges, hover, section rules, check marks and a faint tint in the
+-- panels. Widgets find their page by walking up their parents to the frame
+-- Core marked with .ruinTheme, so rows and buttons made later match too.
+---------------------------------------------------------------------------
+local P = W.PALETTE
+local function mix(a, b, t)
+    return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t }
+end
+W.Mix = mix
+
+W.CORE_SCHEME = { accent = P.glow, edge = P.border, panel = P.panel, panelHi = P.panelHi, bg = P.bg,
+                  mark = P.gold, core = true }
+local schemes = {}
+
+function W.SchemeFor(theme)
+    if not theme or theme.core or not theme.color then return W.CORE_SCHEME end
+    local s = schemes[theme]
+    if s then return s end
+    local c = theme.color
+    s = {
+        color   = c,
+        accent  = mix(c, { 1, 1, 1 }, 0.15),     -- a touch lighter so it reads on navy
+        edge    = mix(P.border, c, 0.55),
+        panel   = mix(P.panel, c, 0.07),
+        panelHi = mix(P.panelHi, c, 0.14),
+        bg      = mix(P.bg, c, 0.04),
+        mark    = c,
+    }
+    schemes[theme] = s
+    return s
+end
+
+-- The theme of the page a frame sits on (nil outside module pages).
+function W.ThemeOf(f)
+    if not f then return nil end
+    if f.ruinThemeFound ~= nil then return f.ruinThemeFound or nil end
+    local o, depth, found = f, 0, false
+    while o and depth < 40 do
+        if o.ruinTheme then found = o.ruinTheme; break end
+        if o ~= f and o.ruinThemeFound ~= nil then found = o.ruinThemeFound; break end
+        o = o.GetParent and o:GetParent() or nil
+        depth = depth + 1
+    end
+    if f.GetParent then f.ruinThemeFound = found end
+    return found or nil
+end
+
+function W.SchemeOf(f) return W.SchemeFor(W.ThemeOf(f)) end
+
+-- Palette names resolved for the frame's page: panel, panelHi, bg, border
+-- (the page's edge color) and glow/accent (the page's highlight color).
+local SCHEME_KEYS = { panel = "panel", panelHi = "panelHi", bg = "bg", border = "edge", glow = "accent", accent = "accent" }
+local function rgbFor(f, key)
+    if type(key) == "table" then return key[1], key[2], key[3] end
+    local sk = SCHEME_KEYS[key]
+    if sk and f then
+        local c = W.SchemeOf(f)[sk]
+        return c[1], c[2], c[3]
+    end
+    return rgb(key)
+end
+W.RGBFor = rgbFor
+
 function W.Hex(key)
     local r, g, b = rgb(key)
     return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
@@ -89,7 +155,7 @@ function W.Skin(f, bgKey, alpha, borderKey)
             f.skinEdges[side] = e
         end
     end
-    local r, g, b = rgb(bgKey or "panel")
+    local r, g, b = rgbFor(f, bgKey or "panel")
     f.skinBg:SetColorTexture(r, g, b, alpha or 0.96)
     W.SetBorder(f, borderKey or "border")
     return f
@@ -97,7 +163,7 @@ end
 
 function W.SetBorder(f, key, alpha)
     if not f.skinEdges then return end
-    local r, g, b = rgb(key or "border")
+    local r, g, b = rgbFor(f, key or "border")
     for side, e in pairs(f.skinEdges) do
         -- the top edge catches a little more light
         local a = (alpha or 1) * (side == "TOP" and 1 or 0.8)
@@ -116,14 +182,15 @@ end
 -- and lists pick up that module's colors without the module doing anything.
 W.currentTheme = nil
 
--- Section heading: light title with a short teal rule beneath.
+-- Section heading: light title with a short rule beneath in the page's color.
 function W.Header(parent, text)
     local fs = W.Label(parent, text, "GameFontNormal")
     fs:SetTextColor(rgb("text"))
     local rule = parent:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.85)
+    local a = W.SchemeOf(parent).accent
+    rule:SetColorTexture(a[1], a[2], a[3], 0.85)
     rule:SetSize(40, 2)
-    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -3)
+    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
     fs.rule = rule
     return fs
 end
@@ -160,7 +227,8 @@ function W.Button(parent, text, width, onClick)
     W.Skin(b, "panelHi", 1, "border")
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.10)
+    local ac = W.SchemeOf(b).accent
+    hl:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
     b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:HookScript("OnEnter", function(self) self.hover = true; paintButton(self) end)
@@ -175,39 +243,127 @@ function W.Button(parent, text, width, onClick)
     return b
 end
 
--- Check box with its own label; call :Refresh() to sync from getter.
+-- Check box with its own label (the label is clickable too); call
+-- :Refresh() to sync from getter. A navy box that fills with the page color.
 function W.Check(parent, label, getter, setter)
-    local c = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    local c = CreateFrame("CheckButton", nil, parent)
     c:SetSize(24, 24)
-    c.label = W.Label(parent, label)
-    c.label:SetPoint("LEFT", c, "RIGHT", 2, 0)
-    c:SetScript("OnClick", function(self) setter(self:GetChecked() and true or false) end)
-    c.Refresh = function(self) self:SetChecked(getter() and true or false) end
+    c.box = CreateFrame("Frame", nil, c)
+    c.box:SetSize(16, 16)
+    c.box:SetPoint("LEFT", 3, 0)
+    W.Skin(c.box, "bg", 1, "border")
+    c.mark = c.box:CreateTexture(nil, "OVERLAY")
+    c.mark:SetPoint("TOPLEFT", 3, -3)
+    c.mark:SetPoint("BOTTOMRIGHT", -3, 3)
+    local ac = W.SchemeOf(c).accent
+    c.mark:SetColorTexture(ac[1], ac[2], ac[3], 1)
+    c.label = W.Label(c, label)          -- a child, so it hides with the box
+    c.label:SetPoint("LEFT", c, "RIGHT", -1, 0)
+    if c.SetHitRectInsets then c:SetHitRectInsets(0, -((c.label:GetStringWidth() or 60) + 6), 0, 0) end
+    local function sync() c.mark:SetShown(c:GetChecked() and true or false) end
+    c:SetScript("OnClick", function(self)
+        sync()
+        setter(self:GetChecked() and true or false)
+    end)
+    -- c.tip = "One line saying what it does" shows on hover.
+    c:SetScript("OnEnter", function(self)
+        W.SetBorder(self.box, "glow")
+        if self.tip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(self.tip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    c:SetScript("OnLeave", function(self)
+        W.SetBorder(self.box, "border")
+        if self.tip and GameTooltip then GameTooltip:Hide() end
+    end)
+    c.Refresh = function(self) self:SetChecked(getter() and true or false); sync() end
     c:Refresh()
     return c
 end
 
 -- Single-line input; onCommit(text) on Enter or when focus leaves.
-function W.EditBox(parent, width, onCommit)
-    local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+-- placeholder: grey hint shown while the box is empty (also :SetPlaceholder).
+function W.EditBox(parent, width, onCommit, placeholder)
+    local e = CreateFrame("EditBox", nil, parent)
     e:SetSize(width or 160, 22)
     e:SetAutoFocus(false)
     e:SetFontObject(ChatFontNormal)
+    if e.SetTextInsets then e:SetTextInsets(6, 6, 0, 0) end
+    W.Skin(e, "bg", 1, "border")
+    e.hint = e:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    e.hint:SetPoint("LEFT", 7, 0)
+    e.hint:SetPoint("RIGHT", -6, 0)
+    e.hint:SetJustifyH("LEFT")
+    e.hint:SetWordWrap(false)
+    local function updateHint(self)
+        local empty = (self:GetText() or "") == ""
+        self.hint:SetShown(empty and not (self.HasFocus and self:HasFocus()))
+    end
+    function e:SetPlaceholder(text) self.hint:SetText(text or ""); updateHint(self) end
     local function commit(self)
         self:ClearFocus()
         if onCommit then onCommit(self:GetText() or "") end
     end
+    -- Core's own handlers run even when a module sets its own script.
+    local internal = {
+        OnEditFocusGained = function(self) W.SetBorder(self, "glow"); self.hint:Hide() end,
+        OnEditFocusLost = function(self)
+            W.SetBorder(self, "border")
+            updateHint(self)
+            if onCommit then onCommit(self:GetText() or "") end
+        end,
+        OnTextChanged = function(self) updateHint(self) end,
+    }
+    local setScript = e.SetScript
+    e.SetScript = function(self, k, fn)
+        local mine = internal[k]
+        if mine then
+            setScript(self, k, function(...) mine(...); if fn then fn(...) end end)
+        else
+            setScript(self, k, fn)
+        end
+    end
     e:SetScript("OnEnterPressed", commit)
     e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    e:SetScript("OnEditFocusLost", function(self) if onCommit then onCommit(self:GetText() or "") end end)
+    for k in pairs(internal) do e:SetScript(k, nil) end
+    e:SetPlaceholder(placeholder)
     return e
 end
 
+-- Marks a button that steps through choices: a small down chevron in the
+-- page color and a hover line saying how it works (b.tipTitle adds a title).
+function W.MarkChoice(b)
+    b.label:SetPoint("RIGHT", -16, 0)
+    local ac = W.SchemeOf(b).accent
+    for i, angle in ipairs({ -45, 45 }) do      -- a small down chevron
+        local t = b:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(ac[1], ac[2], ac[3], 0.9)
+        t:SetSize(5, 2)
+        t:SetPoint("RIGHT", b, "RIGHT", i == 1 and -10 or -7, 0)
+        t:SetRotation(math.rad(angle))
+    end
+    b:HookScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
+        GameTooltip:AddLine("Click for the next choice, right-click to go back.", 0.7, 0.75, 0.8)
+        GameTooltip:Show()
+    end)
+    b:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    return b
+end
+
 -- Button that cycles through options: left-click next, right-click previous.
+-- A small chevron marks it as a choice, and hovering says how it works.
 function W.Cycle(parent, width, options, getter, setter, prefix)
     local b = W.Button(parent, "", width)
+    W.MarkChoice(b)
+    -- b.format = function(value) return "Shown text" end  (then b:Refresh())
     local function show()
-        b:SetText((prefix or "") .. tostring(getter() or options[1]))
+        local v = getter() or options[1]
+        b:SetText((prefix or "") .. tostring(b.format and b.format(v) or v))
     end
     b:SetScript("OnClick", function(_, mouse)
         local cur, idx = getter(), 1
@@ -227,7 +383,8 @@ end
 -- (a function(tooltip)) adds any other tooltip. list:SetEmptyText(text)
 -- shows a line when there is nothing to list.
 local function rowEnter(r)
-    r.zebra:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 0.14)
+    local ac = W.SchemeOf(r).accent
+    r.zebra:SetColorTexture(ac[1], ac[2], ac[3], 0.14)
     if (r.link or r.tip) and GameTooltip then
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
         if r.link then pcall(GameTooltip.SetHyperlink, GameTooltip, r.link) end
@@ -237,7 +394,7 @@ local function rowEnter(r)
 end
 
 local function rowLeave(r)
-    local c = W.PALETTE.panelHi
+    local c = W.SchemeOf(r).panelHi
     r.zebra:SetColorTexture(c[1], c[2], c[3], r.zebraAlpha or 0)
     if (r.link or r.tip) and GameTooltip then GameTooltip:Hide() end
 end
@@ -264,7 +421,7 @@ function W.List(parent, rowHeight, setupRow, updateRow)
             if not row then
                 row = CreateFrame("Frame", nil, child)
                 row:SetHeight(rowHeight)
-                -- Navy zebra rows; teal on hover.
+                -- Navy zebra rows (tinted on module pages); the page color on hover.
                 row.zebra = row:CreateTexture(nil, "BACKGROUND")
                 row.zebra:SetAllPoints()
                 row:EnableMouse(true)
@@ -274,7 +431,7 @@ function W.List(parent, rowHeight, setupRow, updateRow)
                 self.rows[i] = row
             end
             row.zebraAlpha = (i % 2 == 0) and 0.85 or 0.35
-            local zc = W.PALETTE.panelHi
+            local zc = W.SchemeOf(row).panelHi
             row.zebra:SetColorTexture(zc[1], zc[2], zc[3], row.zebraAlpha)
             row.link, row.tip = nil, nil
             row:ClearAllPoints()
@@ -309,7 +466,8 @@ function W.SubTabs(parent, names, onSelect)
     bar:SetPoint("TOPRIGHT", 0, 0)
     bar:SetHeight(24)
     local base = bar:CreateTexture(nil, "BACKGROUND")
-    base:SetColorTexture(W.PALETTE.border[1], W.PALETTE.border[2], W.PALETTE.border[3], 0.8)
+    local edge = W.SchemeOf(bar).edge
+    base:SetColorTexture(edge[1], edge[2], edge[3], 0.8)
     base:SetHeight(1)
     base:SetPoint("BOTTOMLEFT", 0, -3)
     base:SetPoint("BOTTOMRIGHT", 0, -3)
@@ -357,7 +515,8 @@ function W.SubTabs(parent, names, onSelect)
         b:SetHeight(24)
         W.Skin(b, "panel", 0.9, "border")
         b.line = b:CreateTexture(nil, "ARTWORK")
-        b.line:SetColorTexture(W.PALETTE.glow[1], W.PALETTE.glow[2], W.PALETTE.glow[3], 1)
+        local ac = W.SchemeOf(b).accent
+        b.line:SetColorTexture(ac[1], ac[2], ac[3], 1)
         b.line:SetHeight(2)
         b.line:SetPoint("BOTTOMLEFT", 1, 1)
         b.line:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -383,23 +542,46 @@ function W.SubTabs(parent, names, onSelect)
 end
 
 ---------------------------------------------------------------------------
--- Card: a navy panel with steel edges, for grouping controls. The page's
--- own color shows as a short accent along the top edge.
+-- Card: a navy panel with edges in the page's color, for grouping controls.
+-- The page's own color also shows as a short accent along the top edge.
 ---------------------------------------------------------------------------
 function W.Card(parent)
-    local t = W.currentTheme
     local f = CreateFrame("Frame", nil, parent)
+    local t = W.ThemeOf(f) or W.currentTheme
     W.Skin(f, "panel", 0.92, "border")
     if t and t.color then
         local c = t.color
         local accent = f:CreateTexture(nil, "ARTWORK")
         accent:SetColorTexture(c[1], c[2], c[3], 0.9)
-        accent:SetSize(36, 2)
+        accent:SetSize(48, 2)
         accent:SetPoint("TOPLEFT", 1, -1)
         f.accent = accent
     end
     f.edges = f.skinEdges
     return f
+end
+
+---------------------------------------------------------------------------
+-- Popover: a small card that opens under a button (for settings that would
+-- otherwise crowd a page). The button toggles it; it closes with its page.
+--   local pop = W.Popover(button, 260, 120, "Alert me for")
+---------------------------------------------------------------------------
+function W.Popover(button, width, height, title)
+    local page = (button.GetParent and button:GetParent()) or button
+    local card = W.Card(page)
+    W.Skin(card, "panel", 1, "glow")
+    card:SetSize(width, height)
+    card:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -4)
+    if card.SetFrameLevel then card:SetFrameLevel(((page.GetFrameLevel and page:GetFrameLevel()) or 1) + 30) end
+    card:EnableMouse(true)
+    card:Hide()
+    if title then
+        local h = W.Header(card, title)
+        h:SetPoint("TOPLEFT", 8, -6)
+    end
+    button:SetScript("OnClick", function() if card:IsShown() then card:Hide() else card:Show() end end)
+    if page.HookScript then page:HookScript("OnHide", function() card:Hide() end) end
+    return card
 end
 
 ---------------------------------------------------------------------------
@@ -476,6 +658,7 @@ function W.HudFrame(name, themeKey, store, key, point)
     local theme = ns.ThemeFor and ns.ThemeFor(themeKey) or nil
     local c = theme and theme.color or W.PALETTE.glow
     local f = CreateFrame("Frame", name, UIParent)
+    f.ruinTheme = theme
     W.Skin(f, "bg", 0.90, "border")
     -- Modules written for Blizzard backdrops can still tint the frame.
     f.SetBackdropBorderColor = function(self, r, g, b, a) W.SetBorder(self, { r, g, b }, a) end

@@ -4,11 +4,11 @@ The hub addon of the **RUIN Gaming Companion App** on WoW Forever (and Retail). 
 
 ## The RUIN window
 
-Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top in this order, shown only when the module is installed: **Guild**, **Finder**, **Muster**, **Pathfinder**, **Codex**, **Exchange** and **Options**. The title bar shows whether you're connected to RUIN and which game you're in.
+Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top in this order, shown only when the module is installed: **Guild**, **Finder**, **Muster**, **Pathfinder**, **Codex**, **Exchange** and **Options**. The title bar shows whether you're connected to RUIN and which game you're in. Guild and Options keep RUIN's navy, teal and gold; each module's page and tab wear that addon's own color.
 
 - **Guild:** who's online in your guild (level, class, online / away / busy, and whether they run RUIN), RUIN members of the other guilds with their tag, the guild message of the day, RUIN's community links with Copy buttons, and Overlord Forever, which runs RUIN's world PvP (the page opens it with `/ov show` when it's installed; RUIN's old Warfront addon is retired).
-- **Settings:** the org key tools, chat and display options (couch mode for Steam Deck and TV), and what RUIN shares: only with RUIN members of your org, never outside the game.
-- **Community links:** the org admin sets them once (Settings → Community links, or `/ruin key links`) as `Name = address` lines, and they reach every member inside the org key. Keep donation links such as Patreon on the website: Blizzard's add-on rules forbid them in game.
+- **Options:** the org key tools (members see Import and Export; the org admin's tools appear only for the admin), chat and display options (couch mode for Steam Deck and TV), and what RUIN shares: only with RUIN members of your org, never outside the game.
+- **Community links:** the org admin sets them once (Options → Community links, or `/ruin key links`) as `Name = address` lines, and they reach every member inside the org key. Keep donation links such as Patreon on the website: Blizzard's add-on rules forbid them in game.
 
 ## Install
 
@@ -18,7 +18,7 @@ Copy the `RUIN_Core` folder into your WoW Forever `Interface/AddOns` folder (dur
 
 All RUIN guilds must be on the same ruleset and faction.
 
-1. **Org admin** (the main guild master): open `/ruin` → Settings → **Create org key**. You become the admin and your guild is added.
+1. **Org admin** (the main guild master): open `/ruin` → Options → **Create org key**. You become the admin and your guild is added.
 2. Click **Add guild** for each other guild: `Guild Name, officer rank, tag`. Rank 0 is the guild master, 1 the next rank down. Everyone at or above the officer rank counts as an officer.
 3. Target each other guild's leader (or an officer) and click **Send key to target**. They get an "accept org key" prompt. No copy-paste needed. **Export key** gives a text string instead, for leaders who are offline.
 4. That's it. Inside each guild, officers share the member key with everyone automatically when they log in, and pass the officer channel to other officers.
@@ -36,7 +36,7 @@ Admin changes (adding or removing a guild, rotating) are announced to every guil
 | Command | What it does |
 | --- | --- |
 | `/ruin` | Open or close the window |
-| `/ruin guild` / `/ruin settings` | Open the Guild or Settings page |
+| `/ruin guild` / `/ruin options` | Open the Guild or Options page (`/ruin settings` works too) |
 | `/ruin key links` | Admin: edit the community links |
 | `/ruin status` | Print connection status |
 | `/ruin versions` | RUIN versions seen online |
