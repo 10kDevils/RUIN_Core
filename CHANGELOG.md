@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.11 — 2026-10-19
+
+1 change since 0.3.10:
+
+1. **Original module names kept.** The tab order stays Guild, Finder, Muster, Pathfinder, Codex, Exchange, Options (Settings is now called Options; `/ruin options` and `/ruin settings` both work). Tabs, page headers, chat lines and the addon list use the original names again.
+
 ## 0.3.10 — 2026-10-19
 
 1 change since 0.3.9:

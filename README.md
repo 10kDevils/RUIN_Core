@@ -4,7 +4,7 @@ The hub addon of the **RUIN Gaming Companion App** on WoW Forever (and Retail). 
 
 ## The RUIN window
 
-Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top in this order, shown only when the module is installed: **Guild**, **Groups** (Finder), **Events** (Muster), **Leveling** (Pathfinder), **Gear** (Codex, with Gear Path, journal, best-in-slot, macros), **Market** (Exchange) and **Options**. The title bar shows whether you're connected to RUIN and which game you're in.
+Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top in this order, shown only when the module is installed: **Guild**, **Finder**, **Muster**, **Pathfinder**, **Codex**, **Exchange** and **Options**. The title bar shows whether you're connected to RUIN and which game you're in.
 
 - **Guild:** who's online in your guild (level, class, online / away / busy, and whether they run RUIN), RUIN members of the other guilds with their tag, the guild message of the day, RUIN's community links with Copy buttons, and Overlord Forever, which runs RUIN's world PvP (the page opens it with `/ov show` when it's installed; RUIN's old Warfront addon is retired).
 - **Settings:** the org key tools, chat and display options (couch mode for Steam Deck and TV), and what RUIN shares: only with RUIN members of your org, never outside the game.
