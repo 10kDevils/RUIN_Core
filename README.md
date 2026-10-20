@@ -37,6 +37,7 @@ Admin changes (adding or removing a guild, rotating) are announced to every guil
 | --- | --- |
 | `/ruin` | Open or close the window |
 | `/ruin guild` / `/ruin options` | Open the Guild or Options page (`/ruin settings` works too) |
+| `/ruin tabs reset` | Put the tabs back in their usual order (change the order under Options → Tab order) |
 | `/ruin key links` | Admin: edit the community links |
 | `/ruin status` | Print connection status |
 | `/ruin versions` | RUIN versions seen online |

@@ -6,6 +6,13 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.13 — 2026-10-19
+
+2 changes since 0.3.12:
+
+1. **Arrange the tabs your way.** Options has a new *Tab order* card: pick a tab, then *Move left* or *Move right*. Guild and every module can go anywhere; Options always stays last so you can find it. Your order is saved in RUIN Core (RUIN_DB). *Reset*, or `/ruin tabs reset`, puts them back, and a newly installed module joins at the end until you place it.
+2. **Fixed: the Overlord Forever card on the Guild page.** Its text ran out of the card and the button read "Open /ov s...". The button is now *Open Overlord* on the card's title line, the text is shorter and has the full width, and the card is a little taller.
+
 ## 0.3.12 — 2026-10-19
 
 3 changes since 0.3.11:

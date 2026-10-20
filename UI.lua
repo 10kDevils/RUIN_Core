@@ -599,18 +599,20 @@ local function buildGuildPanel(p)
     guild.linksEmpty:SetPoint("TOPLEFT", 12, -34)
     guild.linksEmpty:SetPoint("RIGHT", links, "RIGHT", -12, 0)
 
+    -- Overlord Forever: one short line of state; the button sits on the header line.
     local ov = Wd.Card(p)
     ov:SetPoint("TOPLEFT", links, "BOTTOMLEFT", 0, -10)
     ov:SetPoint("RIGHT", p, "RIGHT", 0, 0)
-    ov:SetHeight(70)
+    ov:SetHeight(78)
     local oh = Wd.Header(ov, "Overlord Forever")
     oh:SetPoint("TOPLEFT", 10, -8)
+    guild.ovButton = Wd.Button(ov, "Open Overlord", 112, function() UI:OpenOverlord() end)
+    guild.ovButton:SetPoint("TOPRIGHT", -8, -6)
     guild.ovText = Wd.Label(ov, "", "GameFontHighlightSmall")
-    guild.ovText:SetPoint("TOPLEFT", 12, -30)
-    guild.ovText:SetPoint("RIGHT", ov, "RIGHT", -110, 0)
+    guild.ovText:SetPoint("TOPLEFT", 12, -32)
+    guild.ovText:SetPoint("RIGHT", ov, "RIGHT", -12, 0)
     guild.ovText:SetJustifyV("TOP")
-    guild.ovButton = Wd.Button(ov, "Open  /ov show", 96, function() UI:OpenOverlord() end)
-    guild.ovButton:SetPoint("TOPRIGHT", -8, -28)
+    if guild.ovText.SetSpacing then guild.ovText:SetSpacing(2) end
 
     local unites = p:CreateFontString(nil, "OVERLAY")
     unites:SetFontObject(GameFontNormal)
@@ -664,13 +666,13 @@ local function refreshGuild()
 
     local ovState = UI:OverlordState()
     if ovState == "loaded" then
-        guild.ovText:SetText("Installed. RUIN's world PvP runs on Overlord: its campaign, keeps, captures and Most Wanted. RUIN Muster adds org rallies and bounties.")
+        guild.ovText:SetText("Installed. RUIN's world PvP (campaign, keeps, Most Wanted) runs on Overlord; Muster adds org rallies and bounties.")
         guild.ovButton:Show()
     elseif ovState == "off" then
-        guild.ovText:SetText(GREY .. "Installed but not loaded. Turn Overlord Forever on in the AddOns list and reload; RUIN uses it for world PvP.|r")
+        guild.ovText:SetText(GREY .. "Installed but switched off. Turn it on in the AddOns list and reload; RUIN uses it for world PvP.|r")
         guild.ovButton:Hide()
     else
-        guild.ovText:SetText(GREY .. "Not installed. RUIN uses Overlord Forever for world PvP (campaign, keeps, Most Wanted); get it on CurseForge.|r")
+        guild.ovText:SetText(GREY .. "Not installed. RUIN uses it for world PvP (campaign, keeps, Most Wanted); get it on CurseForge.|r")
         guild.ovButton:Hide()
     end
 end
@@ -733,8 +735,36 @@ local function buildSettingsPanel(p)
     settings.checks[3]:SetPoint("TOPLEFT", settings.checks[1], "TOPLEFT", 330, 0)
     settings.checks[4]:SetPoint("TOPLEFT", settings.checks[3], "BOTTOMLEFT", 0, -2)
 
+    -- Tab order: pick a tab, then move it left or right. Saved for you in
+    -- RUIN Core; Options always stays last.
+    local order = Wd.Card(p)
+    order:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
+    order:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    order:SetHeight(64)
+    local oh = Wd.Header(order, "Tab order")
+    oh:SetPoint("TOPLEFT", 10, -8)
+    local ohint = Wd.Label(order, GREY .. "Pick a tab, then move it.|r", "GameFontHighlightSmall")
+    ohint:SetPoint("LEFT", oh, "RIGHT", 10, 0)
+    settings.orderReset = Wd.Button(order, "Reset", 64, function() settings.orderPick = nil; UI:ResetTabOrder() end)
+    settings.orderReset:SetPoint("TOPRIGHT", -8, -6)
+    settings.orderRight = Wd.Button(order, "Move right", 92, function()
+        if settings.orderPick then UI:MoveTab(settings.orderPick, 1) end
+    end)
+    settings.orderRight:SetPoint("RIGHT", settings.orderReset, "LEFT", -6, 0)
+    settings.orderLeft = Wd.Button(order, "Move left", 92, function()
+        if settings.orderPick then UI:MoveTab(settings.orderPick, -1) end
+    end)
+    settings.orderLeft:SetPoint("RIGHT", settings.orderRight, "LEFT", -4, 0)
+    settings.orderChips = {}
+    for i = 1, 12 do
+        local b = Wd.Button(order, "", 80)
+        b:SetHeight(22)
+        b:Hide()
+        settings.orderChips[i] = b
+    end
+
     local about = Wd.Card(p)
-    about:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
+    about:SetPoint("TOPLEFT", order, "BOTTOMLEFT", 0, -10)
     about:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
     local ah = Wd.Header(about, "About RUIN")
     ah:SetPoint("TOPLEFT", 10, -8)
@@ -806,6 +836,32 @@ local function refreshSettings()
     settings.checks[5]:ClearAllPoints()
     settings.checks[5]:SetPoint("TOPLEFT", officer and settings.checks[2] or settings.checks[1], "BOTTOMLEFT", 0, -2)
 
+    -- tab order chips, in the order the tabs are now
+    local movable = UI:MovableTabs()
+    local prevChip
+    for i, chip in ipairs(settings.orderChips) do
+        local e = movable[i]
+        if e then
+            chip:SetText(e.label)
+            chip:SetWidth(math.max(56, (chip.label:GetStringWidth() or 40) + 20))
+            chip:ClearAllPoints()
+            if prevChip then chip:SetPoint("LEFT", prevChip, "RIGHT", 4, 0)
+            else chip:SetPoint("TOPLEFT", settings.orderLeft:GetParent(), "TOPLEFT", 10, -34) end
+            chip:SetScript("OnClick", function() settings.orderPick = e.title; refreshSettings() end)
+            if settings.orderPick == e.title then chip:LockHighlight() else chip:UnlockHighlight() end
+            chip:Show()
+            prevChip = chip
+        else
+            chip:Hide()
+        end
+    end
+    local picked = false
+    for _, e in ipairs(movable) do if e.title == settings.orderPick then picked = true end end
+    if not picked then settings.orderPick = nil end
+    setEnabled(settings.orderLeft, picked and movable[1].title ~= settings.orderPick)
+    setEnabled(settings.orderRight, picked and movable[#movable].title ~= settings.orderPick)
+    setEnabled(settings.orderReset, UI:HasCustomTabOrder())
+
     local mods = {}
     for _, m in ipairs(RUIN_API:GetModules()) do mods[#mods + 1] = m.name .. " " .. tostring(m.version or "") end
     local members, guilds = ns.Presence:CountOnline()
@@ -835,9 +891,36 @@ local function tabLabel(t)
     return t.label or theme.tab or t.title
 end
 
+-- Your own order (Options > Tab order) wins; Options always stays last. Pages
+-- that aren't in your saved order yet (a newly installed module) come after
+-- the ones that are, in their usual order.
+local function savedOrder()
+    local s = ns.db and ns.db.settings
+    local list = s and s.tabOrder
+    return type(list) == "table" and #list > 0 and list or nil
+end
+
 local function tabOrder(t)
     local theme = themeForTab(t)
-    return t.order or theme.order or 50
+    local base = t.order or theme.order or 50
+    if t.title == "Settings" then return 10000 end
+    local list = savedOrder()
+    if list then
+        for i, title in ipairs(list) do if title == t.title then return i end end
+        return 1000 + base
+    end
+    return base
+end
+
+local function sortedTabs()
+    local sorted = {}
+    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
+    table.sort(sorted, function(a, b)
+        local oa, ob = tabOrder(a.t), tabOrder(b.t)
+        if oa ~= ob then return oa < ob end
+        return a.i < b.i
+    end)
+    return sorted
 end
 
 -- Each tab wears its page's colors: RUIN's teal for Guild and Options, the
@@ -940,13 +1023,7 @@ function UI:LayoutTabs()
         end
     end
     -- Sorted by order; extras wrap onto a second row.
-    local sorted = {}
-    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
-    table.sort(sorted, function(a, b)
-        local oa, ob = tabOrder(a.t), tabOrder(b.t)
-        if oa ~= ob then return oa < ob end
-        return a.i < b.i
-    end)
+    local sorted = sortedTabs()
     local x, row = 0, 0
     local width = WINDOW_W - 24
     for _, e in ipairs(sorted) do
@@ -968,16 +1045,44 @@ end
 
 -- Tab labels in the order they appear along the top.
 function UI:TabLabels()
-    local sorted = {}
-    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
-    table.sort(sorted, function(a, b)
-        local oa, ob = tabOrder(a.t), tabOrder(b.t)
-        if oa ~= ob then return oa < ob end
-        return a.i < b.i
-    end)
+    local sorted = sortedTabs()
     local out = {}
     for _, e in ipairs(sorted) do out[#out + 1] = tabLabel(e.t) end
     return out
+end
+
+-- Tabs you can move (everything but Options), in their current order.
+function UI:MovableTabs()
+    local out = {}
+    for _, e in ipairs(sortedTabs()) do
+        if e.t.title ~= "Settings" then out[#out + 1] = { title = e.t.title, label = tabLabel(e.t) } end
+    end
+    return out
+end
+
+-- Move a page's tab left (-1) or right (+1); saved in RUIN_CoreDB.
+function UI:MoveTab(title, delta)
+    local list = UI:MovableTabs()
+    local idx
+    for i, e in ipairs(list) do if e.title == title then idx = i end end
+    if not idx then return false end
+    local to = idx + delta
+    if to < 1 or to > #list then return false end
+    list[idx], list[to] = list[to], list[idx]
+    local order = {}
+    for i, e in ipairs(list) do order[i] = e.title end
+    ns.db.settings.tabOrder = order
+    UI:LayoutTabs()
+    UI:Refresh()
+    return true
+end
+
+function UI:HasCustomTabOrder() return savedOrder() ~= nil end
+
+function UI:ResetTabOrder()
+    ns.db.settings.tabOrder = nil
+    UI:LayoutTabs()
+    UI:Refresh()
 end
 
 -- opts: { order = n, label = "Tab text", alias = "Other name" }

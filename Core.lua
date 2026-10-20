@@ -24,6 +24,7 @@ local DEFAULTS = {
         chatFrame = 1,           -- chat window number that shows RUIN lines
         couchMode = false,       -- larger window for Steam Deck / TV play
         animations = true,       -- ambient motion in page headers
+        tabOrder = nil,          -- your own tab order (Options > Tab order): a list of page titles
         debug = false,
     },
 }
@@ -241,6 +242,7 @@ local HELP = {
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
     "/ruin couch - toggle couch mode (larger window)",
+    "/ruin tabs reset - put the tabs back in their usual order",
     "/ruin debug - toggle debug messages",
     "/ruin overlord - check whether RUIN can see Overlord Forever",
 }
@@ -315,6 +317,13 @@ SlashCmdList.RUIN = function(input)
         RUIN_ToggleWindow()
     elseif cmd == "guild" or cmd == "settings" or cmd == "options" then
         ns.UI:OpenTab(cmd == "guild" and "Guild" or "Settings")
+    elseif cmd == "tabs" then
+        if rest:lower() == "reset" then
+            ns.UI:ResetTabOrder()
+            ns:Print("Tabs are back in their usual order.")
+        else
+            ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Options > Tab order, or /ruin tabs reset.")
+        end
     elseif cmd == "status" then
         ns:PrintStatus()
     elseif cmd == "versions" then
