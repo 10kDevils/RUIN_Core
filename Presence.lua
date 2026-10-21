@@ -153,6 +153,20 @@ function Presence:NameForGUID(guid)
     return e and e.name
 end
 
+-- Is this player an officer? Checked against your own guild roster when they
+-- are a guildmate; for other RUIN guilds, what their RUIN reported.
+function Presence:IsOfficerName(name)
+    if not name then return false end
+    local norm = ns.NormalizeName(name)
+    if norm == ns.NormalizeName(ns.playerName or "") then return ns.Org:AmOfficer() end
+    local e = ns.roster and ns.roster[norm]
+    if e then return ns.Org:IsOfficerRank(e.rank) end
+    for _, p in pairs(orgPeers) do
+        if ns.NormalizeName(p.name) == norm then return p.o == 1 end
+    end
+    return false
+end
+
 function Presence:IsOrgPeer(name)
     local norm = ns.NormalizeName(name)
     for _, p in pairs(orgPeers) do

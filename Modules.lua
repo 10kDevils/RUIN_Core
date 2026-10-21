@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 6              -- modules check this to know which API they can use
+API.apiLevel = 7              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -158,6 +158,9 @@ function API:GetOrg()
 end
 
 function API:IsOfficer() return ns.Org:AmOfficer() end
+-- Is another player an officer (level 7)? Guildmates are checked against the
+-- guild roster; members of other RUIN guilds by what their RUIN reports.
+function API:IsOfficerName(name) return ns.Presence:IsOfficerName(name) end
 
 -- RUIN's own dialogs (level 3), so modules don't need Blizzard popups.
 -- ShowText: a box to copy from or paste into; onAccept(text) runs on OK.

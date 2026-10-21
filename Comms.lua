@@ -12,7 +12,7 @@ local MAX_MSG = 250           -- stay under the 255-byte addon message cap
 local TICK = 0.1
 local TOKEN_CAP, TOKEN_RATE = 10, 1.0   -- Blizzard allows ~10 burst, ~1/s per prefix
 local QUEUE_MAX_AGE = 60
-local PARTIAL_MAX_AGE = 30
+local PARTIAL_MAX_AGE = 90     -- long messages (shared routes) arrive at about one part a second
 
 Comms.PRIORITY = { ALERT = 1, NORMAL = 2, BULK = 3 }
 

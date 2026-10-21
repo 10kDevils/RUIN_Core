@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.14 — 2026-10-21
+
+1 change since 0.3.13:
+
+1. For modules: `RUIN_API:IsOfficerName(name)` (API level 7) tells whether another player is an officer: guildmates are checked against your guild roster, members of other RUIN guilds by what their RUIN reports. Long messages (such as shared routes) now have 90 seconds to arrive in full instead of 30. RUIN Pathfinder uses both for officer routes.
+
 ## 0.3.13 — 2026-10-19
 
 2 changes since 0.3.12:
