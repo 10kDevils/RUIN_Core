@@ -6,6 +6,15 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.16 — 2026-10-22
+
+4 changes since 0.3.15:
+
+1. **The Guild page has the game's guild window.** New sub-tabs: *Overview* (as before, plus *Edit* for the message of the day), *Roster* (name, level, zone, rank, public note, officer note and last online as the game shows them, with search, *Show offline* and column sorting; pick a member to whisper or group-invite them and, as your guild rank allows, promote, demote, remove (asks first), edit notes, or *Invite to guild*), and *Chat* (your guild's chat or every RUIN guild's, a line to type to your guild, and *Pop out* into a movable window). `/ruin roster` and `/ruin chat`.
+2. **Options for the org admin.** Options now has *Org*, *Display* and *About* sub-tabs. *Org* lists the org's guilds for the admin: rename a guild, change its tag and which ranks count as officers (with your guild's rank names), or remove it. `/ruin key editguild` does the same from chat. The admin is now every character on the admin's WoW account (noted in the account-wide RUIN_DB), so the org can be run from an alt; the admin stays connected to the org channels on every character. *Export key* is for the org admin only.
+3. **RUIN's channels are always the last channel numbers, never /1.** RUIN joins after the game's channels and then moves its two channels behind the others, keeping your other channels' order (not in combat).
+4. For modules (API level 9): `RUIN_API.Items` shows items by name, never as a bare ID: it asks the game for missing items, remembers names and qualities it has seen, and fires `ITEMS_LOADED` when names arrive.
+
 ## 0.3.15 — 2026-10-21
 
 1 change since 0.3.14:

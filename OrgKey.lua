@@ -25,7 +25,24 @@ local lastOfferPopup = -999
 function Org:Get() return ns.db and ns.db.orgKey end
 function Org:Rev() local k = Org:Get(); return k and k.rev or 0 end
 function Org:HasOfficerPart() local k = Org:Get(); return k ~= nil and k.oc ~= nil end
-function Org:IsAdmin() local k = Org:Get(); return k ~= nil and ns.playerGUID ~= nil and k.admin == ns.playerGUID end
+-- The org admin is the character that created the key, and every other
+-- character on the same WoW account: the first time the admin character
+-- logs in, RUIN notes in the account-wide RUIN_DB that this account holds the
+-- admin. A key imported on another account never carries that note.
+local function accountIsAdmin(k)
+    if not (k and ns.db) then return false end
+    if ns.playerGUID ~= nil and k.admin == ns.playerGUID then
+        ns.db.adminOf = type(ns.db.adminOf) == "table" and ns.db.adminOf or {}
+        ns.db.adminOf[k.org] = k.admin
+        return true
+    end
+    return type(ns.db.adminOf) == "table" and k.admin ~= nil and ns.db.adminOf[k.org] == k.admin
+end
+Org.AccountIsAdmin = accountIsAdmin
+
+function Org:IsAdmin() return accountIsAdmin(Org:Get()) end
+-- The admin character itself (rather than an alt on the same account).
+function Org:IsAdminCharacter() local k = Org:Get(); return k ~= nil and ns.playerGUID ~= nil and k.admin == ns.playerGUID end
 
 function Org:GuildInfo(name)
     local k = Org:Get()
@@ -121,7 +138,7 @@ function Org:Apply(k, source)
     end
 
     -- Only officers of their own guild (or the admin) keep the officer channel.
-    if k.oc and k.admin ~= ns.playerGUID then
+    if k.oc and not accountIsAdmin(k) then
         local g = ns.guildName and k.guilds[ns.guildName]
         local officerRank = (g and tonumber(g.o)) or 1
         if not (type(ns.guildRank) == "number" and ns.guildRank <= officerRank) then
@@ -192,6 +209,39 @@ function Org:AddGuild(name, rank, tag)
     k.rev = k.rev + 1
     publishEdit(k, oldOC)
     return true
+end
+
+-- Change a guild's entry: its name (must match the in-game guild name
+-- exactly), the lowest rank that counts as officer, and its short tag.
+function Org:EditGuild(oldName, newName, rank, tag)
+    local k, err = editableKey()
+    if not k then return false, err end
+    oldName = ns.Trim(oldName or "")
+    local g = k.guilds[oldName]
+    if not g then return false, "That guild is not in the org key." end
+    newName = ns.Trim(newName or oldName)
+    if newName == "" then return false, "The guild needs a name." end
+    if newName ~= oldName and k.guilds[newName] then return false, "Another guild already has that name." end
+    rank = tonumber(rank)
+    if rank and (rank < 0 or rank > 9 or rank ~= math.floor(rank)) then return false, "The officer rank is 0 (guild master) to 9." end
+    tag = tag and ns.Trim(tag) or nil
+    local entry = { o = rank or g.o, tag = (tag and tag ~= "") and tag:sub(1, 14) or g.tag }
+    local same = newName == oldName and entry.o == g.o and entry.tag == g.tag
+    if same then return true end
+    local oldOC = k.oc and k.oc.n
+    k.guilds[oldName] = nil
+    k.guilds[newName] = entry
+    k.rev = k.rev + 1
+    publishEdit(k, oldOC)
+    return true
+end
+
+function Org:GuildNames()
+    local k = Org:Get()
+    local list = {}
+    for name in pairs(k and k.guilds or {}) do list[#list + 1] = name end
+    table.sort(list)
+    return list
 end
 
 function Org:RemoveGuild(name)
@@ -321,9 +371,12 @@ end
 function Org:ApplyChannels()
     if not ns.loggedIn then return end
     local k = Org:Get()
-    if k and Org:MyGuildInOrg() then
+    -- the admin stays connected on every character of the account, so the
+    -- org can be run from an alt in another guild
+    local admin = Org:IsAdmin()
+    if k and (Org:MyGuildInOrg() or admin) then
         ns.Comms:SetChannel("ORG", k.c.n, k.c.p)
-        if k.oc and Org:AmOfficer() then
+        if k.oc and (Org:AmOfficer() or admin) then
             ns.Comms:SetChannel("OFFICERS", k.oc.n, k.oc.p)
         else
             ns.Comms:SetChannel("OFFICERS", nil)

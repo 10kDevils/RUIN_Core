@@ -6,8 +6,11 @@ The hub addon of the **RUIN Gaming Companion App** on WoW Forever (and Retail). 
 
 Dark navy with the gold RUIN mark, as in the RUIN Companion brief. Tabs run across the top in this order, shown only when the module is installed: **Guild**, **Finder**, **Muster**, **Pathfinder**, **Codex**, **Exchange** and **Options**. The title bar shows whether you're connected to RUIN and which game you're in. Guild and Options keep RUIN's navy, teal and gold; each module's page and tab wear that addon's own color.
 
-- **Guild:** who's online in your guild (level, class, online / away / busy, and whether they run RUIN), RUIN members of the other guilds with their tag, the guild message of the day, RUIN's community links with Copy buttons, and Overlord Forever, which runs RUIN's world PvP (the page opens it with `/ov show` when it's installed; RUIN's old Warfront addon is retired).
-- **Options:** the org key tools (members see Import and Export; the org admin's tools appear only for the admin), chat and display options (couch mode for Steam Deck and TV), and what RUIN shares: only with RUIN members of your org, never outside the game.
+- **Guild → Overview:** who's online in your guild (level, class, online / away / busy, and whether they run RUIN), RUIN members of the other guilds with their tag, the guild message of the day (with *Edit* for ranks allowed to change it), RUIN's community links with Copy buttons, and Overlord Forever, which runs RUIN's world PvP (the page opens it with `/ov show` when it's installed; RUIN's old Warfront addon is retired).
+- **Guild → Roster:** the game's guild roster: name, level, zone, rank, public note, officer note (for ranks allowed to see it) and last online, with search, *Show offline* and sorting by any column. Click a member to whisper them, invite them to your group, and, as far as your guild rank allows in the game, promote, demote or remove them (removing asks first) and edit their public and officer notes. *Invite to guild* invites a new member. `/ruin roster` opens it.
+- **Guild → Chat:** your guild's chat, or every RUIN guild's (*All RUIN guilds* / *My guild*), with a line to type to your guild. *Pop out* (or `/ruin chat`) opens it in its own small window you can move anywhere; Escape closes it. The log covers this session.
+- **Options → Org:** the org key (everyone can Import it; only the org admin can Export it, since a pasted key is how a new guild joins). The org admin also sees *Guilds in the org*: pick a guild to change its name (it must match the in-game guild name exactly), its tag, and which ranks count as officers (your own guild's rank names are shown), or press *Remove guild*. The org admin is every character on the admin's WoW account, so the org can be run from an alt.
+- **Options → Display:** chat and display options (couch mode for Steam Deck and TV) and the tab order. **Options → About:** versions, modules and what RUIN shares: only with RUIN members of your org, never outside the game.
 - **Community links:** the org admin sets them once (Options → Community links, or `/ruin key links`) as `Name = address` lines, and they reach every member inside the org key. Keep donation links such as Patreon on the website: Blizzard's add-on rules forbid them in game.
 
 ## Install
@@ -20,7 +23,7 @@ All RUIN guilds must be on the same ruleset and faction.
 
 1. **Org admin** (the main guild master): open `/ruin` → Options → **Create org key**. You become the admin and your guild is added.
 2. Click **Add guild** for each other guild: `Guild Name, officer rank, tag`. Rank 0 is the guild master, 1 the next rank down. Everyone at or above the officer rank counts as an officer.
-3. Target each other guild's leader (or an officer) and click **Send key to target**. They get an "accept org key" prompt. No copy-paste needed. **Export key** gives a text string instead, for leaders who are offline.
+3. Target each other guild's leader (or an officer) and click **Send key to target**. They get an "accept org key" prompt. No copy-paste needed. **Export key** (org admin only) gives a text string instead, for leaders who are offline.
 4. That's it. Inside each guild, officers share the member key with everyone automatically when they log in, and pass the officer channel to other officers.
 
 Admin changes (adding or removing a guild, rotating) are announced to every guild's online officers automatically. Officers who were offline catch up from other guilds' officers when they log in, unless the key was rotated; after a rotation, send the key again to any guild leader who was offline.
@@ -41,7 +44,9 @@ Admin changes (adding or removing a guild, rotating) are announced to every guil
 | `/ruin key links` | Admin: edit the community links |
 | `/ruin status` | Print connection status |
 | `/ruin versions` | RUIN versions seen online |
-| `/ruin key import` / `export` / `send [name]` / `forget` | Key handling |
+| `/ruin key import` / `send [name]` / `forget`, and `export` (org admin) | Key handling |
+| `/ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]` | Org admin: change a guild's entry |
+| `/ruin roster` / `/ruin chat` | The guild roster, or guild chat in its own window |
 | `/ruin key create <org>` | Create an org key (you become admin) |
 | `/ruin key addguild <guild>, <rank>[, <tag>]` | Admin: add a guild |
 | `/ruin key removeguild <guild>` | Admin: remove a guild (also rotates passwords) |
@@ -88,3 +93,8 @@ API level 8 (Core 0.3.15) adds:
 - `W.Dropdown(parent, width, options, getter, setter, prefix)`: a button showing the current choice that opens the list of choices underneath; `d.format(value)` sets the shown text, `d:Refresh()` re-reads the value.
 - `W.WhenPicker(parent)`: a day list (today and the next two weeks, as *Wed 10/21*), hour and minute boxes and AM / PM, in the player's own time; `:GetTime()` returns epoch seconds (or nil and why), `:GetText()` gives "2026-10-21 20:00", `:SetTime(t)`.
 - `W.WhenText(t)`: "Wed 10/21 8:00 PM".
+
+API level 9 (Core 0.3.16) adds `RUIN_API.Items`: `Items.Text(id, fallbackName, fallbackQuality)` gives an item's link, else its remembered name in quality color, else the fallback, else "Loading item..." (never a bare ID); `Items.Info(id)` gives name, link, quality; `Items.RememberLinks(text)`, `Items.QualityHex(q)`, `Items.QualityName(q)`. Pages redraw on the `ITEMS_LOADED` callback (`RUIN_API:Subscribe("ITEMS_LOADED", fn)`).
+
+## Chat channel numbers
+RUIN's two hidden channels (org and officers) always sit after your other channels: General, Trade and the rest keep the low numbers, RUIN's come last and are never /1. Right after login RUIN waits (up to 45 seconds) for the game's own channels to join first, then moves its channels to the end of the list one swap at a time, keeping your other channels in their order. Nothing is moved during combat. If you have left every other channel, RUIN's has to be /1 until you join one.

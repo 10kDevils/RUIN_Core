@@ -20,13 +20,14 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 8              -- modules check this to know which API they can use
+API.apiLevel = 9              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
                               -- level 6 page colors (SchemeOf), MarkChoice, Popover and EditBox placeholders,
                               -- from level 8 Dropdown, WhenPicker and WhenText)
 API.client = ns.CLIENT        -- "forever" or "retail" (level 4)
+API.Items = ns.Items          -- item names and qualities that survive a cold cache (level 9)
 API.Map = ns.Map              -- positions, distances, and pins on the world map and minimap (level 3)
 
 local modules, ordered = {}, {}

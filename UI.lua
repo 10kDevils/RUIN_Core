@@ -216,10 +216,15 @@ function UI:PromptImport()
     end)
 end
 
+-- Only the org admin exports the key: a pasted key is how a new guild joins.
 function UI:ShowExport()
     local k = ns.Org:Get()
     if not k then
         ns:Print("No org key to export.")
+        return
+    end
+    if not ns.Org:IsAdmin() then
+        ns:Print("Only the org admin can export the org key. Inside your guild, officers share it automatically.")
         return
     end
     local hint = k.oc
@@ -484,7 +489,24 @@ local function channelDot(scope)
     return GREY .. "off|r"
 end
 
+local buildGuildOverview
+
+-- Guild page: Overview (who's online, MOTD, links, Overlord), Roster (the
+-- full guild window roster with moderation) and Chat (guild or org chat,
+-- with a pop-out window). Roster and Chat live in Guild.lua.
 local function buildGuildPanel(p)
+    guild.tabs = Wd.SubTabs(p, { "Overview", "Roster", "Chat" }, function(i)
+        if i == 2 then ns.GuildUI.RefreshRoster() elseif i == 3 then ns.GuildUI.RefreshChat() else UI:Refresh() end
+    end)
+    buildGuildOverview(guild.tabs.pages[1])
+    ns.GuildUI.BuildRoster(guild.tabs.pages[2])
+    guild.chat = ns.GuildUI.BuildChatView(guild.tabs.pages[3], false)
+    guild.tabs:Select(1)
+end
+
+function UI:SelectGuildTab(i) if guild.tabs then guild.tabs:Select(i) end end
+
+buildGuildOverview = function(p)
     guild.page = p
     guild.orgLine = Wd.Label(p, "", "GameFontHighlightSmall")
     guild.orgLine:SetPoint("TOPLEFT", 2, 0)
@@ -552,6 +574,13 @@ local function buildGuildPanel(p)
     motd:SetHeight(112)
     local mh = Wd.Header(motd, "Guild message of the day")
     mh:SetPoint("TOPLEFT", 10, -8)
+    guild.editMotd = Wd.Button(motd, "Edit", 56, function()
+        local cur = GetGuildRosterMOTD and GetGuildRosterMOTD() or ""
+        UI:ShowText("Guild message of the day", "Everyone in the guild sees it when they log in (up to 128 characters).", cur, function(text)
+            ns.Guild:SetMOTD(text)
+        end)
+    end)
+    guild.editMotd:SetPoint("TOPRIGHT", -8, -6)
     guild.motd = Wd.Label(motd, "", "GameFontHighlightSmall")
     guild.motd:SetPoint("TOPLEFT", 12, -30)
     guild.motd:SetPoint("RIGHT", motd, "RIGHT", -12, 0)
@@ -648,6 +677,7 @@ local function refreshGuild()
 
     local text = GetGuildRosterMOTD and GetGuildRosterMOTD() or ""
     guild.motd:SetText((text and text ~= "") and ns.Escape(text) or (GREY .. "No message of the day.|r"))
+    guild.editMotd:SetShown(ns.Guild:Can("motd"))
 
     local list = ns.Org:GetLinks()
     for i, row in ipairs(guild.linkRows) do
@@ -680,11 +710,119 @@ end
 ---------------------------------------------------------------------------
 -- Settings page: the org key, display options, about
 ---------------------------------------------------------------------------
+local refreshSettings
+
+-- Rank names of your own guild ("0  Guild Master"); numbers for other guilds.
+local function rankLabel(guildName, rank)
+    rank = tonumber(rank) or 0
+    local name
+    if guildName == ns.guildName and GuildControlGetRankName then
+        local ok, n = pcall(GuildControlGetRankName, rank + 1)
+        if ok and type(n) == "string" and n ~= "" then name = n end
+    end
+    return name and (rank .. "  " .. name) or ("Rank " .. rank)
+end
+
+-- The org admin's list of guilds: pick one to rename it, change which ranks
+-- count as officers, change its tag, or remove it from the org.
+local function buildGuildAdmin(parent, anchor)
+    local card = Wd.Card(parent)
+    card:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    card:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+    local h = Wd.Header(card, "Guilds in the org")
+    h:SetPoint("TOPLEFT", 10, -8)
+    local hint = Wd.Label(card, GREY .. "Org admin only. Pick a guild to change it.|r", "GameFontHighlightSmall")
+    hint:SetPoint("LEFT", h, "RIGHT", 10, 0)
+    settings.guildList = Wd.List(card, 26, function(row)
+        row.name = Wd.Label(row, "")
+        row.name:SetPoint("LEFT", 8, 0)
+        row.name:SetWidth(170)
+        row.name:SetWordWrap(false)
+        row.info = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.info:SetPoint("LEFT", 182, 0)
+        row.info:SetWidth(120)
+        row.info:SetWordWrap(false)
+        row:EnableMouse(true)
+        row:SetScript("OnMouseUp", function(self)
+            if self.g then settings.gSel = self.g.name; settings.gEdit = nil; refreshSettings() end
+        end)
+    end, function(row, g)
+        row.g = g
+        local on = settings.gSel == g.name
+        row.name:SetText((on and C.gold or C.white) .. ns.Escape(g.name) .. "|r" .. (g.name == ns.guildName and (GREY .. "  (yours)|r") or ""))
+        row.info:SetText(GREY .. "[" .. ns.Escape(g.tag or "") .. "]  officers 0-" .. tostring(g.o) .. "|r")
+    end)
+    settings.guildList.frame:SetPoint("TOPLEFT", 6, -30)
+    settings.guildList.frame:SetPoint("BOTTOMLEFT", 6, 8)
+    settings.guildList.frame:SetWidth(320)
+
+    local ed = CreateFrame("Frame", nil, card)
+    ed:SetPoint("TOPLEFT", 352, -30)
+    ed:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -10, 8)
+    local function label(text, y)
+        local l = Wd.Label(ed, GREY .. text .. "|r", "GameFontHighlightSmall")
+        l:SetPoint("TOPLEFT", 0, y)
+        return l
+    end
+    label("Guild name (exactly as in game)", 0)
+    settings.gName = Wd.EditBox(ed, 220)
+    settings.gName:SetPoint("TOPLEFT", 0, -14)
+    label("Short tag shown in chat", -44)
+    settings.gTag = Wd.EditBox(ed, 120)
+    settings.gTag:SetPoint("TOPLEFT", 0, -58)
+    label("Officers are ranks 0 to", -88)
+    settings.gRank = Wd.Dropdown(ed, 200, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+        function() return settings.gRankValue end, function(v) settings.gRankValue = v end)
+    settings.gRank.format = function(v) return rankLabel(settings.gSel, v) end
+    settings.gRank.tipTitle = "The lowest guild rank that counts as officer (0 is the guild master)"
+    settings.gRank:SetPoint("TOPLEFT", 0, -102)
+    settings.gSave = Wd.Button(ed, "Save changes", 116, function()
+        local old = settings.gSel
+        if not old then return end
+        local new = ns.Trim(settings.gName:GetText() or "")
+        local function save()
+            local ok, err = ns.Org:EditGuild(old, new, settings.gRankValue, settings.gTag:GetText())
+            if ok then
+                settings.gSel = new
+                ns:Print(("Saved %s. Every RUIN member gets the change with the org key."):format(new))
+            else
+                ns:Print(err)
+            end
+            refreshSettings()
+        end
+        if new ~= old then
+            UI:ShowConfirm("Rename guild", ("Rename %s to %s in the org key?\n\nThe name must match the in-game guild name exactly, or that guild's members lose the org connection.")
+                :format(ns.Escape(old), ns.Escape(new)), save)
+        else
+            save()
+        end
+    end)
+    settings.gSave:SetPoint("TOPLEFT", 0, -140)
+    settings.gRemove = Wd.Button(ed, "Remove guild", 116, function()
+        local name = settings.gSel
+        if not name then return end
+        UI:ShowConfirm("Remove guild from the org", ("Remove %s from the RUIN org?\n\nIts members lose the org chat and modules' sharing. The org's channels get new passwords; officers online get the new key automatically, offline guild leaders need it sent again.")
+            :format(ns.Escape(name)), function()
+            local ok, err = ns.Org:RemoveGuild(name)
+            ns:Print(ok and ("Removed " .. name .. " from the org.") or err)
+            settings.gSel = nil
+            refreshSettings()
+        end)
+    end)
+    settings.gRemove:SetPoint("LEFT", settings.gSave, "RIGHT", 6, 0)
+    settings.gEditor = ed
+    settings.guildCard = card
+end
+
 local function buildSettingsPanel(p)
     settings.page = p
-    local keyCard = Wd.Card(p)
+    -- Org (key and, for the admin, the guild list), Display (chat, window and
+    -- tab order) and About.
+    settings.tabs = Wd.SubTabs(p, { "Org", "Display", "About" }, function() refreshSettings() end)
+    local orgPage, dispPage, aboutPage = settings.tabs.pages[1], settings.tabs.pages[2], settings.tabs.pages[3]
+    local keyCard = Wd.Card(orgPage)
     keyCard:SetPoint("TOPLEFT", 0, 0)
-    keyCard:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    keyCard:SetPoint("RIGHT", orgPage, "RIGHT", 0, 0)
     keyCard:SetHeight(176)
     local kh = Wd.Header(keyCard, "Org key")
     kh:SetPoint("TOPLEFT", 10, -8)
@@ -704,10 +842,11 @@ local function buildSettingsPanel(p)
     settings.rotate = Wd.Button(keyCard, "Rotate key", 110, function() UI:PromptRotate() end)
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
     settings.keyCard = keyCard
+    buildGuildAdmin(orgPage, keyCard)
 
-    local disp = Wd.Card(p)
-    disp:SetPoint("TOPLEFT", keyCard, "BOTTOMLEFT", 0, -10)
-    disp:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    local disp = Wd.Card(dispPage)
+    disp:SetPoint("TOPLEFT", 0, 0)
+    disp:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
     disp:SetHeight(108)
     local dh = Wd.Header(disp, "Chat and display")
     dh:SetPoint("TOPLEFT", 10, -8)
@@ -737,9 +876,9 @@ local function buildSettingsPanel(p)
 
     -- Tab order: pick a tab, then move it left or right. Saved for you in
     -- RUIN Core; Options always stays last.
-    local order = Wd.Card(p)
+    local order = Wd.Card(dispPage)
     order:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
-    order:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    order:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
     order:SetHeight(64)
     local oh = Wd.Header(order, "Tab order")
     oh:SetPoint("TOPLEFT", 10, -8)
@@ -763,9 +902,9 @@ local function buildSettingsPanel(p)
         settings.orderChips[i] = b
     end
 
-    local about = Wd.Card(p)
-    about:SetPoint("TOPLEFT", order, "BOTTOMLEFT", 0, -10)
-    about:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+    local about = Wd.Card(aboutPage)
+    about:SetPoint("TOPLEFT", 0, 0)
+    about:SetPoint("BOTTOMRIGHT", aboutPage, "BOTTOMRIGHT", 0, 0)
     local ah = Wd.Header(about, "About RUIN")
     ah:SetPoint("TOPLEFT", 10, -8)
     settings.about = Wd.Label(about, "", "GameFontHighlightSmall")
@@ -775,14 +914,17 @@ local function buildSettingsPanel(p)
     if settings.about.SetSpacing then settings.about:SetSpacing(3) end
 
     p:SetScript("OnShow", function() UI:Refresh() end)
+    settings.tabs:Select(1)
     UI:Refresh()
 end
+
+function UI:SelectSettingsTab(i) if settings.tabs then settings.tabs:Select(i) end end
 
 local function setEnabled(button, on)
     if on then button:Enable() else button:Disable() end
 end
 
-local function refreshSettings()
+refreshSettings = function()
     if not (settings.page and settings.page:IsVisible()) then return end
     local k = ns.Org:Get()
     local lines = {}
@@ -808,7 +950,7 @@ local function refreshSettings()
     -- Only the buttons that do something for you, in one or two rows.
     local admin = ns.Org:IsAdmin()
     local row1 = { settings.import }
-    if k then row1[#row1 + 1] = settings.export end
+    if k and admin then row1[#row1 + 1] = settings.export end
     if k and (admin or (k.oc ~= nil and ns.Org:AmOfficer())) then row1[#row1 + 1] = settings.send end
     if not k then row1[#row1 + 1] = settings.create end
     local row2 = admin and { settings.addGuild, settings.rotate, settings.links } or {}
@@ -829,6 +971,28 @@ local function refreshSettings()
     settings.adminLabel:SetShown(#row2 > 0)
     place(row2, -130, 82)
     settings.keyCard:SetHeight(#row2 > 0 and 164 or 132)
+    -- the admin's guild list
+    settings.guildCard:SetShown(admin)
+    if admin then
+        local list = {}
+        for _, name in ipairs(ns.Org:GuildNames()) do
+            local g = k.guilds[name]
+            list[#list + 1] = { name = name, tag = g.tag, o = tonumber(g.o) or 1 }
+        end
+        local found
+        for _, g in ipairs(list) do if g.name == settings.gSel then found = g end end
+        if not found then settings.gSel = list[1] and list[1].name; found = list[1] end
+        settings.guildList:SetItems(list)
+        settings.gEditor:SetShown(found ~= nil)
+        if found and settings.gEdit ~= found.name then        -- fill the editor once per pick
+            settings.gEdit = found.name
+            settings.gName:SetText(found.name)
+            settings.gTag:SetText(found.tag or "")
+            settings.gRankValue = found.o
+        end
+        settings.gRank:Refresh()
+        setEnabled(settings.gRemove, #list > 1)
+    end
     for _, c in ipairs(settings.checks) do c:Refresh() end
     -- Officer chat only matters to officers.
     local officer = ns.Org:AmOfficer()

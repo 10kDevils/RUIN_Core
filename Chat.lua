@@ -30,6 +30,28 @@ local function isSecret(v)
 end
 
 ---------------------------------------------------------------------------
+-- History for the Guild page's Chat tab and the pop-out chat window: your
+-- guild's chat and the other RUIN guilds' chat, this session only.
+---------------------------------------------------------------------------
+local MAX_HISTORY = 300
+Chat.history = {}      -- { t, gu, a, c, text, own }
+
+local function record(line)
+    local h = Chat.history
+    h[#h + 1] = line
+    if #h > MAX_HISTORY then table.remove(h, 1) end
+    ns:Fire("CHAT_HISTORY", line)
+end
+
+-- Send a line to your guild chat (RUIN mirrors it to the other guilds).
+function Chat:SendGuild(text)
+    text = ns.Trim(text or "")
+    if text == "" or not IsInGuild() then return false end
+    SendChatMessage(text:sub(1, 255), "GUILD")
+    return true
+end
+
+---------------------------------------------------------------------------
 -- Outgoing: mirror guild/officer lines to the org
 ---------------------------------------------------------------------------
 local function onGuildLine(officer, text, author, guid)
@@ -67,6 +89,10 @@ local function onGuildLine(officer, text, author, guid)
 end
 
 ns:RegisterEvent("CHAT_MSG_GUILD", function(_, text, author, _, _, _, _, _, _, _, _, _, guid)
+    if not (isSecret(text) or isSecret(author)) and type(text) == "string" then
+        local e = (type(guid) == "string" and ns.rosterByGUID[guid]) or ns.roster[ns.NormalizeName(author or "")]
+        record({ t = time(), gu = ns.guildName, a = author, c = e and e.class, text = text, own = true })
+    end
     onGuildLine(false, text, author, guid)
 end)
 
@@ -95,7 +121,10 @@ local function colorName(name, class)
     return "|c" .. hex .. link .. "|r"
 end
 
+Chat.ColorName = colorName
+
 -- Strip embedded textures/atlases so a crafted line cannot flood the chat frame.
+function Chat.Sanitize(text) return (text:gsub("|T.-|t", ""):gsub("|A.-|a", "")) end
 local function sanitize(text)
     text = text:gsub("|T.-|t", "")
     text = text:gsub("|A.-|a", "")
@@ -127,6 +156,7 @@ ns.Comms:Register("GCHAT", function(d, sender, scope)
     if d.gu == ns.guildName then return end              -- we already saw it in /g
     if not ns.Org:GuildInfo(d.gu) then return end       -- not an org guild
     if isDuplicate(dedupKey(d.g, d.t)) then return end
+    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false })
     if not ns.db.settings.showOrgChat then return end
     Chat:Display(false, d, false)
 end)

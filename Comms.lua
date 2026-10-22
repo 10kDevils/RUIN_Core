@@ -249,11 +249,17 @@ end
 -- The hidden channels are kept out of chat by message filters only. RUIN
 -- never edits Blizzard's chat frames (removing channels from them tainted
 -- the chat UI and caused "blocked from an action" popups).
+local otherChannelCount        -- defined with channel ordering, below
+local loadedAt = GetTime()
+
 function Comms:JoinChannel(scope)
     local ch = channels[scope]
     if not ch or not ch.name or channelId(scope) then return end
     -- Never touch channel membership in combat; the upkeep timer retries later.
     if InCombatLockdown and InCombatLockdown() then return end
+    -- Let the game's own channels (General, Trade...) take the low numbers
+    -- first: right after login RUIN waits up to 45 seconds for one of them.
+    if otherChannelCount() == 0 and GetTime() - loadedAt < 45 then return end
     ch.lastJoin = GetTime()
     if JoinTemporaryChannel then
         JoinTemporaryChannel(ch.name, ch.password)
@@ -301,6 +307,59 @@ local function isOurChannel(...)
 end
 Comms.IsOurChannel = isOurChannel
 
+---------------------------------------------------------------------------
+-- Channel numbers: RUIN's hidden channels always come after the player's
+-- other channels (General is /1, Trade /2 ... RUIN last), never /1. The game
+-- gives a new channel the lowest free number, so RUIN joins after the game's
+-- channels and then moves its own to the end, one swap at a time, keeping
+-- the other channels in their order. Nothing happens in combat.
+---------------------------------------------------------------------------
+local function channelList()
+    local out = {}
+    if not GetChannelList then return out end
+    local t = { GetChannelList() }
+    local step = (type(t[3]) == "number") and 2 or 3           -- id, name[, disabled]
+    for i = 1, #t, step do
+        if tonumber(t[i]) and type(t[i + 1]) == "string" then out[#out + 1] = { id = tonumber(t[i]), name = t[i + 1] } end
+    end
+    table.sort(out, function(a, b) return a.id < b.id end)
+    return out
+end
+Comms.ChannelList = channelList
+
+otherChannelCount = function()
+    if not GetChannelList then return 1 end                    -- can't tell: don't wait
+    local n = 0
+    for _, ch in ipairs(channelList()) do if not isOurChannel(ch.name) then n = n + 1 end end
+    return n
+end
+
+local swapPending = false
+function Comms:SortChannels()
+    local swap = C_ChatInfo and C_ChatInfo.SwapChatChannelsByChannelIndex
+    if not swap or (InCombatLockdown and InCombatLockdown()) then return false end
+    local list = channelList()
+    for i, ch in ipairs(list) do
+        local nxt = list[i + 1]
+        if nxt and isOurChannel(ch.name) and not isOurChannel(nxt.name) then
+            local ok = pcall(swap, ch.id, nxt.id)
+            if ok and not swapPending then
+                -- the next swap once the game has moved this one
+                swapPending = true
+                C_Timer.After(1, function() swapPending = false; Comms:SortChannels() end)
+            end
+            return ok
+        end
+    end
+    return false
+end
+
+ns:RegisterEvent("CHANNEL_UI_UPDATE", function()
+    if swapPending then return end
+    swapPending = true
+    C_Timer.After(1, function() swapPending = false; Comms:SortChannels() end)
+end)
+
 -- Keep join/leave notices and any stray text from the hidden channels out of chat.
 local function channelFilter(_, _, _, _, _, channelString, _, _, _, _, channelBaseName)
     if isOurChannel(channelString, channelBaseName) then return true end
@@ -334,6 +393,7 @@ end)
 ---------------------------------------------------------------------------
 local function upkeep()
     local now = GetTime()
+    if not swapPending then Comms:SortChannels() end
     for key, p in pairs(partials) do
         if now - p.t > PARTIAL_MAX_AGE then partials[key] = nil end
     end
@@ -343,6 +403,7 @@ local function upkeep()
             if joined ~= ch.joined then
                 ch.joined = joined
                 ns:Fire("CHANNELS_CHANGED")
+                if joined then Comms:SortChannels() end
             end
             if not joined and not warnedPassword[scope] and now - (ch.lastJoin or 0) > 30 then
                 Comms:JoinChannel(scope)

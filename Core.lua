@@ -25,6 +25,7 @@ local DEFAULTS = {
         couchMode = false,       -- larger window for Steam Deck / TV play
         animations = true,       -- ambient motion in page headers
         tabOrder = nil,          -- your own tab order (Options > Tab order): a list of page titles
+        chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
         debug = false,
     },
 }
@@ -165,11 +166,16 @@ function ns:ScanRoster()
     local roster, byGUID = {}, {}
     local count = GetNumGuildMembers() or 0
     for i = 1, count do
-        local name, _, rankIndex, level, className, zone, _, _, online, status, classFile,
+        local name, rankName, rankIndex, level, className, zone, note, officerNote, online, status, classFile,
               _, _, _, _, _, guid = GetGuildRosterInfo(i)
         if name then
-            local entry = { name = name, rank = rankIndex, level = level, className = className, zone = zone,
-                            online = online, status = status, class = classFile, guid = guid }
+            local entry = { name = name, rank = rankIndex, rankName = rankName, level = level, className = className, zone = zone,
+                            note = note, officerNote = officerNote, online = online, status = status, class = classFile,
+                            guid = guid, index = i }
+            if not online and GetGuildRosterLastOnline then
+                local y, mo, d, h = GetGuildRosterLastOnline(i)
+                if y then entry.lastOnline = ((y * 365 + mo * 30 + d) * 24 + h) * 3600 end
+            end
             roster[ns.NormalizeName(name)] = entry
             if guid then byGUID[guid] = entry end
         end
@@ -232,11 +238,13 @@ end)
 local HELP = {
     "/ruin - open or close the RUIN window",
     "/ruin guild | options - open the Guild or Options page",
+    "/ruin roster - the guild roster  |  /ruin chat - pop out guild chat",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
-    "/ruin key import | export | send [name] | forget",
+    "/ruin key import | send [name] | forget  |  export (org admin)",
     "/ruin key create <org name>  (guild master who runs the org)",
     "/ruin key addguild <guild>, <officer rank>[, <tag>]  (org admin)",
+    "/ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]  (org admin)",
     "/ruin key removeguild <guild>  |  /ruin key rotate  (org admin)",
     "/ruin key links - edit the org's community links  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
@@ -291,6 +299,11 @@ local function handleKey(rest)
         local name, rank, tag = ns.ParseGuildSpec(arg)
         local ok, err = Org:AddGuild(name, rank, tag)
         ns:Print(ok and ("Added " .. name .. " (officer rank " .. rank .. ").") or err)
+    elseif sub == "editguild" then
+        local old, new, rank, tag = arg:match("^([^,]+),%s*([^,]*),%s*(%d+)%s*,?%s*(.*)$")
+        if not old then return ns:Print("Usage: /ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]") end
+        local ok, err = Org:EditGuild(ns.Trim(old), ns.Trim(new) ~= "" and ns.Trim(new) or ns.Trim(old), tonumber(rank), tag)
+        ns:Print(ok and ("Updated " .. ns.Trim(old) .. ".") or err)
     elseif sub == "removeguild" then
         local ok, err = Org:RemoveGuild(arg)
         ns:Print(ok and ("Removed " .. arg .. ".") or err)
@@ -324,6 +337,11 @@ SlashCmdList.RUIN = function(input)
         else
             ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Options > Tab order, or /ruin tabs reset.")
         end
+    elseif cmd == "chat" then
+        ns.GuildUI.ToggleChatWindow()
+    elseif cmd == "roster" then
+        ns.UI:OpenTab("Guild")
+        if ns.UI.SelectGuildTab then ns.UI:SelectGuildTab(2) end
     elseif cmd == "status" then
         ns:PrintStatus()
     elseif cmd == "versions" then
