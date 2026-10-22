@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.15 — 2026-10-21
+
+1 change since 0.3.14:
+
+1. For modules (API level 8): `Widgets.Dropdown` (a button that opens a list of choices underneath), `Widgets.WhenPicker` (a day list showing the weekday and a short date such as *Wed 10/21*, with separate hour and minute boxes and AM / PM) and `Widgets.WhenText` (writes a time as *Wed 10/21 8:00 PM*). RUIN Muster's New event form and the Codex Journal's run planning use them. The Codex and Pathfinder page lines now describe what those pages do.
+
 ## 0.3.14 — 2026-10-21
 
 1 change since 0.3.13:

@@ -16,9 +16,9 @@ local APP = "RUIN Gaming Companion App"
 ns.APP_NAME = APP
 ns.THEMES = {
     Codex      = { color = { 0.54, 0.32, 0.84 }, icon = "Interface\\Icons\\INV_Chest_Cloth_17",     motif = "tome",    order = 50, tab = "Codex",
-                   title = "Codex", kicker = APP, tagline = "Gear Path, best-in-slot, macros, and the dungeon and raid journal" },
+                   title = "Codex", kicker = APP, tagline = "Class macros, macro commands, and a dungeon and raid journal with boss loot" },
     Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 40, tab = "Pathfinder",
-                   title = "Pathfinder", kicker = APP, tagline = "Step-by-step leveling routes and quest guide" },
+                   title = "Pathfinder", kicker = APP, tagline = "Leveling routes and your quests, with Questie and the rest of RUIN" },
     Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 10, tab = "Guild",
                    title = "Guild & Community", kicker = APP, tagline = "Who's online, guild news and RUIN's links", core = true },
     Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 20, tab = "Finder",

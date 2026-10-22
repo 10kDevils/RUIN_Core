@@ -83,3 +83,8 @@ API level 4 (Core 0.3.6) adds:
 - `Module:AddTab(title, builder, { order = n, label = "Tab" })`; by default a module's tab label and place come from its theme.
 - `RUIN_API:GetClient()` returns `"forever"` or `"retail"`, and `RUIN_API:GetLinks()` the org's community links.
 - `RUIN_API:HasOverlord()` and `RUIN_API:OpenOverlord()`: RUIN's world PvP runs on Overlord Forever, so modules can point to it. `RUIN_API.appName` is "RUIN Gaming Companion App".
+
+API level 8 (Core 0.3.15) adds:
+- `W.Dropdown(parent, width, options, getter, setter, prefix)`: a button showing the current choice that opens the list of choices underneath; `d.format(value)` sets the shown text, `d:Refresh()` re-reads the value.
+- `W.WhenPicker(parent)`: a day list (today and the next two weeks, as *Wed 10/21*), hour and minute boxes and AM / PM, in the player's own time; `:GetTime()` returns epoch seconds (or nil and why), `:GetText()` gives "2026-10-21 20:00", `:SetTime(t)`.
+- `W.WhenText(t)`: "Wed 10/21 8:00 PM".

@@ -334,7 +334,8 @@ end
 
 -- Marks a button that steps through choices: a small down chevron in the
 -- page color and a hover line saying how it works (b.tipTitle adds a title).
-function W.MarkChoice(b)
+-- hint replaces that line ("Click to pick from a list.").
+function W.MarkChoice(b, hint)
     b.label:SetPoint("RIGHT", -16, 0)
     local ac = W.SchemeOf(b).accent
     for i, angle in ipairs({ -45, 45 }) do      -- a small down chevron
@@ -348,7 +349,7 @@ function W.MarkChoice(b)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
-        GameTooltip:AddLine("Click for the next choice, right-click to go back.", 0.7, 0.75, 0.8)
+        GameTooltip:AddLine(hint or "Click for the next choice, right-click to go back.", 0.7, 0.75, 0.8)
         GameTooltip:Show()
     end)
     b:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -582,6 +583,161 @@ function W.Popover(button, width, height, title)
     button:SetScript("OnClick", function() if card:IsShown() then card:Hide() else card:Show() end end)
     if page.HookScript then page:HookScript("OnHide", function() card:Hide() end) end
     return card
+end
+
+---------------------------------------------------------------------------
+-- Dropdown: a button showing the current choice; clicking it opens the list
+-- of choices underneath (click one, or the button again to close).
+--   local d = W.Dropdown(parent, 130, options, getter, setter, prefix)
+-- options: a list of values, or a function returning one. d.format(value)
+-- gives the shown text; d:Refresh() after the value changes elsewhere.
+---------------------------------------------------------------------------
+function W.Dropdown(parent, width, options, getter, setter, prefix)
+    local b = W.Button(parent, "", width)
+    W.MarkChoice(b, "Click to pick from a list.")
+    local menu = W.Card(b)
+    W.Skin(menu, "panel", 1, "glow")
+    menu:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
+    if menu.SetFrameStrata then menu:SetFrameStrata("DIALOG") end
+    menu:EnableMouse(true)
+    menu:Hide()
+    b.menu, b.items = menu, {}
+    local function opts() return (type(options) == "function" and options()) or options or {} end
+    local function label(v) return tostring(b.format and b.format(v) or v) end
+    function b:Refresh()
+        local v = getter()
+        if v == nil then v = opts()[1] end
+        self:SetText((prefix or "") .. (v ~= nil and label(v) or ""))
+    end
+    function b:Open()
+        local list = opts()
+        local cur = getter()
+        for i, v in ipairs(list) do
+            local it = b.items[i]
+            if not it then
+                it = W.Button(menu, "", width - 8)
+                it:SetHeight(20)
+                it.label:SetJustifyH("LEFT")
+                b.items[i] = it
+            end
+            it:ClearAllPoints()
+            it:SetPoint("TOPLEFT", 4, -4 - (i - 1) * 21)
+            it:SetWidth(width - 8)
+            it:SetText(label(v))
+            if v == cur then it:LockHighlight() else it:UnlockHighlight() end
+            it:SetScript("OnClick", function()
+                menu:Hide()
+                setter(v)
+                b:Refresh()
+            end)
+            it:Show()
+        end
+        for i = #list + 1, #b.items do b.items[i]:Hide() end
+        menu:SetSize(width, 8 + #list * 21)
+        menu:Show()
+    end
+    b:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else b:Open() end end)
+    b:HookScript("OnHide", function() menu:Hide() end)
+    b:Refresh()
+    return b
+end
+
+-- "Wed 10/21 8:00 PM": how RUIN writes an event's time (local time).
+function W.WhenText(at)
+    local d = date("*t", at)
+    local h = d.hour % 12
+    if h == 0 then h = 12 end
+    return ("%s %d/%d %d:%02d %s"):format(date("%a", at), d.month, d.day, h, d.min, d.hour >= 12 and "PM" or "AM")
+end
+
+---------------------------------------------------------------------------
+-- When picker: a day dropdown (today and the next days, as "Wed 10/21"),
+-- an hour box, a minute box and AM / PM. Times are your local time.
+--   local p = W.WhenPicker(parent)        p:SetTime(t)
+--   p:GetTime() -> epoch seconds, or nil and why
+--   p:GetText() -> "2026-10-21 20:00" (what RUIN's event times are written as)
+---------------------------------------------------------------------------
+function W.WhenPicker(parent, days)
+    days = days or 14
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(276, 24)
+    local st = { day = 1, hour = 8, min = 0, ampm = "PM" }
+    -- noon of the day `offset` days from today (noon keeps clear of daylight-saving edges)
+    local function noon(offset)
+        local t = date("*t")
+        t.hour, t.min, t.sec = 12, 0, 0
+        return time(t) + offset * 86400
+    end
+    local offsets = {}
+    for i = 0, days - 1 do offsets[#offsets + 1] = i end
+    f.day = W.Dropdown(f, 124, offsets, function() return st.day end, function(v) st.day = v end)
+    f.day.format = function(off)
+        local t = noon(off)
+        local d = date("*t", t)
+        return ("%s %d/%d"):format(off == 0 and "Today" or date("%a", t), d.month, d.day)
+    end
+    f.day.tipTitle = "Day"
+    f.day:Refresh()
+    f.day:SetPoint("LEFT", 0, 0)
+    local function box(w, max, read)
+        local e = W.EditBox(f, w, function(text) read(text) end)
+        if e.SetNumeric then e:SetNumeric(true) end
+        if e.SetMaxLetters then e:SetMaxLetters(max) end
+        if e.SetJustifyH then e:SetJustifyH("CENTER") end
+        return e
+    end
+    local function clampHour(text)
+        local h = tonumber(text)
+        if h and h >= 1 and h <= 12 then st.hour = h end
+        f.hour:SetText(tostring(st.hour))
+    end
+    local function clampMin(text)
+        local m = tonumber(text)
+        if m and m >= 0 and m <= 59 then st.min = m end
+        f.min:SetText(("%02d"):format(st.min))
+    end
+    f.hour = box(34, 2, clampHour)
+    f.hour:SetPoint("LEFT", f.day, "RIGHT", 6, 0)
+    f.colon = W.Label(f, ":")
+    f.colon:SetPoint("LEFT", f.hour, "RIGHT", 3, 0)
+    f.min = box(34, 2, clampMin)
+    f.min:SetPoint("LEFT", f.hour, "RIGHT", 10, 0)
+    f.ampm = W.Dropdown(f, 62, { "AM", "PM" }, function() return st.ampm end, function(v) st.ampm = v end)
+    f.ampm.tipTitle = "AM or PM"
+    f.ampm:SetPoint("LEFT", f.min, "RIGHT", 6, 0)
+
+    function f:GetTime()
+        local h, m = tonumber(self.hour:GetText()), tonumber(self.min:GetText())
+        if not h or h < 1 or h > 12 then return nil, "the hour must be 1 to 12" end
+        if not m or m < 0 or m > 59 then return nil, "the minutes must be 0 to 59" end
+        local t = date("*t", noon(st.day))
+        local h24 = h % 12 + (st.ampm == "PM" and 12 or 0)
+        t.hour, t.min, t.sec = h24, m, 0
+        return time(t)
+    end
+    function f:GetText()
+        local t, err = self:GetTime()
+        if not t then return nil, err end
+        return date("%Y-%m-%d %H:%M", t)
+    end
+    function f:SetTime(when)
+        local d = date("*t", when)
+        local today = date("*t", noon(0))
+        local a = time({ year = d.year, month = d.month, day = d.day, hour = 12 })
+        local b = time({ year = today.year, month = today.month, day = today.day, hour = 12 })
+        st.day = math.max(0, math.min(days - 1, math.floor((a - b) / 86400 + 0.5)))
+        st.ampm = d.hour >= 12 and "PM" or "AM"
+        st.hour = d.hour % 12
+        if st.hour == 0 then st.hour = 12 end
+        st.min = d.min
+        self.hour:SetText(tostring(st.hour))
+        self.min:SetText(("%02d"):format(st.min))
+        self.day:Refresh()
+        self.ampm:Refresh()
+    end
+    -- default: tomorrow, 8:00 PM
+    f:SetTime(noon(1) + 8 * 3600)
+    return f
 end
 
 ---------------------------------------------------------------------------
