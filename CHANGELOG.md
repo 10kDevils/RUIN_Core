@@ -6,6 +6,16 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.17 — 2026-10-23
+
+5 changes since 0.3.16:
+
+1. **Roster shows every guild in the org.** One RUIN member online in each guild shares its roster (name, level, class, zone, rank and rank name, public note, online state, last online; never officer notes) on the org channel when it changes, at most every five minutes, and on request. Everyone keeps the last copy, so other guilds show even when nobody from them is online. New *Guild* column and guild filter; moderation stays for your own guild. RUIN turns on the game's "show offline members" so offline guildmates are listed.
+2. **Overview lists only players connected through RUIN**, across every guild, with level, zone and guild tag.
+3. **Edit your own note.** *My note* on the Roster (and *My note* when you pick yourself) edits your note in the guild roster for every rank; the game still decides, and RUIN says so if your rank can't.
+4. **Key phrases.** The org can have a key phrase members type under Import key (or `/ruin key join <phrase>`) instead of pasting the long key: the phrase leads to the org channel, and a member online there hands over the member key. *Rotate key* is now *Choose new key*: a new phrase, or a new random key. Create org key asks for an optional phrase. Officers and the admin see the phrase under Options; members' keys don't carry it.
+5. **Guild settings: who can create events.** Under Options → Org, officers and up choose the lowest rank of their guild that can create RUIN Muster events; the setting reaches the whole guild (and guildmates who log in later). For modules, API level 10: `RUIN_API:CanCreateEvents()`, `GetEventRank()`.
+
 ## 0.3.16 — 2026-10-22
 
 4 changes since 0.3.15:

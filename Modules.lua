@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 9              -- modules check this to know which API they can use
+API.apiLevel = 10              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -160,6 +160,10 @@ function API:GetOrg()
 end
 
 function API:IsOfficer() return ns.Org:AmOfficer() end
+-- Level 10: can you create events (RUIN Muster)? Officers always; other ranks
+-- when their guild's officers allow it (Options > Org > Guild settings).
+function API:CanCreateEvents() return ns.Guild:CanCreateEvents() end
+function API:GetEventRank() return ns.Guild:EventRank() end
 -- Is another player an officer (level 7)? Guildmates are checked against the
 -- guild roster; members of other RUIN guilds by what their RUIN reports.
 function API:IsOfficerName(name) return ns.Presence:IsOfficerName(name) end
@@ -189,7 +193,8 @@ API.appName = "RUIN Gaming Companion App"
 function API:GetOnlineMembers() return ns.Presence:GetOnlineList() end
 function API:GetPlayerGUID() return ns.playerGUID end
 
--- Events: "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "GUILD_CHANGED", "CHANNELS_CHANGED"
+-- Events: "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "GUILD_CHANGED", "CHANNELS_CHANGED",
+-- "ITEMS_LOADED" (level 9), "GUILD_SETTINGS_CHANGED" and "ORG_ROSTER_UPDATED" (level 10)
 function API:Subscribe(eventName, fn) ns:Subscribe(eventName, fn) end
 
 -- Module events (see Module:Publish), e.g. "Muster:SPOT" or "Muster:EVENTS".

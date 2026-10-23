@@ -20,6 +20,11 @@ local function myClass()
     return classFile
 end
 
+local function myZone()
+    local z = GetRealZoneText and GetRealZoneText()
+    return type(z) == "string" and z:sub(1, 40) or nil
+end
+
 ---------------------------------------------------------------------------
 -- Sending
 ---------------------------------------------------------------------------
@@ -32,7 +37,7 @@ function Presence:SendGuildHello(request)
         kr = ns.Org:Rev(), ko = ns.Org:HasOfficerPart() and 1 or 0,
         b = ns.db.settings.allowBridge and 1 or 0,
         o = ns.Org:AmOfficer() and 1 or 0,
-        org = k and k.org or "",
+        org = k and k.org or "", gs = ns.Guild and ns.Guild:SettingsStamp() or nil,
         rq = request and 1 or nil,
     }, "GUILD")
 end
@@ -42,7 +47,7 @@ function Presence:SendOrgHello(request)
     lastOrgHello = GetTime()
     ns.Comms:Send("OHELLO", {
         g = ns.playerGUID, v = ns.VERSION, p = ns.PROTOCOL,
-        gu = ns.guildName, c = myClass(), l = UnitLevel("player"),
+        gu = ns.guildName, c = myClass(), l = UnitLevel("player"), z = myZone(),
         kr = ns.Org:Rev(), o = ns.Org:AmOfficer() and 1 or 0,
         rq = request and 1 or nil,
     }, "ORG")
@@ -73,6 +78,7 @@ ns.Comms:Register("HELLO", function(d, sender, scope)
 
     noteVersion(d.v, sender)
     ns.Org:OnPeerKeyState(p)
+    if ns.Guild then ns.Guild:OnPeerSettings(d.gs) end
 
     if d.rq == 1 and GetTime() - lastGuildHello > 15 then
         C_Timer.After(1 + math.random() * 4, function()
@@ -88,6 +94,7 @@ ns.Comms:Register("OHELLO", function(d, sender, scope)
     local p = orgPeers[d.g] or {}
     p.guid, p.name, p.t = d.g, sender, GetTime()
     p.guild, p.v, p.c, p.l = d.gu, d.v, d.c, tonumber(d.l)
+    p.z = type(d.z) == "string" and d.z:sub(1, 40) or nil
     p.kr, p.o = tonumber(d.kr) or 0, d.o
     orgPeers[d.g] = p
 
@@ -138,6 +145,18 @@ function Presence:OfficerBridgeGUID()
     end)
 end
 
+-- Who sends this guild's roster to the org channel: the lowest GUID among
+-- guildmates running RUIN with the org key (no bridging setting needed).
+function Presence:RosterSenderGUID()
+    local org = currentOrg()
+    if not org or not ns.Org:MyGuildInOrg() then return nil end
+    -- only RUIN 0.3.17 or later shares rosters
+    return elect(true, function(p)
+        return p.org == org and (p.kr or 0) > 0 and type(p.v) == "string" and ns.CompareVersions(p.v, "0.3.17") >= 0
+    end)
+end
+function Presence:IsRosterSender() return ns.playerGUID ~= nil and Presence:RosterSenderGUID() == ns.playerGUID end
+
 function Presence:IsBridge() return ns.playerGUID ~= nil and Presence:BridgeGUID() == ns.playerGUID end
 function Presence:IsOfficerBridge() return ns.playerGUID ~= nil and Presence:OfficerBridgeGUID() == ns.playerGUID end
 
@@ -167,6 +186,22 @@ function Presence:IsOfficerName(name)
     return false
 end
 
+-- An org peer (fresh OHELLO) by character name, or nil.
+function Presence:OrgPeerByName(name)
+    if not name then return nil end
+    local norm = ns.NormalizeName(name)
+    for _, p in pairs(orgPeers) do
+        if ns.NormalizeName(p.name) == norm and GetTime() - p.t <= ORG_EXPIRE then return p end
+    end
+    return nil
+end
+
+-- The guild a RUIN member on the org channel says they are in.
+function Presence:GuildOfName(name)
+    local p = Presence:OrgPeerByName(name)
+    return p and p.guild or nil
+end
+
 function Presence:IsOrgPeer(name)
     local norm = ns.NormalizeName(name)
     for _, p in pairs(orgPeers) do
@@ -182,21 +217,22 @@ end
 function Presence:GetOnlineList()
     local list = {}
     if ns.playerGUID then
-        list[#list + 1] = { guid = ns.playerGUID, name = ns.playerName, guild = ns.guildName,
+        list[#list + 1] = { guid = ns.playerGUID, name = ns.playerName, guild = ns.guildName, zone = myZone(),
                             class = myClass(), level = UnitLevel("player"), version = ns.VERSION, self = true }
     end
     local seen = { [ns.playerGUID or ""] = true }
     for guid, p in pairs(orgPeers) do
         seen[guid] = true
-        list[#list + 1] = { guid = guid, name = p.name, guild = p.guild, class = p.c,
-                            level = p.l, version = p.v }
+        local e = p.guild == ns.guildName and ns.rosterByGUID[guid]
+        list[#list + 1] = { guid = guid, name = p.name, guild = p.guild, class = p.c, zone = (e and e.zone) or p.z,
+                            level = p.l, version = p.v, status = e and tonumber(e.status) or 0 }
     end
     -- Guildmates whose org channel is not up yet still count.
     for guid, p in pairs(guildPeers) do
         if not seen[guid] and fresh(p) then
             local e = ns.rosterByGUID[guid]
-            list[#list + 1] = { guid = guid, name = p.name, guild = ns.guildName,
-                                class = e and e.class, level = e and e.level, version = p.v }
+            list[#list + 1] = { guid = guid, name = p.name, guild = ns.guildName, zone = e and e.zone,
+                                class = e and e.class, level = e and e.level, version = p.v, status = e and tonumber(e.status) or 0 }
         end
     end
     return list

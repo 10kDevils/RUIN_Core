@@ -198,7 +198,14 @@ end
 -- Key actions
 ---------------------------------------------------------------------------
 function UI:PromptImport()
-    UI:ShowText("Import org key", "Paste the RUIN key below, then press OK.", "", function(text)
+    UI:ShowText("Import org key", "Paste the RUIN key, or type the org's key phrase, then press OK.", "", function(text)
+        text = text or ""
+        -- not a full key: treat it as a key phrase
+        if not ns.Trim(text):upper():find("^RUIN1:") then
+            local ok, err = ns.Org:JoinWithPhrase(text)
+            ns:Print(ok and "Joining with the key phrase; a RUIN member online will send the key (this takes a few seconds)." or ("Import failed: " .. err))
+            return
+        end
         local k, err = ns.Org.Decode(text)
         if not k then
             ns:Print("Import failed: " .. err .. ".")
@@ -249,9 +256,11 @@ function UI:SendKeyToTarget()
 end
 
 function UI:PromptCreate()
-    UI:ShowText("Create org key", "Name of the organization. You become the org admin; your guild is added with rank 1 as officer.", "RUIN", function(text)
-        local ok, err = ns.Org:Create(text)
-        ns:Print(ok and "Org key created. Add the other guilds next." or err)
+    UI:ShowText("Create org key", "Name of the organization. You become the org admin; your guild is added with rank 1 as officer.", "RUIN", function(name)
+        UI:ShowText("Key phrase (optional)", "A word or phrase members type under Import key to join (6 to 40 characters), like  dragons eat at dawn.\nLeave it empty for a random key (safer; shared with Export key or Send key to target).", "", function(phrase)
+            local ok, err = ns.Org:Create(name, phrase)
+            ns:Print(ok and "Org key created. Add the other guilds next." or err)
+        end)
     end, true)
 end
 
@@ -263,13 +272,25 @@ function UI:PromptAddGuild()
     end)
 end
 
-function UI:PromptRotate()
-    UI:ShowText("Rotate org key", "New channel names and passwords for everyone. Officers online get the new key automatically; offline guild leaders need it sent again.\nType ROTATE and press OK.", "", function(text)
-        if ns.Trim(text):upper() ~= "ROTATE" then return end
-        local ok, err = ns.Org:Rotate()
-        ns:Print(ok and "Org key rotated." or err)
-    end)
+-- The admin's "Choose new key": a new key phrase, or a random key.
+function UI:PromptNewKey()
+    if not ns.Org:IsAdmin() then return ns:Print("Only the org admin can choose a new key.") end
+    UI:ShowText("Choose new key", "Type a new key phrase (6 to 40 characters) that members type under Import key to join, or leave it empty for a new random key.\nEveryone gets new channels: officers online get the new key at once and pass it on; members offline right now need the new phrase or key.",
+        ns.Org:Phrase() or "", function(text)
+        local ph, err
+        if ns.Trim(text or "") ~= "" then
+            ph, err = ns.Org.CheckPhrase(text)
+            if not ph then return ns:Print(err) end
+        end
+        UI:ShowConfirm("Choose new key", ph and ("Change the org's key to the phrase\n\n%s\n\nThe old key and phrase stop working."):format(ns.Escape(ph))
+            or "Change the org's key to a new random key?\n\nThe old key and phrase stop working.", function()
+            local ok, e = ns.Org:ChooseNewKey(ph)
+            ns:Print(ok and (ph and ("New key phrase set: " .. ph .. ".") or "New random org key set.") or e)
+            UI:Refresh()
+        end)
+    end, true)
 end
+UI.PromptRotate = UI.PromptNewKey
 
 function UI:PromptLinks()
     if not ns.Org:IsAdmin() then
@@ -446,41 +467,27 @@ local function className(class, fallback)
     return class and (class:sub(1, 1) .. class:sub(2):lower()) or ""
 end
 
--- Online guildmates (with or without RUIN) plus RUIN members of the other guilds.
+-- Everyone online with RUIN across the org (you, your guildmates and the
+-- other guilds' members), for the Overview. The full rosters are on Roster.
 function UI:GuildRows()
-    local rows, ruin = {}, {}
-    for _, p in ipairs(ns.Presence:GetOnlineList()) do
-        if p.guid then ruin[p.guid] = p end
-    end
-    local inGuild, total = 0, 0
-    for _, e in pairs(ns.roster or {}) do
-        total = total + 1
-        if e.online then
-            inGuild = inGuild + 1
-            rows[#rows + 1] = { name = e.name, class = e.class, className = e.className, level = e.level,
-                                zone = e.zone, status = tonumber(e.status) or 0, own = true,
-                                ruin = e.guid and ruin[e.guid] ~= nil }
-        end
-    end
-    local tags = {}
+    local rows, guilds = {}, {}
     local k = ns.Org:Get()
-    for name, g in pairs(k and k.guilds or {}) do tags[name] = g.tag end
-    local others = 0
-    for _, p in pairs(ruin) do
-        if p.guild and p.guild ~= ns.guildName then
-            others = others + 1
-            rows[#rows + 1] = { name = p.name, class = p.class, level = p.level, status = 0, ruin = true,
-                                guild = p.guild, tag = tags[p.guild] or p.guild }
-        end
+    for _, p in ipairs(ns.Presence:GetOnlineList()) do
+        local gi = k and p.guild and k.guilds[p.guild]
+        rows[#rows + 1] = { name = p.name, class = p.class, level = p.level, zone = p.zone, status = tonumber(p.status) or 0,
+                            guild = p.guild, own = p.guild == ns.guildName, tag = (gi and gi.tag) or p.guild,
+                            version = p.version, self = p.self }
+        if p.guild then guilds[p.guild] = true end
     end
     table.sort(rows, function(a, b)
         if a.own ~= b.own then return a.own == true end
+        if (a.guild or "") ~= (b.guild or "") then return (a.guild or "") < (b.guild or "") end
         if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) > (b.level or 0) end
         return tostring(a.name) < tostring(b.name)
     end)
-    local ruinCount = 0
-    for _ in pairs(ruin) do ruinCount = ruinCount + 1 end
-    return rows, { online = inGuild, total = total, others = others, ruin = ruinCount }
+    local ng = 0
+    for _ in pairs(guilds) do ng = ng + 1 end
+    return rows, { ruin = #rows, guilds = ng }
 end
 
 local function channelDot(scope)
@@ -518,7 +525,7 @@ buildGuildOverview = function(p)
     left:SetPoint("TOPLEFT", 0, -20)
     left:SetPoint("BOTTOMLEFT", 0, 0)
     left:SetWidth(392)
-    guild.rosterHeader = Wd.Header(left, "Guild online")
+    guild.rosterHeader = Wd.Header(left, "Online with RUIN")
     guild.rosterHeader:SetPoint("TOPLEFT", 10, -8)
     guild.rosterCount = Wd.Label(left, "", "GameFontHighlightSmall")
     guild.rosterCount:SetPoint("LEFT", guild.rosterHeader, "RIGHT", 8, 0)
@@ -528,39 +535,35 @@ buildGuildOverview = function(p)
         row.icon:SetPoint("LEFT", 4, 0)
         row.name = Wd.Label(row, "")
         row.name:SetPoint("LEFT", 26, 0)
-        row.name:SetWidth(118)
+        row.name:SetWidth(112)
         row.name:SetWordWrap(false)
         row.level = Wd.Label(row, "", "GameFontHighlightSmall")
-        row.level:SetPoint("LEFT", 146, 0)
-        row.level:SetWidth(24)
-        row.class = Wd.Label(row, "", "GameFontHighlightSmall")
-        row.class:SetPoint("LEFT", 172, 0)
-        row.class:SetWidth(66)
-        row.class:SetWordWrap(false)
-        row.state = Wd.Label(row, "", "GameFontHighlightSmall")
-        row.state:SetPoint("LEFT", 240, 0)
-        row.state:SetWidth(54)
+        row.level:SetPoint("LEFT", 140, 0)
+        row.level:SetWidth(22)
+        row.zone = Wd.Label(row, "", "GameFontHighlightSmall")
+        row.zone:SetPoint("LEFT", 166, 0)
+        row.zone:SetWidth(120)
+        row.zone:SetWordWrap(false)
         row.badge = Wd.Label(row, "", "GameFontHighlightSmall")
         row.badge:SetPoint("RIGHT", -6, 0)
+        row.badge:SetWidth(70)
+        row.badge:SetJustifyH("RIGHT")
+        row.badge:SetWordWrap(false)
     end, function(row, r)
         row.icon:SetText(Wd.ClassIcon(r.class, 16))
-        row.name:SetText(Wd.ClassName(r.name, r.class))
+        local st = STATUS[r.status or 0]
+        row.name:SetText(Wd.ClassName(r.name, r.class) .. ((r.status or 0) > 0 and st and (" " .. Wd.Hex(st[2]) .. "(" .. st[1] .. ")|r") or ""))
         row.level:SetText(r.level and tostring(r.level) or "")
-        row.class:SetText(GREY .. className(r.class, r.className) .. "|r")
-        local st = STATUS[r.status or 0] or STATUS[0]
-        row.state:SetText(Wd.Hex(st[2]) .. st[1] .. "|r")
-        if r.tag then
-            row.badge:SetText(C.gold .. "[" .. ns.Escape(r.tag) .. "]|r")
-        else
-            row.badge:SetText(r.ruin and (C.accent .. "RUIN|r") or "")
-        end
+        row.zone:SetText(GREY .. ns.Escape(r.zone or "") .. "|r")
+        row.badge:SetText((r.own and GREEN or C.gold) .. "[" .. ns.Escape(r.tag or "?") .. "]|r")
         row.tip = function(tt)
-            tt:AddLine(ns.Escape(ns.ShortName(r.name)))
+            tt:AddLine(ns.Escape(ns.ShortName(r.name)) .. (r.self and "  (you)" or ""))
+            tt:AddLine(("Level %s %s"):format(tostring(r.level or "?"), className(r.class)), 0.8, 0.8, 0.8)
             if r.zone and r.zone ~= "" then tt:AddLine(r.zone, 0.8, 0.8, 0.8) end
-            tt:AddLine(r.guild and ("RUIN · " .. ns.Escape(r.guild)) or (r.ruin and "Runs RUIN" or "Not running RUIN yet"), 0.6, 0.7, 0.8)
+            tt:AddLine(ns.Escape(r.guild or "?") .. (r.version and ("  ·  RUIN " .. r.version) or ""), 0.6, 0.7, 0.8)
         end
     end)
-    guild.roster:SetEmptyText("Nobody online yet.")
+    guild.roster:SetEmptyText("Nobody is connected with RUIN yet.")
     guild.roster.frame:SetPoint("TOPLEFT", left, "TOPLEFT", 6, -30)
     guild.roster.frame:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -26, 24)
     local together = Wd.Label(left, "Because great games are better together.", "GameFontHighlightSmall")
@@ -671,8 +674,7 @@ local function refreshGuild()
     guild.orgLine:SetText(table.concat(parts, GREY .. "   ·   |r"))
 
     local rows, counts = UI:GuildRows()
-    guild.rosterCount:SetText(ns.guildName and ("%d/%d in %s  ·  %d with RUIN"):format(counts.online, counts.total,
-        ns.Escape(ns.guildName), counts.ruin) or "")
+    guild.rosterCount:SetText(("%d in %d guild%s  ·  everyone: Roster tab"):format(counts.ruin, counts.guilds, counts.guilds == 1 and "" or "s"))
     guild.roster:SetItems(rows)
 
     local text = GetGuildRosterMOTD and GetGuildRosterMOTD() or ""
@@ -728,6 +730,7 @@ end
 local function buildGuildAdmin(parent, anchor)
     local card = Wd.Card(parent)
     card:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    settings.guildCardAnchor = anchor
     card:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
     local h = Wd.Header(card, "Guilds in the org")
     h:SetPoint("TOPLEFT", 10, -8)
@@ -801,7 +804,9 @@ local function buildGuildAdmin(parent, anchor)
     settings.gRemove = Wd.Button(ed, "Remove guild", 116, function()
         local name = settings.gSel
         if not name then return end
-        UI:ShowConfirm("Remove guild from the org", ("Remove %s from the RUIN org?\n\nIts members lose the org chat and modules' sharing. The org's channels get new passwords; officers online get the new key automatically, offline guild leaders need it sent again.")
+        UI:ShowConfirm("Remove guild from the org", (ns.Org:Phrase()
+            and "Remove %s from the RUIN org?\n\nIts members lose the org chat and modules' sharing. The officer channel gets a new password. They still know the key phrase: choose a new key phrase if they shouldn't be able to listen in."
+            or "Remove %s from the RUIN org?\n\nIts members lose the org chat and modules' sharing. The org's channels get new passwords; officers online get the new key automatically, offline guild leaders need it sent again.")
             :format(ns.Escape(name)), function()
             local ok, err = ns.Org:RemoveGuild(name)
             ns:Print(ok and ("Removed " .. name .. " from the org.") or err)
@@ -839,10 +844,35 @@ local function buildSettingsPanel(p)
     settings.create = Wd.Button(keyCard, "Create org key", 130, function() UI:PromptCreate() end)
     settings.adminLabel = Wd.Label(keyCard, C.gold .. "Org admin|r", "GameFontNormalSmall")
     settings.addGuild = Wd.Button(keyCard, "Add guild", 110, function() UI:PromptAddGuild() end)
-    settings.rotate = Wd.Button(keyCard, "Rotate key", 110, function() UI:PromptRotate() end)
+    settings.rotate = Wd.Button(keyCard, "Choose new key", 130, function() UI:PromptNewKey() end)
+    settings.rotate.tip = "Set a new key phrase members type to join, or a new random key"
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
     settings.keyCard = keyCard
-    buildGuildAdmin(orgPage, keyCard)
+
+    -- Your guild's settings (officers change them): who can create events.
+    local gs = Wd.Card(orgPage)
+    gs:SetPoint("TOPLEFT", keyCard, "BOTTOMLEFT", 0, -10)
+    gs:SetPoint("RIGHT", orgPage, "RIGHT", 0, 0)
+    gs:SetHeight(58)
+    local gsh = Wd.Header(gs, "Guild settings")
+    gsh:SetPoint("TOPLEFT", 10, -8)
+    settings.gsHint = Wd.Label(gs, "", "GameFontHighlightSmall")
+    settings.gsHint:SetPoint("LEFT", gsh, "RIGHT", 10, 0)
+    local evl = Wd.Label(gs, "Can create events (RUIN Muster): ranks 0 to", "GameFontHighlightSmall")
+    evl:SetPoint("TOPLEFT", 12, -34)
+    settings.eventRank = Wd.Dropdown(gs, 200, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+        function() return ns.Guild:EventRank() end, function(v)
+            local ok, err = ns.Guild:SetEventRank(v)
+            ns:Print(ok and ("Ranks 0 to %d of %s can now create events."):format(v, ns.guildName or "your guild") or err)
+            refreshSettings()
+        end)
+    settings.eventRank.format = function(v) return rankLabel(ns.guildName, v) end
+    settings.eventRank.tipTitle = "The lowest guild rank that can create events, rallies included (officers always can)"
+    settings.eventRank:SetPoint("LEFT", evl, "RIGHT", 10, 0)
+    settings.eventRankText = Wd.Label(gs, "", "GameFontHighlightSmall")
+    settings.eventRankText:SetPoint("LEFT", evl, "RIGHT", 10, 0)
+    settings.gsCard = gs
+    buildGuildAdmin(orgPage, gs)
 
     local disp = Wd.Card(dispPage)
     disp:SetPoint("TOPLEFT", 0, 0)
@@ -929,10 +959,12 @@ refreshSettings = function()
     local k = ns.Org:Get()
     local lines = {}
     if k then
-        lines[#lines + 1] = ("Org: |cffffffff%s|r   key rev %d%s"):format(ns.Escape(k.org), k.rev,
-            ns.Org:IsAdmin() and ("   " .. C.gold .. "you are the org admin|r") or "")
+        lines[#lines + 1] = ("Org: |cffffffff%s|r   key rev %d%s%s"):format(ns.Escape(k.org), k.rev,
+            ns.Org:IsAdmin() and ("   " .. C.gold .. "you are the org admin|r") or "",
+            k.ph and ("   key phrase: " .. C.gold .. ns.Escape(k.ph) .. "|r") or "")
     else
-        lines[#lines + 1] = RED .. "No org key yet.|r An officer shares it automatically, or use Import key."
+        lines[#lines + 1] = ns.Org:IsJoining() and (YELLOW .. "Joining with the key phrase...|r waiting for a RUIN member online to send the key.")
+            or (RED .. "No org key yet.|r An officer shares it automatically, or use Import key (the key or the org's key phrase).")
     end
     if ns.guildName then
         lines[#lines + 1] = ("Guild: |cffffffff%s|r   %s%s"):format(ns.Escape(ns.guildName),
@@ -971,6 +1003,22 @@ refreshSettings = function()
     settings.adminLabel:SetShown(#row2 > 0)
     place(row2, -130, 82)
     settings.keyCard:SetHeight(#row2 > 0 and 164 or 132)
+    -- your guild's settings (only with RUIN Muster installed, and in a guild)
+    local muster = RUIN_API and RUIN_API.GetModule and RUIN_API:GetModule("Muster")
+    local showGS = ns.guildName ~= nil and muster ~= nil
+    settings.gsCard:SetShown(showGS)
+    if showGS then
+        local officer = ns.Org:AmOfficer()
+        settings.eventRank:SetShown(officer)
+        settings.eventRank:Refresh()
+        settings.eventRankText:SetShown(not officer)
+        settings.eventRankText:SetText(C.white .. rankLabel(ns.guildName, ns.Guild:EventRank()) .. "|r")
+        settings.gsHint:SetText(GREY .. (officer and ("For %s. Officers and up can change this."):format(ns.Escape(ns.guildName))
+            or ("For %s. Your guild's officers set this."):format(ns.Escape(ns.guildName))) .. "|r")
+    end
+    settings.guildCard:ClearAllPoints()
+    settings.guildCard:SetPoint("TOPLEFT", showGS and settings.gsCard or settings.keyCard, "BOTTOMLEFT", 0, -10)
+    settings.guildCard:SetPoint("BOTTOMRIGHT", settings.guildCard:GetParent(), "BOTTOMRIGHT", 0, 0)
     -- the admin's guild list
     settings.guildCard:SetShown(admin)
     if admin then
@@ -1402,6 +1450,6 @@ BINDING_NAME_RUIN_TOGGLE = "Toggle RUIN window"
 UI:AddTab("Guild", buildGuildPanel, nil, { alias = "Org" })
 UI:AddTab("Settings", buildSettingsPanel)
 
-for _, ev in ipairs({ "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "CHANNELS_CHANGED", "GUILD_CHANGED" }) do
+for _, ev in ipairs({ "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "CHANNELS_CHANGED", "GUILD_CHANGED", "KEY_JOIN_CHANGED", "GUILD_SETTINGS_CHANGED" }) do
     ns:Subscribe(ev, function() UI:Refresh() end)
 end

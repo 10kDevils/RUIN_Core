@@ -5,6 +5,11 @@
 -- Distribution:
 --   * The org admin creates it and offers the full key to each guild's
 --     leader in-game (/ruin key send, or the button with them targeted).
+--   * Or the admin gives the org a key phrase ("dragons eat at dawn"): the
+--     org channel's name and password come from the phrase, so typing it
+--     under Import key joins that channel, and a RUIN member already on it
+--     hands over the member key (the officer channel is never derived from
+--     the phrase). Easier to share than the long key; easier to guess too.
 --   * Inside a guild, officers share the member key (no officer channel)
 --     over guild addon messages automatically when someone lacks it.
 --   * Officers whisper the officer part to other officers in their guild.
@@ -83,14 +88,49 @@ local function validKey(k)
     if not validChannel(k.c) then return false end
     if k.oc ~= nil and not validChannel(k.oc) then return false end
     if k.links ~= nil and type(k.links) ~= "table" then return false end
+    if k.ph ~= nil and type(k.ph) ~= "string" then return false end
     return true
 end
 Org.ValidKey = validKey
 
+-- Members get neither the officer channel nor the key phrase (officers and
+-- the admin hand the phrase out).
 local function memberCopy(k)
     local copy = ns.DeepCopy(k)
-    copy.oc = nil
+    copy.oc, copy.ph = nil, nil
     return copy
+end
+
+---------------------------------------------------------------------------
+-- Key phrases
+---------------------------------------------------------------------------
+local PHRASE_MIN, PHRASE_MAX = 6, 40
+
+function Org.NormalizePhrase(text)
+    text = tostring(text or ""):lower():gsub("%s+", " ")
+    return ns.Trim(text)
+end
+
+-- Returns the normalized phrase, or nil and why.
+function Org.CheckPhrase(text)
+    local p = Org.NormalizePhrase(text)
+    if #p < PHRASE_MIN then return nil, ("A key phrase needs at least %d characters."):format(PHRASE_MIN) end
+    if #p > PHRASE_MAX then return nil, ("A key phrase can be at most %d characters."):format(PHRASE_MAX) end
+    if p:find("|", 1, true) then return nil, "A key phrase can't contain the | character." end
+    if p:sub(1, #KEY_HEADER):lower() == KEY_HEADER:lower() then return nil, "That looks like a full key, not a phrase." end
+    return p
+end
+
+-- The org channel a phrase leads to (the same for everyone who types it).
+function Org.PhraseChannel(phrase)
+    local p = Org.NormalizePhrase(phrase)
+    return { n = ("ruin" .. ns.Hash("RUIN channel|" .. p) .. ns.Hash("RUIN name|" .. p):sub(1, 4)):lower(),
+             p = (ns.Hash("RUIN pass|" .. p) .. ns.Hash("RUIN word|" .. p)):lower() }
+end
+
+function Org:Phrase()
+    local k = Org:Get()
+    return k and k.ph or nil
 end
 
 function Org.Encode(k)
@@ -168,15 +208,22 @@ local function defaultTag(name)
     return name:sub(1, 12)
 end
 
-function Org:Create(orgName)
+-- phrase (optional): the org's key phrase; without one the key is random.
+function Org:Create(orgName, phrase)
     if not ns.guildName then return false, "You need to be in a guild to create an org key." end
     if Org:Get() then return false, "You already have an org key. Use /ruin key forget first if you really want a new org." end
     orgName = ns.Trim(orgName or "")
     if orgName == "" then orgName = "RUIN" end
+    local ph
+    if phrase and ns.Trim(phrase) ~= "" then
+        local err
+        ph, err = Org.CheckPhrase(phrase)
+        if not ph then return false, err end
+    end
     local k = {
         v = 1, org = orgName, rev = 1, admin = ns.playerGUID, t = ns.Now(),
         guilds = { [ns.guildName] = { o = 1, tag = defaultTag(ns.guildName) } },
-        c = newChannel(), oc = newChannel(),
+        c = ph and Org.PhraseChannel(ph) or newChannel(), oc = newChannel(), ph = ph,
     }
     ns.db.orgKey = k
     ns:Fire("KEY_CHANGED", "create")
@@ -255,20 +302,33 @@ function Org:RemoveGuild(name)
     -- A removed guild still knows the old passwords, so rotate them too.
     -- Honest clients of the removed guild ignore the announcement because
     -- their guild is no longer listed; see README for the limits of this.
-    k.c, k.oc = newChannel(), newChannel()
+    -- With a key phrase the org channel stays the phrase's (the admin
+    -- chooses a new phrase to lock them out of it).
+    if not k.ph then k.c = newChannel() end
+    k.oc = newChannel()
     publishEdit(k, oldOC)
     return true
 end
 
-function Org:Rotate()
+-- A new key for everyone: a new key phrase (phrase given) or a random key
+-- (phrase nil or ""). The org and officer channels both change; officers
+-- online get the new key at once and pass it to their guilds.
+function Org:ChooseNewKey(phrase)
     local k, err = editableKey()
     if not k then return false, err end
+    local ph
+    if phrase and ns.Trim(phrase) ~= "" then
+        ph, err = Org.CheckPhrase(phrase)
+        if not ph then return false, err end
+    end
     local oldOC = k.oc and k.oc.n
-    k.c, k.oc = newChannel(), newChannel()
+    k.c, k.oc, k.ph = ph and Org.PhraseChannel(ph) or newChannel(), newChannel(), ph
     k.rev = k.rev + 1
     publishEdit(k, oldOC)
     return true
 end
+
+function Org:Rotate() return Org:ChooseNewKey(Org:Phrase()) end
 
 ---------------------------------------------------------------------------
 -- Community links (Discord, website, streams...) travel inside the org key,
@@ -368,9 +428,16 @@ end
 ---------------------------------------------------------------------------
 -- Channels follow the key
 ---------------------------------------------------------------------------
+local joining      -- { n, p, phrase, untilT } while joining by key phrase
+
 function Org:ApplyChannels()
     if not ns.loggedIn then return end
     local k = Org:Get()
+    if joining and GetTime() < joining.untilT and not (k and k.c.n == joining.n) then
+        ns.Comms:SetChannel("ORG", joining.n, joining.p)
+        ns.Comms:SetChannel("OFFICERS", nil)
+        return
+    end
     -- the admin stays connected on every character of the account, so the
     -- org can be run from an alt in another guild
     local admin = Org:IsAdmin()
@@ -522,4 +589,82 @@ ns.Comms:Register("FULLKEY", function(d, sender, scope)
         ("%s is offering you the RUIN org key for \"%s\".\n\nAccept it? Your guild's members will receive it from you automatically.")
             :format(ns.ShortName(sender), offered.org),
         function() Org:AcceptOffered(offered) end)
+end)
+
+---------------------------------------------------------------------------
+-- Joining with a key phrase: join the phrase's channel, ask for the key,
+-- and take the first member key whose org channel is that channel.
+---------------------------------------------------------------------------
+local JOIN_WAIT = 90
+local lastKeyAnswerSeen = -999
+local joinTicker
+
+local function stopJoining(msg)
+    joining = nil
+    if joinTicker then joinTicker:Cancel(); joinTicker = nil end
+    if msg then ns:Print(msg) end
+    Org:ApplyChannels()
+    ns:Fire("KEY_JOIN_CHANGED")
+end
+
+function Org:IsJoining() return joining ~= nil end
+
+function Org:JoinWithPhrase(text)
+    local ph, err = Org.CheckPhrase(text)
+    if not ph then return false, err end
+    if not ns.loggedIn then return false, "Log in first." end
+    local ch = Org.PhraseChannel(ph)
+    local k = Org:Get()
+    if k and k.c.n == ch.n then return false, "You already have this org's key." end
+    joining = { n = ch.n, p = ch.p, phrase = ph, untilT = GetTime() + JOIN_WAIT }
+    Org:ApplyChannels()
+    local asked = -999
+    if joinTicker then joinTicker:Cancel() end
+    joinTicker = C_Timer.NewTicker(3, function()
+        if not joining then return end
+        if GetTime() >= joining.untilT then
+            stopJoining("No RUIN member answered on that key phrase. Check the phrase, or try again when someone from the org is online.")
+            return
+        end
+        if ns.Comms:IsJoined("ORG") and GetTime() - asked >= 15 then
+            asked = GetTime()
+            ns.Comms:Send("KEYREQ", { gu = ns.guildName }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
+        end
+    end)
+    ns:Fire("KEY_JOIN_CHANGED")
+    return true
+end
+
+-- A member on the org channel hands over the member key.
+ns.Comms:Register("KEYREQ", function(d, sender, scope)
+    if scope ~= "ORG" or joining then return end
+    local k = Org:Get()
+    if not (k and (Org:MyGuildInOrg() or Org:IsAdmin())) then return end
+    C_Timer.After(1 + math.random() * 4, function()
+        if GetTime() - lastKeyAnswerSeen < 10 then return end    -- someone else answered
+        local cur = Org:Get()
+        if not cur then return end
+        lastKeyAnswerSeen = GetTime()
+        ns.Comms:Send("PKEY", { k = memberCopy(cur) }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
+    end)
+end)
+
+ns.Comms:Register("PKEY", function(d, sender, scope)
+    if scope ~= "ORG" then return end
+    lastKeyAnswerSeen = GetTime()
+    if not joining or not validKey(d.k) then return end
+    if d.k.c.n ~= joining.n or d.k.c.p ~= joining.p then return end
+    local k = memberCopy(d.k)
+    local ok, why = Org:Apply(k, "import")
+    if not ok and why ~= "same as the key you have" then
+        stopJoining("Did not apply the key: " .. tostring(why) .. ".")
+        return
+    end
+    local msg = ("Joined the %s org with its key phrase (from %s)."):format(k.org, ns.ShortName(sender))
+    if not ns.guildName then
+        msg = msg .. " You are not in a guild: RUIN connects members of the org's guilds."
+    elseif not Org:MyGuildInOrg() then
+        msg = msg .. (" Your guild, %s, is not in the org yet: ask the org admin to add it (Options > Org > Add guild)."):format(ns.guildName)
+    end
+    stopJoining(msg)
 end)

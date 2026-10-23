@@ -155,6 +155,11 @@ end
 
 function ns:RequestRoster()
     if not IsInGuild() then return end
+    -- The game lists offline members only while "Show offline members" is
+    -- on; RUIN's roster shows everyone, so it turns that on.
+    if SetGuildRosterShowOffline and GetGuildRosterShowOffline and not GetGuildRosterShowOffline() then
+        pcall(SetGuildRosterShowOffline, true)
+    end
     if C_GuildInfo and C_GuildInfo.GuildRoster then
         C_GuildInfo.GuildRoster()
     elseif GuildRoster then
@@ -241,11 +246,11 @@ local HELP = {
     "/ruin roster - the guild roster  |  /ruin chat - pop out guild chat",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
-    "/ruin key import | send [name] | forget  |  export (org admin)",
+    "/ruin key import | join <key phrase> | send [name] | forget  |  export (org admin)",
     "/ruin key create <org name>  (guild master who runs the org)",
     "/ruin key addguild <guild>, <officer rank>[, <tag>]  (org admin)",
     "/ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]  (org admin)",
-    "/ruin key removeguild <guild>  |  /ruin key rotate  (org admin)",
+    "/ruin key removeguild <guild>  |  /ruin key newkey [key phrase]  (org admin)",
     "/ruin key links - edit the org's community links  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
@@ -292,6 +297,9 @@ local function handleKey(rest)
         else
             ns.UI:SendKeyToTarget()
         end
+    elseif sub == "join" then
+        local ok, err = Org:JoinWithPhrase(arg)
+        ns:Print(ok and "Joining with the key phrase; a RUIN member online will send the key." or err)
     elseif sub == "create" then
         local ok, err = Org:Create(arg ~= "" and arg or "RUIN")
         ns:Print(ok and "Org key created. Add the other guilds with /ruin key addguild." or err)
@@ -307,15 +315,20 @@ local function handleKey(rest)
     elseif sub == "removeguild" then
         local ok, err = Org:RemoveGuild(arg)
         ns:Print(ok and ("Removed " .. arg .. ".") or err)
-    elseif sub == "rotate" then
-        ns.UI:PromptRotate()
+    elseif sub == "newkey" or sub == "phrase" or sub == "rotate" then
+        if arg ~= "" then
+            local ok, err = Org:ChooseNewKey(arg)
+            ns:Print(ok and ("New key phrase set: " .. ns.Org.NormalizePhrase(arg) .. ".") or err)
+        else
+            ns.UI:PromptNewKey()
+        end
     elseif sub == "links" then
         ns.UI:PromptLinks()
     elseif sub == "forget" then
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, export, send [name], create, addguild, removeguild, rotate, links, forget")
+        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, forget")
     end
 end
 
