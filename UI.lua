@@ -819,17 +819,17 @@ local function buildGuildAdmin(parent, anchor)
     settings.guildCard = card
 end
 
--- Feedback: a box to write in, sent to the org admin in-game (and a link that
--- opens a GitHub issue with it filled in); the admin's inbox below.
+-- Feedback: a box to write in, and a link that opens a new GitHub issue
+-- with the text filled in (addons can't reach the internet themselves).
 local function buildFeedback(page)
     local FB = ns.Feedback
     local card = Wd.Card(page)
     card:SetPoint("TOPLEFT", 0, 0)
     card:SetPoint("RIGHT", page, "RIGHT", 0, 0)
-    card:SetHeight(236)
+    card:SetHeight(264)
     local h = Wd.Header(card, "Send feedback")
     h:SetPoint("TOPLEFT", 10, -8)
-    local hint = Wd.Label(card, GREY .. "Bugs, ideas, questions: it goes to the RUIN team, who post it on GitHub.|r", "GameFontHighlightSmall")
+    local hint = Wd.Label(card, GREY .. "Bugs, ideas, questions: they go to RUIN's GitHub as an issue.|r", "GameFontHighlightSmall")
     hint:SetPoint("LEFT", h, "RIGHT", 10, 0)
     settings.fbCat = "Bug"
     local cat = Wd.Dropdown(card, 140, FB.CATEGORIES, function() return settings.fbCat end, function(v) settings.fbCat = v end, "Type: ")
@@ -870,89 +870,18 @@ local function buildFeedback(page)
     end)
     settings.fbEdit = eb
 
-    settings.fbSend = Wd.Button(card, "Send to RUIN", 120, function()
-        local ok, how = FB:Send(settings.fbCat, eb:GetText())
-        if not ok then return ns:Print(how) end
-        eb:SetText("")
-        ns:Print(how == "saved" and "Feedback saved in your inbox below."
-            or how == "sent" and "Feedback sent. You'll see a thank-you when the org admin's RUIN has it (they may be offline; RUIN keeps trying)."
-            or "Feedback saved. RUIN sends it when you're connected to the org.")
-        refreshSettings()
-    end)
-    settings.fbSend:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 0, -10)
     settings.fbLink = Wd.Button(card, "Copy GitHub link", 140, function()
         local text = eb:GetText() or ""
         if #ns.Trim(text) < FB.MIN then return ns:Print("Write your feedback first; the link fills it in.") end
-        UI:ShowText("Open on GitHub", "Copy this link (Ctrl+C) and open it in your browser. GitHub opens a new issue with your feedback filled in (you need a free GitHub account).",
+        UI:ShowText("Open on GitHub", "Copy this link (Ctrl+C) and open it in your browser. GitHub opens a new issue with your feedback filled in; press Submit there (you need a free GitHub account).",
             FB.IssueLink(settings.fbCat, text), nil, true)
     end)
-    settings.fbLink.tip = "For players with a GitHub account: post it yourself"
-    settings.fbLink:SetPoint("LEFT", settings.fbSend, "RIGHT", 6, 0)
-    settings.fbState = Wd.Label(card, "", "GameFontHighlightSmall")
-    settings.fbState:SetPoint("LEFT", settings.fbLink, "RIGHT", 12, 0)
-    settings.fbState:SetPoint("RIGHT", card, "RIGHT", -10, 0)
-    settings.fbState:SetWordWrap(false)
-
-    -- the org admin's inbox
-    local inbox = Wd.Card(page)
-    inbox:SetPoint("TOPLEFT", card, "BOTTOMLEFT", 0, -10)
-    inbox:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    local ih = Wd.Header(inbox, "Feedback inbox")
-    ih:SetPoint("TOPLEFT", 10, -8)
-    settings.fbInboxInfo = Wd.Label(inbox, "", "GameFontHighlightSmall")
-    settings.fbInboxInfo:SetPoint("LEFT", ih, "RIGHT", 10, 0)
-    settings.fbCopy = Wd.Button(inbox, "Copy new for GitHub", 150, function()
-        local md = FB:MarkdownNew()
-        if md == "" then return ns:Print("No new feedback.") end
-        UI:ShowText("New feedback", "Copy (Ctrl+C) and paste into a GitHub issue, then press Mark all posted. Or let tools/feedback_to_github.py post it for you.", md, nil, true)
-    end)
-    settings.fbCopy:SetPoint("TOPRIGHT", -8, -6)
-    settings.fbMark = Wd.Button(inbox, "Mark all posted", 124, function() FB:MarkAllPosted(); refreshSettings() end)
-    settings.fbMark:SetPoint("RIGHT", settings.fbCopy, "LEFT", -6, 0)
-    settings.fbClear = Wd.Button(inbox, "Clear posted", 104, function()
-        UI:ShowConfirm("Clear posted feedback", "Remove the feedback marked as posted from this inbox?", function() FB:ClearPosted(); refreshSettings() end)
-    end)
-    settings.fbClear:SetPoint("RIGHT", settings.fbMark, "LEFT", -6, 0)
-    settings.fbInboxInfo:SetPoint("RIGHT", settings.fbClear, "LEFT", -8, 0)
-    settings.fbInboxInfo:SetWordWrap(false)
-    settings.fbCopy.tip = "Copy the new feedback as Markdown for GitHub. Or run tools/feedback_to_github.py on this computer to post each one as an issue."
-    settings.fbList = Wd.List(inbox, 24, function(row)
-        row.text = Wd.Label(row, "", "GameFontHighlightSmall")
-        row.text:SetPoint("LEFT", 6, 0)
-        row.text:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-        row.text:SetWordWrap(false)
-    end, function(row, e)
-        row.text:SetText(("%s%s|r  %s[%s]|r  %s%s|r  %s%s"):format(GREY, date("%m/%d %H:%M", e.t), C.gold, e.cat,
-            C.white, ns.Escape(ns.ShortName(e.by or "?")), e.posted and GREY or "", ns.Escape((e.text or ""):gsub("\n", " "))))
-        row.tip = function(tt)
-            tt:AddLine(("[%s] from %s%s"):format(e.cat, ns.ShortName(e.by or "?"), e.gu and (" (" .. e.gu .. ")") or ""), 1, 0.82, 0.3)
-            tt:AddLine(ns.Escape(e.text or ""), 1, 1, 1, true)
-            tt:AddLine(("RUIN Core %s on %s  ·  %s"):format(e.v or "?", e.cl or "?", e.posted and "posted" or "new"), 0.6, 0.7, 0.8)
-        end
-    end)
-    settings.fbList:SetEmptyText("No feedback yet.")
-    settings.fbList.frame:SetPoint("TOPLEFT", 6, -34)
-    settings.fbList.frame:SetPoint("BOTTOMRIGHT", inbox, "BOTTOMRIGHT", -26, 8)
-    settings.fbInbox = inbox
-end
-
-local function refreshFeedback()
-    local FB = ns.Feedback
-    local waiting = FB:Waiting()
-    settings.fbState:SetText(waiting > 0 and (YELLOW .. waiting .. " waiting to reach the org admin|r") or "")
-    local admin = ns.Org:IsAdmin()
-    settings.fbInbox:SetShown(admin)
-    if admin then
-        local list = {}
-        local inbox = FB:Inbox()
-        for i = #inbox, 1, -1 do list[#list + 1] = inbox[i] end
-        local new = FB:NewCount()
-        settings.fbInboxInfo:SetText(GREY .. ("%d new  ·  %d in all|r"):format(new, #inbox))
-        settings.fbList:SetItems(list)
-        settings.fbCopy:SetEnabled(new > 0)
-        settings.fbMark:SetEnabled(new > 0)
-        settings.fbClear:SetEnabled(#inbox > new)
-    end
+    settings.fbLink.tip = "A link that opens a new GitHub issue with your feedback filled in"
+    settings.fbLink:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 0, -10)
+    local how = Wd.Label(card, GREY .. "The game can't open web pages, so copy the link into your browser. Issues on GitHub are public: keep anything private for Discord.|r", "GameFontHighlightSmall")
+    how:SetPoint("TOPLEFT", settings.fbLink, "BOTTOMLEFT", 2, -10)
+    how:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+    how:SetJustifyH("LEFT")
 end
 
 local function buildSettingsPanel(p)
@@ -1212,8 +1141,6 @@ refreshSettings = function()
     setEnabled(settings.orderLeft, picked and movable[1].title ~= settings.orderPick)
     setEnabled(settings.orderRight, picked and movable[#movable].title ~= settings.orderPick)
     setEnabled(settings.orderReset, UI:HasCustomTabOrder())
-
-    refreshFeedback()
 
     local mods = {}
     for _, m in ipairs(RUIN_API:GetModules()) do mods[#mods + 1] = m.name .. " " .. tostring(m.version or "") end
@@ -1591,6 +1518,6 @@ BINDING_NAME_RUIN_TOGGLE = "Toggle RUIN window"
 UI:AddTab("Guild", buildGuildPanel, nil, { alias = "Org" })
 UI:AddTab("Settings", buildSettingsPanel, nil, { alias = "Options" })
 
-for _, ev in ipairs({ "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "CHANNELS_CHANGED", "GUILD_CHANGED", "KEY_JOIN_CHANGED", "GUILD_SETTINGS_CHANGED", "FEEDBACK_CHANGED" }) do
+for _, ev in ipairs({ "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "CHANNELS_CHANGED", "GUILD_CHANGED", "KEY_JOIN_CHANGED", "GUILD_SETTINGS_CHANGED" }) do
     ns:Subscribe(ev, function() UI:Refresh() end)
 end

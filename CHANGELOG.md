@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.19 — 2026-10-23
+
+1 change since 0.3.18:
+
+1. **Feedback goes through GitHub only.** Settings → Feedback no longer sends feedback to the org admin inside the game (the admin's inbox is gone): *Copy GitHub link* gives a link that opens a new GitHub issue with the text, its type and the RUIN version filled in.
+
 ## 0.3.18 — 2026-10-23
 
 3 changes since 0.3.17:
