@@ -31,8 +31,8 @@ ns.THEMES = {
                    title = "Intel (retired)", kicker = APP, tagline = "Retired: sightings and timers moved to RUIN Muster" },
     Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 60, tab = "Exchange",
                    title = "Exchange", kicker = APP, tagline = "Auction prices, crafters and craft requests across RUIN" },
-    Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Options",
-                   title = "Options", kicker = APP, tagline = "Your org key, chat and display settings", core = true },
+    Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Settings",
+                   title = "Settings", kicker = APP, tagline = "Your org key, options and feedback", core = true },
 }
 ns.THEMES.Org = ns.THEMES.Guild
 

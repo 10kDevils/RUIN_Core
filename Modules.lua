@@ -161,7 +161,7 @@ end
 
 function API:IsOfficer() return ns.Org:AmOfficer() end
 -- Level 10: can you create events (RUIN Muster)? Officers always; other ranks
--- when their guild's officers allow it (Options > Org > Guild settings).
+-- when their guild's officers allow it (Settings > Org > Guild settings).
 function API:CanCreateEvents() return ns.Guild:CanCreateEvents() end
 function API:GetEventRank() return ns.Guild:EventRank() end
 -- Is another player an officer (level 7)? Guildmates are checked against the

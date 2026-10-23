@@ -400,6 +400,24 @@ local function rowLeave(r)
     if (r.link or r.tip) and GameTooltip then GameTooltip:Hide() end
 end
 
+-- Show a scroll frame's scroll bar only when there is something to scroll.
+-- Call after the content changes; it also rechecks when the frame is shown
+-- or resized.
+function W.FitScrollBar(sf)
+    local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
+    local child = sf.GetScrollChild and sf:GetScrollChild()
+    if type(bar) ~= "table" or type(child) ~= "table" then return end
+    local view = sf:GetHeight() or 0
+    local need = (child:GetHeight() or 0) > view + 1 and view > 0
+    if bar.SetShown then bar:SetShown(need) elseif need then bar:Show() else bar:Hide() end
+    if not need and sf.SetVerticalScroll then sf:SetVerticalScroll(0) end
+    if not sf.fitHooked and sf.HookScript then
+        sf.fitHooked = true
+        sf:HookScript("OnShow", function(self) W.FitScrollBar(self) end)
+        sf:HookScript("OnSizeChanged", function(self) W.FitScrollBar(self) end)
+    end
+end
+
 function W.List(parent, rowHeight, setupRow, updateRow)
     local sf = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
     local child = CreateFrame("Frame", nil, sf)
@@ -443,6 +461,7 @@ function W.List(parent, rowHeight, setupRow, updateRow)
         end
         for i = #self.items + 1, #self.rows do self.rows[i]:Hide() end
         child:SetHeight(math.max(10, #self.items * rowHeight))
+        W.FitScrollBar(sf)
         if #self.items == 0 and self.emptyText then
             empty:SetText(self.emptyText)
             empty:Show()

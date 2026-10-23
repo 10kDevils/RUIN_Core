@@ -664,7 +664,7 @@ ns.Comms:Register("PKEY", function(d, sender, scope)
     if not ns.guildName then
         msg = msg .. " You are not in a guild: RUIN connects members of the org's guilds."
     elseif not Org:MyGuildInOrg() then
-        msg = msg .. (" Your guild, %s, is not in the org yet: ask the org admin to add it (Options > Org > Add guild)."):format(ns.guildName)
+        msg = msg .. (" Your guild, %s, is not in the org yet: ask the org admin to add it (Settings > Org > Add guild)."):format(ns.guildName)
     end
     stopJoining(msg)
 end)

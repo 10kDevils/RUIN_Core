@@ -6,6 +6,14 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.3.18 — 2026-10-23
+
+3 changes since 0.3.17:
+
+1. **Options is now Settings**, with sub-tabs *Org*, *Options* (chat and display options and the tab order, with *About RUIN* at the bottom) and *Feedback*. `/ruin options` and modules opening "Options" still work.
+2. **Feedback.** Settings → Feedback has a box to write a bug, idea or question. *Send to RUIN* sends it inside the game to the org admin (any of the admin's characters), and RUIN keeps it and tries again until the admin's RUIN confirms it; *Copy GitHub link* opens a new GitHub issue with the text filled in. The org admin gets a *Feedback inbox* (copy new feedback as Markdown, mark it posted, clear it); `tools/feedback_to_github.py` in the suite repo posts it as GitHub issues.
+3. Lists show their scroll bar only when there is something to scroll (`Widgets.FitScrollBar` for modules).
+
 ## 0.3.17 — 2026-10-23
 
 5 changes since 0.3.16:

@@ -24,7 +24,7 @@ local DEFAULTS = {
         chatFrame = 1,           -- chat window number that shows RUIN lines
         couchMode = false,       -- larger window for Steam Deck / TV play
         animations = true,       -- ambient motion in page headers
-        tabOrder = nil,          -- your own tab order (Options > Tab order): a list of page titles
+        tabOrder = nil,          -- your own tab order (Settings > Options > Tab order): a list of page titles
         chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
         debug = false,
     },
@@ -242,7 +242,7 @@ end)
 ---------------------------------------------------------------------------
 local HELP = {
     "/ruin - open or close the RUIN window",
-    "/ruin guild | options - open the Guild or Options page",
+    "/ruin guild | settings - open the Guild or Settings page",
     "/ruin roster - the guild roster  |  /ruin chat - pop out guild chat",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
@@ -348,7 +348,7 @@ SlashCmdList.RUIN = function(input)
             ns.UI:ResetTabOrder()
             ns:Print("Tabs are back in their usual order.")
         else
-            ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Options > Tab order, or /ruin tabs reset.")
+            ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Settings > Options > Tab order, or /ruin tabs reset.")
         end
     elseif cmd == "chat" then
         ns.GuildUI.ToggleChatWindow()
