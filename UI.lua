@@ -106,13 +106,14 @@ local function getDialog()
     d.hint:SetJustifyH("LEFT")
     d.hint:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
 
+    -- the text box sits under the hint, however many lines the hint takes
     local inset = CreateFrame("Frame", nil, d)
-    inset:SetPoint("TOPLEFT", 14, -76)
+    inset:SetPoint("TOPLEFT", d.hint, "BOTTOMLEFT", -4, -10)
     inset:SetPoint("BOTTOMRIGHT", -14, 50)
     Wd.Skin(inset, "panel", 1, "border")
 
     local sf = CreateFrame("ScrollFrame", nil, d, "UIPanelScrollFrameTemplate")
-    sf:SetPoint("TOPLEFT", 20, -82)
+    sf:SetPoint("TOPLEFT", inset, "TOPLEFT", 6, -6)
     sf:SetPoint("BOTTOMRIGHT", -38, 56)
     local eb = CreateFrame("EditBox", nil, sf)
     eb:SetMultiLine(true)
@@ -142,10 +143,15 @@ local function getDialog()
     return d
 end
 
+-- The dialog's height follows the hint: title, hint, a text box of at
+-- least BOX_H, and the buttons.
+local DIALOG_TOP, BOX_H, DIALOG_BOTTOM = 40, 120, 50
 function UI:ShowText(title, hint, text, onAccept, selectAll)
     local d = getDialog()
     d.title:SetText(title)
     d.hint:SetText(hint or "")
+    local hintH = (hint and hint ~= "") and math.ceil(d.hint:GetStringHeight() or 14) or 0
+    d:SetHeight(DIALOG_TOP + hintH + 10 + BOX_H + DIALOG_BOTTOM)
     d.edit:SetText(text or "")
     d.onAccept = onAccept
     d:Show()

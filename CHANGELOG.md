@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.1 — 2026-10-25
+
+1 change since 0.4.0:
+
+1. RUIN's text boxes (Choose new key, Import key, Export key and the others) grow to fit their explanation, so the text box always sits below it instead of covering it.
+
 ## 0.4.0 — 2026-10-23 · Beta 1
 
 The RUIN Gaming Companion App enters beta: every addon is now 0.4.0. Nothing changed since 0.3.19 apart from the version number. Report what you find under Settings → Feedback.
