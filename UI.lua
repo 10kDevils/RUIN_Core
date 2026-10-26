@@ -835,7 +835,7 @@ local function buildFeedback(page)
     card:SetHeight(264)
     local h = Wd.Header(card, "Send feedback")
     h:SetPoint("TOPLEFT", 10, -8)
-    local hint = Wd.Label(card, GREY .. "Bugs, ideas, questions: they go to RUIN's GitHub as an issue.|r", "GameFontHighlightSmall")
+    local hint = Wd.Label(card, GREY .. "Bugs, ideas, questions: they go to the Companion App's GitHub as an issue.|r", "GameFontHighlightSmall")
     hint:SetPoint("LEFT", h, "RIGHT", 10, 0)
     settings.fbCat = "Bug"
     local cat = Wd.Dropdown(card, 140, FB.CATEGORIES, function() return settings.fbCat end, function(v) settings.fbCat = v end, "Type: ")

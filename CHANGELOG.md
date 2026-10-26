@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.2 — 2026-10-26
+
+1 change since 0.4.1:
+
+1. Settings → Feedback says feedback goes to the Companion App's GitHub.
+
 ## 0.4.1 — 2026-10-25
 
 1 change since 0.4.0:
