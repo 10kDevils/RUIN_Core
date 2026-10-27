@@ -20,6 +20,12 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.4.4", {
+        "Guild > Watch is for officers only. Members report a player by right-clicking them, from People or a chat line, or with /ruin report.",
+        "Muster has five tabs: Events, Plan (Groups and Squads), Loot (Reserves and Drops), Wanted (Most Wanted and Bounties) and Sightings.",
+        "Exchange: History sits right after Requests.",
+        "Roster: the My note button fits its name.",
+    } },
     { "0.4.3", {
         "Guild page: a census of every guild (members, online, average level, guild master), with search and 30-day history.",
         "Guild > People: the hierarchy, inactive members, members by class, zone, level or profession, and offices guild masters appoint.",

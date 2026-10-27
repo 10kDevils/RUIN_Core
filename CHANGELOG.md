@@ -4,6 +4,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+(nothing yet)
+
+## 0.4.4 — 2026-10-27
+
+2 changes since 0.4.3:
+
 1. Guild → Roster: the *My note* button under a selected member (yourself) is wide enough for its name.
 2. Guild → Watch shows only for officers and the org admin. Members report a player by right-clicking them, from Guild → People or a chat line, or with `/ruin report <name>`: a small box asks what happened (start with a reason like *spam* to pick it) and the report goes to an officer as before.
 
