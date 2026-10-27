@@ -568,6 +568,24 @@ function W.SubTabs(parent, names, onSelect)
         obj.pages[i] = page
         prev = b
     end
+    -- Show or hide a tab; the others close up. Hiding the open tab opens the first.
+    function obj:SetTabShown(i, shown)
+        local b = self.buttons[i]
+        if not b then return end
+        self.hidden = self.hidden or {}
+        if (not self.hidden[i]) == (shown and true or false) then return end
+        self.hidden[i] = not shown or nil
+        b:SetShown(shown)
+        local last
+        for j, btn in ipairs(self.buttons) do
+            if not self.hidden[j] then
+                btn:ClearAllPoints()
+                if last then btn:SetPoint("LEFT", last, "RIGHT", 4, 0) else btn:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
+                last = btn
+            end
+        end
+        if not shown and self.selected == i then self:Select(1) end
+    end
     for i = 1, #names do paint(i) end
     return obj
 end

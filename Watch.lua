@@ -542,9 +542,35 @@ end
 
 local function ago(t) return Wd.Ago(math.max(60, now() - (t or now()))) end
 
--- Open Guild > Watch on the report form, with a name filled in.
+-- Members (who don't see the Watch tab) report through a dialog: the first
+-- reason word in the text picks the reason, e.g. "spam: gold ads all day".
+function Watch:ReportDialog(name)
+    local hint = "What happened? Start with a reason (" .. table.concat(Watch.REASONS, ", ") .. ") if you like. Only officers see it."
+    local function send(target, text)
+        local reason = "Other"
+        local low = (text or ""):lower()
+        for _, r in ipairs(Watch.REASONS) do
+            local key = r:lower():match("^(%a+)")
+            if low:find(key, 1, true) then reason = r; break end
+        end
+        local ok, how = Watch:Report(target, reason, text)
+        ns:Print(ok and (how == "sent" and "Report sent to an officer online." or "No officer is online: your report waits and goes out when one is.") or how)
+    end
+    if name and name ~= "" then
+        ns.UI:ShowText("Report " .. ns.ShortName(name), hint, "", function(text) send(name, text) end)
+    else
+        ns.UI:ShowText("Report a player", "The player's name, a comma, then what happened: Spammy, gold ads all day. Only officers see it.", "", function(text)
+            local who, what = (text or ""):match("^%s*([^,]+),%s*(.*)$")
+            send(who or text, what or "")
+        end)
+    end
+end
+
+-- Officers: open Guild > Watch on the report form, with a name filled in.
+-- Members: the report dialog.
 function Watch:PromptReport(name)
     if not ns.Org:Get() then ns:Print("You need the org key to report a player."); return end
+    if not Watch:IsModerator() then return Watch:ReportDialog(name) end
     ui.view, ui.prefill = "Report", name
     if ns.UI and ns.UI.OpenGuildTab then ns.UI:OpenGuildTab("Watch") end
     Watch:Refresh()

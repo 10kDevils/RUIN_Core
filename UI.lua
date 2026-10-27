@@ -528,7 +528,17 @@ local function buildGuildPanel(p)
     ns.GuildUI.BuildWatch(guild.tabs.pages[6])
     ns.GuildUI.BuildBank(guild.tabs.pages[7])
     guild.tabs:Select(1)
+    UI:UpdateGuildTabs()
 end
+
+-- The Watch tab is for officers and the org admin only; members report
+-- through the right-click menu, People, chat lines or /ruin report.
+function UI:UpdateGuildTabs()
+    if guild.tabs then guild.tabs:SetTabShown(6, ns.Watch:IsModerator()) end
+end
+ns:Subscribe("KEY_CHANGED", function() UI:UpdateGuildTabs() end)
+ns:Subscribe("ROSTER_UPDATED", function() UI:UpdateGuildTabs() end)
+ns:Subscribe("GUILD_CHANGED", function() UI:UpdateGuildTabs() end)
 
 -- By index or name ("Roster", "Watch"...).
 function UI:SelectGuildTab(i)
@@ -536,7 +546,7 @@ function UI:SelectGuildTab(i)
         local want = i:lower()
         for j, n in ipairs(GUILD_TABS) do if n:lower() == want then i = j end end
     end
-    if guild.tabs then guild.tabs:Select(i) end
+    if guild.tabs and not (guild.tabs.hidden and guild.tabs.hidden[i]) then guild.tabs:Select(i) end
 end
 
 -- Open the RUIN window on a Guild sub-tab.

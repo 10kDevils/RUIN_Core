@@ -358,6 +358,8 @@ SlashCmdList.RUIN = function(input)
         ns.GuildUI.ToggleChatWindow()
     elseif cmd == "roster" then
         ns.UI:OpenGuildTab("Roster")
+    elseif cmd == "watch" and not ns.Watch:IsModerator() then
+        ns:Print("The Watch is for officers. To report a player: /ruin report <name>, or right-click them.")
     elseif cmd == "census" or cmd == "people" or cmd == "watch" or cmd == "bank" then
         ns.UI:OpenGuildTab(cmd)
     elseif cmd == "report" then
