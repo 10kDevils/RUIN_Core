@@ -4,7 +4,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
-(nothing yet)
+1. Guild → Roster: the *My note* button under a selected member (yourself) is wide enough for its name.
 
 ## 0.4.3 — 2026-10-27
 

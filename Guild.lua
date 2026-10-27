@@ -529,6 +529,7 @@ function GUI.RefreshRoster()
     roster.onote:SetShown(own and G:Can("officerNote"))
     roster.note:SetShown(own and (G:Can("publicNote") or isMe(e)))
     roster.note:SetText(isMe(e) and "My note" or "Note")
+    roster.note:SetWidth(isMe(e) and 84 or 56)
     local prev
     for _, b in ipairs(roster.buttons) do
         if b:IsShown() then
