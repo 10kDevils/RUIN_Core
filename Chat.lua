@@ -36,6 +36,66 @@ end
 local MAX_HISTORY = 300
 Chat.history = {}      -- { t, gu, a, c, text, own }
 
+-- Block words: your own list (RUIN_DB.blockWords) and the org's, set by the
+-- org admin (it travels in the org key). A line with one of them is hidden
+-- from RUIN chat and from other guilds' lines in your chat window.
+function Chat:BlockWords()
+    local out = {}
+    for _, w in ipairs(ns.db and type(ns.db.blockWords) == "table" and ns.db.blockWords or {}) do out[#out + 1] = w end
+    local k = ns.Org:Get()
+    for _, w in ipairs(k and type(k.bw) == "table" and k.bw or {}) do if type(w) == "string" then out[#out + 1] = w end end
+    return out
+end
+
+function Chat.ParseWords(text)
+    local out, seenW = {}, {}
+    for w in tostring(text or ""):gmatch("[^,\n]+") do
+        w = ns.Trim(w):lower():gsub("|", "")
+        if w ~= "" and #w <= 40 and not seenW[w] and #out < 100 then seenW[w] = true; out[#out + 1] = w end
+    end
+    return out
+end
+
+function Chat:Blocked(text)
+    if type(text) ~= "string" then return false end
+    local low = text:lower()
+    for _, w in ipairs(Chat:BlockWords()) do
+        if w ~= "" and low:find(w, 1, true) then return true end
+    end
+    return false
+end
+
+-- Hidden from RUIN chat: blocked words, a muted or hidden author, a deleted line.
+function Chat:Hidden(author, text)
+    if Chat:Blocked(text) then return true end
+    if ns.Watch and (ns.Watch:IsMuted(author) or ns.Watch:IsDeleted(author, text)) then return true end
+    return false
+end
+
+-- Pinned lines (yours, kept on this computer).
+function Chat:Pins()
+    ns.db.chatPins = type(ns.db.chatPins) == "table" and ns.db.chatPins or {}
+    return ns.db.chatPins
+end
+
+function Chat:IsPinned(line)
+    for _, p in ipairs(Chat:Pins()) do
+        if p.a == line.a and p.text == line.text then return true end
+    end
+    return false
+end
+
+function Chat:TogglePin(line)
+    local pins = Chat:Pins()
+    for i, p in ipairs(pins) do
+        if p.a == line.a and p.text == line.text then table.remove(pins, i); ns:Fire("CHAT_HISTORY"); return false end
+    end
+    pins[#pins + 1] = { t = line.t, gu = line.gu, a = line.a, c = line.c, text = line.text, own = line.own }
+    while #pins > 10 do table.remove(pins, 1) end
+    ns:Fire("CHAT_HISTORY")
+    return true
+end
+
 local function record(line)
     local h = Chat.history
     h[#h + 1] = line
@@ -60,6 +120,8 @@ local function onGuildLine(officer, text, author, guid)
     local k = ns.Org:Get()
     if not k or not ns.Org:MyGuildInOrg() then return end
     if officer and not (k.oc and ns.Org:AmOfficer()) then return end
+    -- muted (or hidden) by the Watch: not passed on to the other guilds
+    if not officer and ns.Watch and ns.Watch:IsMuted(author) then return end
 
     if type(guid) ~= "string" or guid == "" then
         local e = ns.roster[ns.NormalizeName(author)]
@@ -89,7 +151,7 @@ local function onGuildLine(officer, text, author, guid)
 end
 
 ns:RegisterEvent("CHAT_MSG_GUILD", function(_, text, author, _, _, _, _, _, _, _, _, _, guid)
-    if not (isSecret(text) or isSecret(author)) and type(text) == "string" then
+    if not (isSecret(text) or isSecret(author)) and type(text) == "string" and not Chat:Hidden(author, text) then
         local e = (type(guid) == "string" and ns.rosterByGUID[guid]) or ns.roster[ns.NormalizeName(author or "")]
         record({ t = time(), gu = ns.guildName, a = author, c = e and e.class, text = text, own = true })
     end
@@ -156,6 +218,7 @@ ns.Comms:Register("GCHAT", function(d, sender, scope)
     if d.gu == ns.guildName then return end              -- we already saw it in /g
     if not ns.Org:GuildInfo(d.gu) then return end       -- not an org guild
     if isDuplicate(dedupKey(d.g, d.t)) then return end
+    if Chat:Hidden(d.a, d.t) then return end
     record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false })
     if not ns.db.settings.showOrgChat then return end
     Chat:Display(false, d, false)

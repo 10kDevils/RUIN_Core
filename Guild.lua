@@ -16,7 +16,7 @@ local GREY, GREEN = C.dim, C.good
 
 local G = {}
 ns.Guild = G
-local GUI = {}
+local GUI = ns.GuildUI or {}
 ns.GuildUI = GUI
 
 ---------------------------------------------------------------------------
@@ -559,13 +559,59 @@ local function lineText(l)
         ns.Chat.ColorName and ns.Chat.ColorName(l.a or "?", l.c) or ns.Escape(l.a or "?"), ns.Chat.Sanitize(l.text or ""))
 end
 
-local function visibleLines()
+-- The lines a view shows: its scope, its search, or only the pinned lines.
+local function visibleLines(v)
     local out = {}
+    if v and v.pins then
+        for _, l in ipairs(ns.Chat:Pins()) do out[#out + 1] = l end
+        return out
+    end
     local own = scope() == "guild"
+    local q = v and v.query and ns.Trim(v.query):lower() or ""
     for _, l in ipairs(ns.Chat.history) do
-        if l.own or not own then out[#out + 1] = l end
+        if (l.own or not own) and not ns.Chat:Hidden(l.a, l.text)
+            and (q == "" or tostring(l.text):lower():find(q, 1, true) or tostring(l.a):lower():find(q, 1, true)) then
+            out[#out + 1] = l
+        end
     end
     return out
+end
+
+-- Right-click (or click) a chat line: pin, whisper, report, delete for everyone.
+local function lineMenu(l)
+    local short = ns.ShortName(l.a or "?")
+    local entries = { { title = short } }
+    entries[#entries + 1] = { ns.Chat:IsPinned(l) and "Unpin" or "Pin", function() ns.Chat:TogglePin(l) end }
+    if ns.NormalizeName(l.a or "") ~= ns.NormalizeName(ns.playerName or "") then
+        entries[#entries + 1] = { "Whisper", function()
+            if ChatFrame_SendTell then ChatFrame_SendTell(l.a) elseif ChatFrame_OpenChat then ChatFrame_OpenChat("/w " .. l.a .. " ") end
+        end }
+        entries[#entries + 1] = { "Report to the Watch", function() ns.Watch:PromptReport(l.a) end }
+        if ns.Watch:IsModerator() then
+            entries[#entries + 1] = { "Delete for everyone", function()
+                local ok, e = ns.Watch:DeleteLine(l.a, l.text)
+                if not ok then ns:Print(e) end
+            end }
+            entries[#entries + 1] = { "Mute 30 minutes", function()
+                local ok, e = ns.Watch:Sanction("mute", l.a, 1800, "chat")
+                ns:Print(ok and (short .. " is muted in RUIN chat for 30 minutes.") or e)
+            end }
+        end
+    end
+    entries[#entries + 1] = { "Copy text", function()
+        ns.UI:ShowText("Copy", "Ctrl+C to copy.", l.text or "", function() end, true)
+    end }
+    Wd.ContextMenu(entries)
+end
+GUI.LineMenu = lineMenu
+
+function GUI.EditBlockWords()
+    local cur = table.concat(type(ns.db.blockWords) == "table" and ns.db.blockWords or {}, ", ")
+    ns.UI:ShowText("Block words", "Lines with any of these words are hidden from your RUIN chat. Separate them with commas.", cur, function(text)
+        ns.db.blockWords = ns.Chat.ParseWords(text)
+        ns:Print(#ns.db.blockWords .. " block word" .. (#ns.db.blockWords == 1 and "" or "s") .. " set.")
+        ns:Fire("CHAT_HISTORY")
+    end)
 end
 
 -- view: { frame, log rows, offset (lines scrolled back from the newest) }
@@ -579,9 +625,20 @@ function GUI.BuildChatView(parent, popout)
     if not popout then
         v.pop = Wd.Button(parent, "Pop out", 80, function() GUI.ToggleChatWindow(true) end)
         v.pop:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -2)
+        v.block = Wd.Button(parent, "Block words", 96, function() GUI.EditBlockWords() end)
+        v.block:SetPoint("RIGHT", v.pop, "LEFT", -4, 0)
+        v.block.tip = "Hide RUIN chat lines with words you choose."
+        v.search = Wd.EditBox(parent, 130, nil, "Search chat")
+        v.search:SetPoint("RIGHT", v.block, "LEFT", -6, 0)
+        v.search:SetScript("OnTextChanged", function(self) v.query = self:GetText() or ""; v.offset = 0; GUI.RefreshChat() end)
     end
+    v.pinsBtn = Wd.Button(parent, "Pins", 64, function() v.pins = not v.pins; v.offset = 0; GUI.RefreshChat() end)
+    v.pinsBtn:SetPoint("LEFT", v.guildBtn, "RIGHT", 4, 0)
+    v.pinsBtn.tip = "Lines you pinned (click a line to pin it)."
     v.info = Wd.Label(parent, "", "GameFontHighlightSmall")
-    v.info:SetPoint("LEFT", v.guildBtn, "RIGHT", 10, 0)
+    v.info:SetPoint("LEFT", v.pinsBtn, "RIGHT", 10, 0)
+    if v.search then v.info:SetPoint("RIGHT", v.search, "LEFT", -8, 0) elseif popout then v.info:SetPoint("RIGHT", parent, "RIGHT", -8, 0) end
+    v.info:SetWordWrap(false)
 
     local box = CreateFrame("Frame", nil, parent)
     box:SetPoint("TOPLEFT", popout and 8 or 0, popout and -54 or -30)
@@ -590,7 +647,7 @@ function GUI.BuildChatView(parent, popout)
     if box.SetClipsChildren then box:SetClipsChildren(true) end
     box:EnableMouseWheel(true)
     box:SetScript("OnMouseWheel", function(_, delta)
-        v.offset = math.max(0, math.min(#visibleLines() - 1, v.offset + (delta > 0 and 3 or -3)))
+        v.offset = math.max(0, math.min(#visibleLines(v) - 1, v.offset + (delta > 0 and 3 or -3)))
         GUI.RefreshChat()
     end)
     v.box = box
@@ -613,9 +670,11 @@ end
 local function refreshView(v)
     local s = scope()
     if s == "org" then v.orgBtn:LockHighlight(); v.guildBtn:UnlockHighlight() else v.guildBtn:LockHighlight(); v.orgBtn:UnlockHighlight() end
-    local lines = visibleLines()
+    if v.pins then v.pinsBtn:LockHighlight() else v.pinsBtn:UnlockHighlight() end
+    v.pinsBtn:SetText("Pins" .. (#ns.Chat:Pins() > 0 and (" (" .. #ns.Chat:Pins() .. ")") or ""))
+    local lines = visibleLines(v)
     local k = ns.Org:Get()
-    v.info:SetText(GREY .. (s == "org" and (k and ("%s: every RUIN guild"):format(ns.Escape(k.org)) or "No org key: your guild only")
+    v.info:SetText(GREY .. (v.pins and "Pinned lines (kept on this computer)" or (v.query or "") ~= "" and ("%d lines match"):format(#lines) or s == "org" and (k and ("%s: every RUIN guild"):format(ns.Escape(k.org)) or "No org key: your guild only")
         or ns.Escape(ns.guildName or "No guild")) .. (v.offset > 0 and ("  ·  scrolled back " .. v.offset) or "") .. "|r")
     -- newest at the bottom, filling upward until the box is full
     local width = math.max(100, (v.box:GetWidth() or 400) - 16)
@@ -625,14 +684,21 @@ local function refreshView(v)
         shown = shown + 1
         local row = v.rows[shown]
         if not row then
-            row = Wd.Label(v.box, "", "ChatFontNormal")
-            row:SetJustifyH("LEFT")
-            row:SetJustifyV("TOP")
+            row = CreateFrame("Button", nil, v.box)
+            row.text = Wd.Label(row, "", "ChatFontNormal")
+            row.text:SetPoint("TOPLEFT", 0, 0)
+            row.text:SetJustifyH("LEFT")
+            row.text:SetJustifyV("TOP")
+            row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            row:SetScript("OnClick", function(self) if self.line then lineMenu(self.line) end end)
             v.rows[shown] = row
         end
+        row.line = lines[i]
+        row.text:SetWidth(width)
         row:SetWidth(width)
-        row:SetText(lineText(lines[i]))
-        local h = math.max(14, row:GetStringHeight() or 14)
+        row.text:SetText((ns.Chat:IsPinned(lines[i]) and (C.gold .. "* |r") or "") .. lineText(lines[i]))
+        local h = math.max(14, row.text:GetStringHeight() or 14)
+        row:SetHeight(h)
         if y + h > height and shown > 1 then shown = shown - 1; row:Hide(); break end
         row:ClearAllPoints()
         row:SetPoint("BOTTOMLEFT", v.box, "BOTTOMLEFT", 8, y)
@@ -640,7 +706,7 @@ local function refreshView(v)
         y = y + h + 2
     end
     for i = shown + 1, #v.rows do v.rows[i]:Hide() end
-    v.empty:SetText(#lines == 0 and ((s == "org" and "Guild chat from every RUIN guild shows here" or "Your guild's chat shows here") .. " while you're online.") or "")
+    v.empty:SetText(#lines == 0 and v.pins and "No pinned lines. Click a chat line to pin it." or #lines == 0 and (v.query or "") ~= "" and "Nothing matches." or #lines == 0 and ((s == "org" and "Guild chat from every RUIN guild shows here" or "Your guild's chat shows here") .. " while you're online.") or "")
     v.send:SetEnabled(IsInGuild() and true or false)
 end
 

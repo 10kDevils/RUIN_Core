@@ -6,6 +6,24 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.3 — 2026-10-27
+
+The Guild page grows from three sub-tabs to seven: Overview, Census, Roster, People, Chat, Watch and Bank.
+
+1. **Census.** Every guild of the org on one page: members, online, average level, guild master (online or last seen), RUIN users and free slots, sortable, with the org's totals, today's peak, a 30-day graph of characters and a 24-hour graph of who's online (kept on your computer), and where members are by continent and zone.
+2. **Census search.** One box finds a guild or its tag, a guild master, a player or a zone; look-alike letters match (l, I, 1 and 0, O). `recruiting` or `free 50` lists guilds with room.
+3. **People.** The hierarchy (guild masters, officers and office holders of every guild), inactive members (7, 14 or 30 days and more), and members by class, zone, level or profession (professions from RUIN Exchange). Officers are told once when their guild master has been away 3 days or more.
+4. **Appointed offices.** Guild masters (and the org admin) appoint Treasurer, Recruiter, Raid leader, Quartermaster and other offices; every RUIN member sees them, and modules can ask who holds one.
+5. **The Watch.** Report a player to the officers (Guild > Watch, `/ruin report`, or right-click a player); the report goes to an officer online, or waits until one is, and becomes a case every officer of the org sees. Officers note, warn (a mute that climbs 5 minutes, 30 minutes, 24 hours within a day), mute, hide from the RUIN network, resolve or dismiss, and delete chat lines for everyone, under a cover name if they like. Every client keeps a log of what it saw done.
+6. **Sanctions follow the BattleTag.** Each RUIN shares a salted hash of its BattleTag (it can't be read back or matched across orgs), so a mute or hide covers every character of that player. Only the org admin can sanction an officer.
+7. **Chat tools.** Search the chat, pin lines (Pins), click a line to pin, whisper, report, copy, or (officers) delete it for everyone or mute its author. Block words hide lines with words you choose; the org admin can set block words for the whole org (Settings → Org).
+8. **Join screen.** Players who aren't in an org guild get a Join card on the Overview: type the key phrase to see the guilds, find a guild's members online with /who, and ask one of them to join. The request reaches that guild's members who can invite: on their Overview, with Invite and Decline.
+9. **Update tools.** A *What's new* letter once after each update (Settings → Options → What's new, `/ruin news`). Right-clicking a player adds a RUIN part to the game's menu: their RUIN version (or Check RUIN version), Ask to update (officers, when they're behind) and Report to the RUIN Watch.
+10. **Guild bank snapshots.** When a guildmate with RUIN opens the guild bank, RUIN shares what its tabs hold (the tabs their rank can see) and its gold; Guild > Bank shows it with search, per tab, and how old it is.
+11. Settings → Options → *Count my characters as one player*: the census counts your characters once (RUIN shares a random token only your characters send). Off by default.
+12. API level 11 for modules: `GetOrgMembers`, `GetCensus`, `GetWhere`, `GetOffices`, `HasOffice`, `IsSanctioned`, `AddProfessionSource`, `OpenGuildTab`, `PromptReport`, `GetVersionOf`, `GetGuildBank`, `Module:SendRaw`, and the events `CENSUS_SAMPLED`, `OFFICES_CHANGED`, `WATCH_CHANGED` and `BANK_CHANGED`. Buttons take a `tip`; `Widgets.ContextMenu` opens a small menu at the cursor.
+13. New commands: `/ruin census | people | watch | bank`, `/ruin report [name]`, `/ruin news`.
+
 ## 0.4.2 — 2026-10-26
 
 1 change since 0.4.1:

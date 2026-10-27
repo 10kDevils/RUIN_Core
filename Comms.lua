@@ -200,6 +200,8 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
     local f = parseFrame(text)
     if not f or f[1] ~= FRAME_VERSION then return end
     local kind, id = f[2], f[3]
+    -- The Watch hid this player from the RUIN network.
+    if ns.Watch and ns.Watch:AnyHidden() and kind:sub(1, 1) ~= "W" and ns.Watch:IsHidden(sender) then return end
     local idx, total, chunk = tonumber(f[4]), tonumber(f[5]), f[6]
     if not idx or not total or total < 1 or total > 99 or idx < 1 or idx > total then return end
 

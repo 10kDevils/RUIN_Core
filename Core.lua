@@ -26,6 +26,8 @@ local DEFAULTS = {
         animations = true,       -- ambient motion in page headers
         tabOrder = nil,          -- your own tab order (Settings > Options > Tab order): a list of page titles
         chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
+        linkAlts = false,        -- count my characters as one player in the census (shares a random token)
+        leaderAwayDays = 3,      -- tell officers when their guild master has been away this many days
         debug = false,
     },
 }
@@ -243,7 +245,9 @@ end)
 local HELP = {
     "/ruin - open or close the RUIN window",
     "/ruin guild | settings - open the Guild or Settings page",
-    "/ruin roster - the guild roster  |  /ruin chat - pop out guild chat",
+    "/ruin roster | census | people | watch | bank - open that part of the Guild page",
+    "/ruin chat - pop out guild chat  |  /ruin report [name] - report a player to the Watch",
+    "/ruin news - what's new in this version",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
     "/ruin key import | join <key phrase> | send [name] | forget  |  export (org admin)",
@@ -353,8 +357,13 @@ SlashCmdList.RUIN = function(input)
     elseif cmd == "chat" then
         ns.GuildUI.ToggleChatWindow()
     elseif cmd == "roster" then
-        ns.UI:OpenTab("Guild")
-        if ns.UI.SelectGuildTab then ns.UI:SelectGuildTab(2) end
+        ns.UI:OpenGuildTab("Roster")
+    elseif cmd == "census" or cmd == "people" or cmd == "watch" or cmd == "bank" then
+        ns.UI:OpenGuildTab(cmd)
+    elseif cmd == "report" then
+        ns.Watch:PromptReport(rest ~= "" and rest or (UnitExists and UnitExists("target") and UnitIsPlayer("target") and GetUnitName("target", true)) or nil)
+    elseif cmd == "news" then
+        ns.Updates:ShowLetter(nil)
     elseif cmd == "status" then
         ns:PrintStatus()
     elseif cmd == "versions" then

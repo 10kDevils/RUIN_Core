@@ -74,6 +74,30 @@ function Map:DistanceText(map, x, y)
     return ("%d yd %s"):format(dist, dir), dist
 end
 
+-- A zone's uiMapID from its name as the roster gives it (localized text),
+-- or nil. Built once from the world map's own tree.
+local zoneIDs
+function Map:ZoneMapID(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    if not zoneIDs then
+        zoneIDs = {}
+        if C_Map and C_Map.GetMapChildrenInfo then
+            for _, root in ipairs({ 947, 946, 1, 0 }) do
+                local ok, list = pcall(C_Map.GetMapChildrenInfo, root, nil, true)
+                if ok and type(list) == "table" and #list > 0 then
+                    for _, info in ipairs(list) do
+                        if info.name and info.mapID and (info.mapType == 3 or not zoneIDs[info.name]) then
+                            zoneIDs[info.name] = info.mapID
+                        end
+                    end
+                    break
+                end
+            end
+        end
+    end
+    return zoneIDs[name]
+end
+
 ---------------------------------------------------------------------------
 -- Pin store
 ---------------------------------------------------------------------------

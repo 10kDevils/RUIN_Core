@@ -48,6 +48,7 @@ function Presence:SendOrgHello(request)
     ns.Comms:Send("OHELLO", {
         g = ns.playerGUID, v = ns.VERSION, p = ns.PROTOCOL,
         gu = ns.guildName, c = myClass(), l = UnitLevel("player"), z = myZone(),
+        al = Presence:AltToken(), bt = ns.Watch and ns.Watch.MyTagHash and ns.Watch:MyTagHash() or nil,
         kr = ns.Org:Rev(), o = ns.Org:AmOfficer() and 1 or 0,
         rq = request and 1 or nil,
     }, "ORG")
@@ -95,6 +96,14 @@ ns.Comms:Register("OHELLO", function(d, sender, scope)
     p.guid, p.name, p.t = d.g, sender, GetTime()
     p.guild, p.v, p.c, p.l = d.gu, d.v, d.c, tonumber(d.l)
     p.z = type(d.z) == "string" and d.z:sub(1, 40) or nil
+    p.al = type(d.al) == "string" and d.al:sub(1, 16) or nil      -- same token = same player (alts they chose to link)
+    if p.al and ns.db then
+        ns.db.altSeen = type(ns.db.altSeen) == "table" and ns.db.altSeen or {}
+        local grp = ns.db.altSeen[p.al] or {}
+        grp[ns.NormalizeName(sender)] = GetServerTime and GetServerTime() or time()
+        ns.db.altSeen[p.al] = grp
+    end
+    p.bt = type(d.bt) == "string" and d.bt:sub(1, 24) or nil      -- the Watch's BattleTag hash
     p.kr, p.o = tonumber(d.kr) or 0, d.o
     orgPeers[d.g] = p
 
@@ -195,6 +204,41 @@ function Presence:OrgPeerByName(name)
     end
     return nil
 end
+
+-- Alt links: characters that send the same token belong to one player. Only
+-- players who tick "Count my characters as one player" send one (Settings >
+-- Options); it is random per account and says nothing else about them.
+function Presence:AltToken()
+    if not (ns.db and ns.db.settings.linkAlts) then return nil end
+    if type(ns.db.altToken) ~= "string" then ns.db.altToken = ns.RandomToken(8) end
+    return ns.db.altToken
+end
+
+-- How many characters to take off the census so each linked player counts
+-- once: for each token seen on several characters, all but one.
+-- Groups are remembered for 30 days (RUIN_DB.altSeen), so offline alts count once too.
+function Presence:LinkedAltExtras()
+    local seen = ns.db and type(ns.db.altSeen) == "table" and ns.db.altSeen or {}
+    local cutoff = (GetServerTime and GetServerTime() or time()) - 30 * 86400
+    local mine = Presence:AltToken()
+    if mine and ns.playerName then
+        seen[mine] = seen[mine] or {}
+        seen[mine][ns.NormalizeName(ns.playerName)] = GetServerTime and GetServerTime() or time()
+    end
+    local extra = 0
+    for token, grp in pairs(seen) do
+        local n = 0
+        for name, t in pairs(grp) do
+            if t < cutoff then grp[name] = nil else n = n + 1 end
+        end
+        if n == 0 then seen[token] = nil elseif n > 1 then extra = extra + (n - 1) end
+    end
+    return extra
+end
+
+-- Another org member's online record by name (OHELLO), with alt token and
+-- BattleTag hash, or nil.
+function Presence:Peer(name) return Presence:OrgPeerByName(name) end
 
 -- The guild a RUIN member on the org channel says they are in.
 function Presence:GuildOfName(name)

@@ -231,8 +231,19 @@ function W.Button(parent, text, width, onClick)
     hl:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
     b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    b:HookScript("OnEnter", function(self) self.hover = true; paintButton(self) end)
-    b:HookScript("OnLeave", function(self) self.hover = false; paintButton(self) end)
+    -- b.tip = "what it does" shows on hover
+    b:HookScript("OnEnter", function(self)
+        self.hover = true; paintButton(self)
+        if type(self.tip) == "string" and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine(self.tip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    b:HookScript("OnLeave", function(self)
+        self.hover = false; paintButton(self)
+        if type(self.tip) == "string" and GameTooltip then GameTooltip:Hide() end
+    end)
     b:HookScript("OnEnable", paintButton)
     b:HookScript("OnDisable", paintButton)
     local lock, unlock = b.LockHighlight, b.UnlockHighlight
@@ -579,6 +590,62 @@ function W.Card(parent)
     end
     f.edges = f.skinEdges
     return f
+end
+
+---------------------------------------------------------------------------
+-- Context menu at the cursor: W.ContextMenu({ { text, fn }, { title = "..." }, ... })
+-- Click an entry, or anywhere else (or Escape), to close it.
+---------------------------------------------------------------------------
+local ctxMenu
+function W.ContextMenu(entries)
+    if not ctxMenu then
+        ctxMenu = CreateFrame("Frame", "RUIN_ContextMenu", UIParent)
+        W.Skin(ctxMenu, "panel", 1, "glow")
+        ctxMenu:SetFrameStrata("FULLSCREEN_DIALOG")
+        ctxMenu:EnableMouse(true)
+        ctxMenu:SetClampedToScreen(true)
+        ctxMenu.items = {}
+        ctxMenu:SetScript("OnUpdate", function(self)
+            if not self:IsMouseOver(8, -8, -8, 8) then
+                self.away = (self.away or 0) + 1
+                if self.away > 90 then self:Hide() end
+            else
+                self.away = 0
+            end
+        end)
+        if UISpecialFrames then tinsert(UISpecialFrames, "RUIN_ContextMenu") end
+    end
+    local m = ctxMenu
+    local y = -6
+    for i, e in ipairs(entries) do
+        local it = m.items[i]
+        if not it then
+            it = W.Button(m, "", 170)
+            it:SetHeight(20)
+            it.label:SetJustifyH("LEFT")
+            m.items[i] = it
+        end
+        it:ClearAllPoints()
+        it:SetPoint("TOPLEFT", 4, y)
+        it:SetText(e.title and (W.COLORS.gold .. e.title .. "|r") or e[1])
+        it:SetEnabled(not e.title)
+        it:SetScript("OnClick", function() m:Hide(); if e[2] then e[2]() end end)
+        it:Show()
+        y = y - 21
+    end
+    for i = #entries + 1, #m.items do m.items[i]:Hide() end
+    m:SetSize(178, -y + 6)
+    local x, cy = 0, 0
+    if GetCursorPosition then
+        x, cy = GetCursorPosition()
+        local sc = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+        x, cy = x / sc, cy / sc
+    end
+    m:ClearAllPoints()
+    m:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x - 6, cy + 6)
+    m.away = 0
+    m:Show()
+    return m
 end
 
 ---------------------------------------------------------------------------

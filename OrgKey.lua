@@ -89,6 +89,7 @@ local function validKey(k)
     if k.oc ~= nil and not validChannel(k.oc) then return false end
     if k.links ~= nil and type(k.links) ~= "table" then return false end
     if k.ph ~= nil and type(k.ph) ~= "string" then return false end
+    if k.bw ~= nil and type(k.bw) ~= "table" then return false end
     return true
 end
 Org.ValidKey = validKey
@@ -379,6 +380,16 @@ function Org:SetLinks(list)
         end
     end
     k.links = #clean > 0 and clean or nil
+    k.rev = k.rev + 1
+    publishEdit(k, k.oc and k.oc.n)
+    return true
+end
+
+-- The org's shared block words (Chat.lua hides lines with them), set by the admin.
+function Org:SetBlockWords(list)
+    local k, err = editableKey()
+    if not k then return false, err end
+    k.bw = (type(list) == "table" and #list > 0) and list or nil
     k.rev = k.rev + 1
     publishEdit(k, k.oc and k.oc.n)
     return true

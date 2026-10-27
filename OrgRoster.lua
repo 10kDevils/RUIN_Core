@@ -122,6 +122,7 @@ function OR:Send(force)
         ns.Comms:Send("OROSTER", { gu = ns.guildName, s = id, p = p, n = pages, t = stamp,
                                    r = p == 1 and rankNames() or nil, m = m }, "ORG", nil, ns.Comms.PRIORITY.BULK)
     end
+    ns:Fire("ORG_ROSTER_SENT")
     return true
 end
 

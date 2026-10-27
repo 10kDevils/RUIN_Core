@@ -504,20 +504,46 @@ end
 
 local buildGuildOverview
 
--- Guild page: Overview (who's online, MOTD, links, Overlord), Roster (the
--- full guild window roster with moderation) and Chat (guild or org chat,
--- with a pop-out window). Roster and Chat live in Guild.lua.
+-- Guild page: Overview (who's online, join requests, MOTD, links, Overlord),
+-- Census (every guild's numbers), Roster (every guild's members), People
+-- (hierarchy, offices, inactive...), Chat, the Watch (reports and
+-- moderation) and Bank. They live in Census.lua, Guild.lua, People.lua,
+-- Watch.lua and Bank.lua.
+local GUILD_TABS = { "Overview", "Census", "Roster", "People", "Chat", "Watch", "Bank" }
 local function buildGuildPanel(p)
-    guild.tabs = Wd.SubTabs(p, { "Overview", "Roster", "Chat" }, function(i)
-        if i == 2 then ns.GuildUI.RefreshRoster() elseif i == 3 then ns.GuildUI.RefreshChat() else UI:Refresh() end
+    guild.tabs = Wd.SubTabs(p, GUILD_TABS, function(i, name)
+        if name == "Roster" then ns.GuildUI.RefreshRoster()
+        elseif name == "Chat" then ns.GuildUI.RefreshChat()
+        elseif name == "Census" then ns.Census:Refresh()
+        elseif name == "People" then ns.People:Refresh()
+        elseif name == "Watch" then ns.Watch:Refresh()
+        elseif name == "Bank" then ns.Bank:Refresh()
+        else UI:Refresh() end
     end)
     buildGuildOverview(guild.tabs.pages[1])
-    ns.GuildUI.BuildRoster(guild.tabs.pages[2])
-    guild.chat = ns.GuildUI.BuildChatView(guild.tabs.pages[3], false)
+    ns.GuildUI.BuildCensus(guild.tabs.pages[2])
+    ns.GuildUI.BuildRoster(guild.tabs.pages[3])
+    ns.GuildUI.BuildPeople(guild.tabs.pages[4])
+    guild.chat = ns.GuildUI.BuildChatView(guild.tabs.pages[5], false)
+    ns.GuildUI.BuildWatch(guild.tabs.pages[6])
+    ns.GuildUI.BuildBank(guild.tabs.pages[7])
     guild.tabs:Select(1)
 end
 
-function UI:SelectGuildTab(i) if guild.tabs then guild.tabs:Select(i) end end
+-- By index or name ("Roster", "Watch"...).
+function UI:SelectGuildTab(i)
+    if type(i) == "string" then
+        local want = i:lower()
+        for j, n in ipairs(GUILD_TABS) do if n:lower() == want then i = j end end
+    end
+    if guild.tabs then guild.tabs:Select(i) end
+end
+
+-- Open the RUIN window on a Guild sub-tab.
+function UI:OpenGuildTab(name)
+    UI:OpenTab("Guild")
+    UI:SelectGuildTab(name)
+end
 
 buildGuildOverview = function(p)
     guild.page = p
@@ -555,7 +581,26 @@ buildGuildOverview = function(p)
         row.badge:SetWidth(70)
         row.badge:SetJustifyH("RIGHT")
         row.badge:SetWordWrap(false)
+        row.decline = Wd.Button(row, "Decline", 60)
+        row.decline:SetPoint("RIGHT", -2, 0)
+        row.invite = Wd.Button(row, "Invite", 56)
+        row.invite:SetPoint("RIGHT", row.decline, "LEFT", -4, 0)
     end, function(row, r)
+        row.invite:SetShown(r.ask == true); row.decline:SetShown(r.ask == true); row.badge:SetShown(not r.ask)
+        if r.ask then
+            row.icon:SetText(Wd.ClassIcon(r.class, 16))
+            row.name:SetText(Wd.ClassName(r.name, r.class))
+            row.level:SetText(r.level and tostring(r.level) or "")
+            row.zone:SetText(C.gold .. "asks to join|r")
+            row.invite:SetScript("OnClick", function() local ok, e = ns.Recruit:Invite(r.name); if not ok then ns:Print(e) end end)
+            row.decline:SetScript("OnClick", function() ns.Recruit:Decline(r.name) end)
+            row.tip = function(tt)
+                tt:AddLine(ns.Escape(ns.ShortName(r.name)) .. " asks to join")
+                if r.m and r.m ~= "" then tt:AddLine(ns.Escape(r.m), 0.9, 0.9, 0.9, true) end
+                tt:AddLine("Asked " .. Wd.Ago(math.max(60, (GetServerTime and GetServerTime() or time()) - (r.t or 0))) .. " ago.", 0.6, 0.7, 0.8)
+            end
+            return
+        end
         row.icon:SetText(Wd.ClassIcon(r.class, 16))
         local st = STATUS[r.status or 0]
         row.name:SetText(Wd.ClassName(r.name, r.class) .. ((r.status or 0) > 0 and st and (" " .. Wd.Hex(st[2]) .. "(" .. st[1] .. ")|r") or ""))
@@ -572,6 +617,13 @@ buildGuildOverview = function(p)
     guild.roster:SetEmptyText("Nobody is connected with RUIN yet.")
     guild.roster.frame:SetPoint("TOPLEFT", left, "TOPLEFT", 6, -30)
     guild.roster.frame:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -26, 24)
+    guild.leftCard = left
+    -- not in one of the org's guilds yet: the Join screen takes this card's place
+    guild.join = Wd.Card(p)
+    guild.join:SetAllPoints(left)
+    guild.join:SetFrameLevel(left:GetFrameLevel() + 5)
+    ns.GuildUI.BuildJoin(guild.join)
+    guild.join:Hide()
     local together = Wd.Label(left, "Because great games are better together.", "GameFontHighlightSmall")
     together:SetPoint("BOTTOM", left, "BOTTOM", 0, 7)
     together:SetTextColor(P.glow[1], P.glow[2], P.glow[3])
@@ -680,8 +732,18 @@ local function refreshGuild()
     guild.orgLine:SetText(table.concat(parts, GREY .. "   ·   |r"))
 
     local rows, counts = UI:GuildRows()
-    guild.rosterCount:SetText(("%d in %d guild%s  ·  everyone: Roster tab"):format(counts.ruin, counts.guilds, counts.guilds == 1 and "" or "s"))
+    local asks = ns.Recruit:Asks()
+    for i = #asks, 1, -1 do
+        local a = asks[i]
+        table.insert(rows, 1, { ask = true, name = a.name, class = a.c, level = a.l, m = a.m, t = a.t })
+    end
+    guild.rosterCount:SetText(("%d in %d guild%s%s"):format(counts.ruin, counts.guilds, counts.guilds == 1 and "" or "s",
+        #asks > 0 and (C.gold .. "  ·  " .. #asks .. " asking to join|r") or "  ·  everyone: Roster tab"))
     guild.roster:SetItems(rows)
+    local needJoin = ns.Recruit:Needed()
+    guild.join:SetShown(needJoin)
+    guild.leftCard:SetShown(not needJoin)
+    if needJoin then ns.Recruit:RefreshJoin() end
 
     local text = GetGuildRosterMOTD and GetGuildRosterMOTD() or ""
     guild.motd:SetText((text and text ~= "") and ns.Escape(text) or (GREY .. "No message of the day.|r"))
@@ -704,13 +766,13 @@ local function refreshGuild()
 
     local ovState = UI:OverlordState()
     if ovState == "loaded" then
-        guild.ovText:SetText("Installed. RUIN's world PvP (campaign, keeps, Most Wanted) runs on Overlord; Muster adds org rallies and bounties.")
+        guild.ovText:SetText("Installed. The faction-wide campaign and keeps run on Overlord; Muster adds org rallies, bounties and RUIN's own Most Wanted.")
         guild.ovButton:Show()
     elseif ovState == "off" then
         guild.ovText:SetText(GREY .. "Installed but switched off. Turn it on in the AddOns list and reload; RUIN uses it for world PvP.|r")
         guild.ovButton:Hide()
     else
-        guild.ovText:SetText(GREY .. "Not installed. RUIN uses it for world PvP (campaign, keeps, Most Wanted); get it on CurseForge.|r")
+        guild.ovText:SetText(GREY .. "Not installed. RUIN uses it for the faction-wide campaign and keeps; get it on CurseForge.|r")
         guild.ovButton:Hide()
     end
 end
@@ -918,6 +980,15 @@ local function buildSettingsPanel(p)
     settings.rotate = Wd.Button(keyCard, "Choose new key", 130, function() UI:PromptNewKey() end)
     settings.rotate.tip = "Set a new key phrase members type to join, or a new random key"
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
+    settings.blockWords = Wd.Button(keyCard, "Block words", 110, function()
+        local k = ns.Org:Get()
+        UI:ShowText("Org block words", "Lines with these words are hidden from RUIN chat for every member. Separate them with commas.",
+            table.concat(k and type(k.bw) == "table" and k.bw or {}, ", "), function(text)
+                local ok, err = ns.Org:SetBlockWords(ns.Chat.ParseWords(text))
+                ns:Print(ok and "The org's block words are set; they travel with the org key." or err)
+            end)
+    end)
+    settings.blockWords.tip = "Words hidden from RUIN chat for the whole org"
     settings.keyCard = keyCard
 
     -- Your guild's settings (officers change them): who can create events.
@@ -963,7 +1034,13 @@ local function buildSettingsPanel(p)
             function(v) s().couchMode = v; UI:ApplyScale() end),
         Wd.Check(disp, "Animated page headers", function() return s().animations end,
             function(v) s().animations = v end),
+        Wd.Check(disp, "Count my characters as one player", function() return s().linkAlts end,
+            function(v) s().linkAlts = v; ns:Fire("SETTINGS_CHANGED") end),
     }
+    settings.checks[6].tip = "In the Guild census, your characters count as one player. RUIN shares a random token only your characters send; nothing else about you."
+    settings.checks[6]:SetPoint("TOPLEFT", settings.checks[4], "BOTTOMLEFT", 0, -2)
+    settings.news = Wd.Button(disp, "What's new", 100, function() ns.Updates:ShowLetter(nil) end)
+    settings.news:SetPoint("TOPRIGHT", -8, -6)
     settings.checks[1].tip = "Show guild chat from the other RUIN guilds in your guild chat."
     settings.checks[2].tip = "Show officer chat from the other RUIN guilds in your officer chat."
     settings.checks[3].tip = "Guildmates who don't run RUIN can't send to the other guilds. When this is on, one RUIN member online passes their guild chat along."
@@ -1059,8 +1136,8 @@ refreshSettings = function()
     if k and admin then row1[#row1 + 1] = settings.export end
     if k and (admin or (k.oc ~= nil and ns.Org:AmOfficer())) then row1[#row1 + 1] = settings.send end
     if not k then row1[#row1 + 1] = settings.create end
-    local row2 = admin and { settings.addGuild, settings.rotate, settings.links } or {}
-    local all = { settings.import, settings.export, settings.send, settings.create, settings.addGuild, settings.rotate, settings.links }
+    local row2 = admin and { settings.addGuild, settings.rotate, settings.links, settings.blockWords } or {}
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
         local prev

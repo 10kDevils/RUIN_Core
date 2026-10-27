@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 10              -- modules check this to know which API they can use
+API.apiLevel = 11              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -55,6 +55,12 @@ function Module:ListenRaw(fullKind, handler)
         local fn = type(handler) == "string" and mod[handler] or handler
         if fn then fn(mod, data, sender, scope) end
     end)
+end
+
+-- Send under a full kind name, e.g. "Muster:TIMER" (level 11). Lets a module
+-- take over a feature from another and keep talking to that one's old versions.
+function Module:SendRaw(fullKind, data, scope, target, priority)
+    return ns.Comms:Send(fullKind, data, scope, target, priority)
 end
 
 -- opts (level 4): { order = n, label = "Tab text" }; by default the tab's
@@ -193,8 +199,34 @@ API.appName = "RUIN Gaming Companion App"
 function API:GetOnlineMembers() return ns.Presence:GetOnlineList() end
 function API:GetPlayerGUID() return ns.playerGUID end
 
+---------------------------------------------------------------------------
+-- Level 11: the census, people and the Watch
+---------------------------------------------------------------------------
+-- Every member of every org guild RUIN knows of: { name, guild, rank, rankName, level, class, zone, online, lastOnline, note }.
+function API:GetOrgMembers() return ns.OrgRoster:Members() end
+-- Per-guild numbers: { name, tag, own, members, online, avg, leader, ruin, free }.
+function API:GetCensus() return ns.Census:Rows(), ns.Census:Totals() end
+-- Where online members are: { zones = { { zone, count, guilds } }, continents, total }.
+function API:GetWhere() return ns.Census:Where() end
+-- Offices guild masters appoint ("Treasurer", "Recruiter"...): { { title, name } } for a guild (yours by default).
+function API:GetOffices(guild) return ns.People:Offices(guild) end
+function API:HasOffice(name, title) return ns.People:HasOffice(name, title) end
+-- Is the player muted or hidden by the Watch? Modules skip a hidden player's messages anyway.
+function API:IsSanctioned(name) return ns.Watch:IsMuted(name), ns.Watch:IsHidden(name) end
+-- Guild > People "By profession" asks each source fn(name) -> { "Tailoring 225", ... } or nil.
+function API:AddProfessionSource(fn) ns.People:AddProfessionSource(fn) end
+-- Open a Guild sub-tab ("Census", "People", "Watch"...).
+function API:OpenGuildTab(name) ns.UI:OpenGuildTab(name) end
+-- Report a player to the Watch (opens the form).
+function API:PromptReport(name) ns.Watch:PromptReport(name) end
+-- Your guild's bank as a guildmate last saw it: { t, by, money, tabs = { { n, i = { { itemID, count } } } } } or nil.
+function API:GetGuildBank() return ns.Bank:Snapshot() end
+-- A right-click on a player: their RUIN version (nil if unknown).
+function API:GetVersionOf(name) return ns.Updates:VersionOf(name) end
+
 -- Events: "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "GUILD_CHANGED", "CHANNELS_CHANGED",
--- "ITEMS_LOADED" (level 9), "GUILD_SETTINGS_CHANGED" and "ORG_ROSTER_UPDATED" (level 10)
+-- "ITEMS_LOADED" (level 9), "GUILD_SETTINGS_CHANGED" and "ORG_ROSTER_UPDATED" (level 10),
+-- "CENSUS_SAMPLED", "OFFICES_CHANGED", "WATCH_CHANGED" and "BANK_CHANGED" (level 11)
 function API:Subscribe(eventName, fn) ns:Subscribe(eventName, fn) end
 
 -- Module events (see Module:Publish), e.g. "Muster:SPOT" or "Muster:EVENTS".
