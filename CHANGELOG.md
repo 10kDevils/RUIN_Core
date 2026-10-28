@@ -6,6 +6,18 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.5 — 2026-10-28
+
+Security update. For every addon message the game vouches for one thing only, the name of whoever sent it, so RUIN now decides what to accept from that name and never from a name, GUID, officer flag or time written inside the message. 7 changes since 0.4.4:
+
+1. **Only the org admin changes the org key.** The key lists the admin's characters by name. A changed key is taken only from one of them, or passed on by an officer to someone who was offline, and nobody passing it on can make someone else the admin. A key that jumps more than 1,000 revisions ahead, or carries an absurd revision, is refused. Keys made before this version add the admin's name the first time the admin logs in.
+2. **The Watch only obeys moderators.** Sanctions, deleted chat lines and cases count only from the org admin and verified officers. Only the admin can sanction an officer (checked by every client, not only the sender's), nobody can hide or mute the admin, a lift always wins over any copy, a lifted sanction stays lifted, and only moderators pass sanctions on to people who log in.
+3. **Verified officers.** An officer of another guild counts as one when they've talked on the officer channel (only officers hold its password) or when an officer of your own guild vouches for them, never because their own RUIN says so. Officers say hello on the officer channel and pass the list on to their guild.
+4. **Chat shows who really sent each line.** A line counts as its author's only when the author sent it; a line relayed for someone else always reads `Name (via Bridge)`, and a line can't wear another guild's tag. The old "(unverified)" mark, which could be faked, is gone.
+5. **Text from other players is cleaned where it arrives.** Item, spell and quest links stay clickable; colors, textures, fake links and line breaks become plain characters, so nobody can dress text up as a system message. Pasted keys and export strings are cleaned the same way.
+6. **No more faked identities or far-future times.** Hellos can't borrow another member's GUID, guild settings and offices are taken only from that guild's officers (by sender), a forged roster can't crown a new guild master, and a time more than five minutes in the future, infinity or NaN is refused, so nobody can freeze a setting by dating it far ahead. Org key offers to someone who already has a key come only from the admin or an officer.
+7. **Modules only hear members.** A whisper from a player RUIN doesn't know as a member (guild roster, or seen on the org channel) never reaches a module. API level 12 gives modules sender checks (`IsAdminName`, `IsModeratorName`, `GUIDOf`, `SaneTime`...). Half-sent long messages are capped per player, and stored join requests at 50.
+
 ## 0.4.4 — 2026-10-27
 
 2 changes since 0.4.3:

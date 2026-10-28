@@ -19,6 +19,10 @@ local Org = {}
 ns.Org = Org
 
 local KEY_HEADER = "RUIN1:"
+local MAX_REV = 2147483647        -- a sane revision: a huge one would freeze the key for good
+local REV_JUMP = 1000             -- an update may not run further ahead than this
+local REV_SEEN_SLACK = 500        -- how far ahead a reported revision may move the admin's next one
+local MAX_ADMIN_NAMES = 10
 local guildShareSuppressedUntil = 0
 local guildSharePending = false
 local officerShareCooldown = {}   -- normalized name -> time
@@ -46,6 +50,45 @@ end
 Org.AccountIsAdmin = accountIsAdmin
 
 function Org:IsAdmin() return accountIsAdmin(Org:Get()) end
+
+-- The admin's characters by name (key field `an`). The game vouches for the
+-- name a message comes from and nothing else, so this list (not a GUID a
+-- message claims) is how every client recognizes the org admin.
+function Org:AdminNames(k)
+    k = k or Org:Get()
+    return (k and type(k.an) == "table") and k.an or {}
+end
+
+function Org:IsAdminName(name, k)
+    if type(name) ~= "string" or name == "" then return false end
+    local n = ns.NormalizeName(name)
+    for _, a in ipairs(Org:AdminNames(k)) do
+        if type(a) == "string" and ns.NormalizeName(a) == n then return true end
+    end
+    return false
+end
+
+local function addAdminName(k, name)
+    if not (k and name) or Org:IsAdminName(name, k) then return false end
+    k.an = type(k.an) == "table" and k.an or {}
+    table.insert(k.an, 1, name)
+    while #k.an > MAX_ADMIN_NAMES do table.remove(k.an) end
+    return true
+end
+
+-- The highest key revision others report (hellos, keys passed on), so the
+-- admin's next edit always lands above any copy in circulation.
+local revSeen = 0
+function Org:NoteRev(rev)
+    rev = tonumber(rev)
+    local k = Org:Get()
+    if not (rev and k) or rev ~= math.floor(rev) then return end
+    if rev > k.rev and rev <= k.rev + REV_SEEN_SLACK and rev > revSeen then revSeen = rev end
+end
+
+local function nextRev(k)
+    return math.max(k.rev, revSeen) + 1
+end
 -- The admin character itself (rather than an alt on the same account).
 function Org:IsAdminCharacter() local k = Org:Get(); return k ~= nil and ns.playerGUID ~= nil and k.admin == ns.playerGUID end
 
@@ -82,6 +125,11 @@ local function validKey(k)
     if type(k) ~= "table" or k.v ~= 1 then return false end
     if type(k.org) ~= "string" or k.org == "" then return false end
     if type(k.rev) ~= "number" or type(k.guilds) ~= "table" then return false end
+    if k.rev < 1 or k.rev > MAX_REV or k.rev ~= math.floor(k.rev) then return false end
+    if k.an ~= nil then
+        if type(k.an) ~= "table" or #k.an > MAX_ADMIN_NAMES then return false end
+        for _, a in pairs(k.an) do if type(a) ~= "string" or a == "" or #a > 48 then return false end end
+    end
     for name, g in pairs(k.guilds) do
         if type(name) ~= "string" or type(g) ~= "table" then return false end
     end
@@ -150,14 +198,18 @@ function Org.Decode(text)
     local raw = ns.Base64Decode(body)
     if not raw then return nil, "the key is damaged (encoding)" end
     local k, err = ns.Deserialize(raw)
-    if err or not validKey(k) then return nil, "the key contents are invalid" end
+    if err then return nil, "the key contents are invalid" end
+    k = ns.SanitizeTree(k)
+    if not validKey(k) then return nil, "the key contents are invalid" end
     return k
 end
 
 ---------------------------------------------------------------------------
 -- Applying a key
 ---------------------------------------------------------------------------
--- source: "import" (user consented), "guild", "officer", "create", "edit"
+-- source: "import" (user consented), "admin" (from the admin, by name),
+-- "guild" (an officer of your guild), "officer" (an officer passing it on),
+-- "create", "edit"
 function Org:Apply(k, source)
     if not validKey(k) then return false, "invalid key" end
     k = ns.DeepCopy(k)
@@ -167,6 +219,15 @@ function Org:Apply(k, source)
         if cur.org ~= k.org and source ~= "import" then return false, "belongs to a different org" end
         if cur.org == k.org then
             if k.rev < cur.rev then return false, "older than the key you have" end
+            if source ~= "import" then
+                -- Nobody passing a key on can name a new admin: that takes
+                -- importing a key by hand.
+                if cur.admin ~= nil and k.admin ~= cur.admin then return false, "names a different org admin" end
+                if k.rev > cur.rev + REV_JUMP then return false, "jumps too far ahead" end
+                -- Who counts as the admin changes only when the admin says so
+                -- (or, for a key from before admin names, the first time).
+                if source ~= "admin" and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
+            end
             if k.rev == cur.rev then
                 if k.oc and not cur.oc then
                     cur.oc = k.oc
@@ -225,6 +286,7 @@ function Org:Create(orgName, phrase)
         v = 1, org = orgName, rev = 1, admin = ns.playerGUID, t = ns.Now(),
         guilds = { [ns.guildName] = { o = 1, tag = defaultTag(ns.guildName) } },
         c = ph and Org.PhraseChannel(ph) or newChannel(), oc = newChannel(), ph = ph,
+        an = { ns.playerName },
     }
     ns.db.orgKey = k
     ns:Fire("KEY_CHANGED", "create")
@@ -235,6 +297,8 @@ local function editableKey()
     local k = Org:Get()
     if not k then return nil, "No org key loaded." end
     if not Org:IsAdmin() then return nil, "Only the org admin can change the org key." end
+    -- the character making the edit counts as the admin from now on
+    addAdminName(k, ns.playerName)
     return k
 end
 
@@ -254,7 +318,7 @@ function Org:AddGuild(name, rank, tag)
     if name == "" then return false, "Usage: /ruin key addguild <guild>, <officer rank>[, <tag>]" end
     local oldOC = k.oc and k.oc.n
     k.guilds[name] = { o = tonumber(rank) or 1, tag = (tag and tag ~= "") and tag or defaultTag(name) }
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     publishEdit(k, oldOC)
     return true
 end
@@ -279,7 +343,7 @@ function Org:EditGuild(oldName, newName, rank, tag)
     local oldOC = k.oc and k.oc.n
     k.guilds[oldName] = nil
     k.guilds[newName] = entry
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     publishEdit(k, oldOC)
     return true
 end
@@ -299,7 +363,7 @@ function Org:RemoveGuild(name)
     if not k.guilds[name] then return false, "That guild is not in the org key." end
     local oldOC = k.oc and k.oc.n
     k.guilds[name] = nil
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     -- A removed guild still knows the old passwords, so rotate them too.
     -- Honest clients of the removed guild ignore the announcement because
     -- their guild is no longer listed; see README for the limits of this.
@@ -324,7 +388,7 @@ function Org:ChooseNewKey(phrase)
     end
     local oldOC = k.oc and k.oc.n
     k.c, k.oc, k.ph = ph and Org.PhraseChannel(ph) or newChannel(), newChannel(), ph
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     publishEdit(k, oldOC)
     return true
 end
@@ -380,7 +444,7 @@ function Org:SetLinks(list)
         end
     end
     k.links = #clean > 0 and clean or nil
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     publishEdit(k, k.oc and k.oc.n)
     return true
 end
@@ -390,31 +454,87 @@ function Org:SetBlockWords(list)
     local k, err = editableKey()
     if not k then return false, err end
     k.bw = (type(list) == "table" and #list > 0) and list or nil
-    k.rev = k.rev + 1
+    k.rev = nextRev(k)
     publishEdit(k, k.oc and k.oc.n)
     return true
 end
 
--- An updated key from the officer channel, or whispered by an org officer.
-local function acceptOrgKey(d, sender)
+-- An updated key from the admin (officer channel or a whisper), or passed on
+-- by an officer to someone who was offline during the edit.
+-- source: "admin" (from the admin, by name) or "officer"
+local function acceptOrgKey(d, sender, source)
     if not validKey(d.k) then return end
     local cur = Org:Get()
     if not cur or cur.org ~= d.k.org or d.k.rev <= cur.rev then return end
     if not ns.guildName or not d.k.guilds[ns.guildName] then
-        ns:Print("The org key was updated, but your guild is no longer listed in it.")
-        return
+        if not Org:IsAdmin() then
+            ns:Print("The org key was updated, but your guild is no longer listed in it.")
+            return
+        end
     end
-    if Org:Apply(d.k, "officer") then
+    local ok, why = Org:Apply(d.k, source)
+    if ok then
         ns:Print(("Org key updated to rev %d (from %s)."):format(d.k.rev, ns.ShortName(sender)))
+    else
+        ns:Debug(("ignored an org key from %s: %s"):format(tostring(sender), tostring(why)))
     end
 end
 
-ns.Comms:Register("ORGKEY", function(d, sender, scope)
-    if scope == "OFFICERS" then
-        acceptOrgKey(d, sender)
-    elseif scope == "PEER" and ns.Presence:IsOrgPeer(sender) then
-        acceptOrgKey(d, sender)
+local function nameInList(list, name)
+    local n = ns.NormalizeName(name)
+    for _, a in ipairs(type(list) == "table" and list or {}) do
+        if type(a) == "string" and ns.NormalizeName(a) == n then return true end
     end
+    return false
+end
+
+-- Is the sender (the name the game reports) the org admin?
+local function senderIsAdmin(sender, d, scope)
+    local cur = Org:Get()
+    if not cur then return false end
+    if type(cur.an) == "table" then return Org:IsAdminName(sender, cur) end
+    -- A key from before admin names (RUIN 0.4.4 and older): the game may know
+    -- the admin character's name from its GUID; if not, a key on the officer
+    -- channel, where only officers can talk, that keeps the admin and names
+    -- its sender among the admin's characters is taken as the admin's.
+    if cur.admin and GetPlayerInfoByGUID then
+        local ok, _, _, _, _, _, name = pcall(GetPlayerInfoByGUID, cur.admin)
+        if ok and type(name) == "string" and name ~= "" then
+            return ns.NormalizeName(name) == ns.NormalizeName(sender)
+        end
+    end
+    return scope == "OFFICERS" and type(d.k) == "table" and d.k.admin == cur.admin and nameInList(d.k.an, sender)
+end
+Org.SenderIsAdmin = function(sender) return senderIsAdmin(sender, {}, "PEER") end
+
+ns.Comms:Register("ORGKEY", function(d, sender, scope)
+    if (scope ~= "OFFICERS" and scope ~= "PEER") or type(d.k) ~= "table" then return end
+    if senderIsAdmin(sender, d, scope) then
+        acceptOrgKey(d, sender, "admin")
+    elseif ns.Presence:IsOfficerName(sender) then
+        if type(d.k.rev) == "number" then Org:NoteRev(d.k.rev) end
+        -- an officer can pass the key on; Apply keeps the admin as it is
+        acceptOrgKey(d, sender, "officer")
+    else
+        ns:Debug("ignored an org key from " .. tostring(sender) .. " (not the admin or an officer)")
+    end
+end)
+
+-- Keys made before admin names: the admin's characters add themselves the
+-- first time they log in with this version (and any alt the first time it
+-- logs in), so every client can tell the admin by name.
+ns:Subscribe("LOGIN", function()
+    C_Timer.After(20, function()
+        local k = Org:Get()
+        if not (k and Org:IsAdmin() and ns.playerName) or Org:IsAdminName(ns.playerName, k) then return end
+        local oldOC = k.oc and k.oc.n
+        addAdminName(k, ns.playerName)
+        k.rev = nextRev(k)
+        if oldOC then
+            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOC, ns.Comms.PRIORITY.ALERT)
+        end
+        ns:Fire("KEY_CHANGED", "edit")
+    end)
 end)
 
 -- Called by Presence for each OHELLO on the org channel: if an officer of
@@ -592,6 +712,9 @@ end
 ns.Comms:Register("FULLKEY", function(d, sender, scope)
     if scope ~= "PEER" or not validKey(d.k) then return end
     local cur = Org:Get()
+    -- With a key already, only the org admin or a verified officer may offer
+    -- one (nobody talks you into swapping orgs); without one, anyone may.
+    if cur and not (Org:IsAdminName(sender) or ns.Presence:IsOfficerName(sender)) then return end
     if cur and cur.org == d.k.org and d.k.rev <= cur.rev and (cur.oc or not d.k.oc) then return end
     if GetTime() - lastOfferPopup < 30 then return end
     lastOfferPopup = GetTime()

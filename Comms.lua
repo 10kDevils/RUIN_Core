@@ -13,6 +13,7 @@ local TICK = 0.1
 local TOKEN_CAP, TOKEN_RATE = 10, 1.0   -- Blizzard allows ~10 burst, ~1/s per prefix
 local QUEUE_MAX_AGE = 60
 local PARTIAL_MAX_AGE = 90     -- long messages (shared routes) arrive at about one part a second
+local PARTIALS_PER_SENDER, PARTIALS_MAX = 8, 400
 
 Comms.PRIORITY = { ALERT = 1, NORMAL = 2, BULK = 3 }
 
@@ -212,9 +213,17 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
         local key = sender .. SEP .. id
         local p = partials[key]
         if not p then
-            p = { total = total, got = 0, parts = {}, t = GetTime() }
+            -- a few long messages in flight per sender, a few hundred in all
+            local mine, all = 0, 0
+            for _, q in pairs(partials) do
+                all = all + 1
+                if q.sender == sender then mine = mine + 1 end
+            end
+            if mine >= PARTIALS_PER_SENDER or all >= PARTIALS_MAX then return end
+            p = { total = total, got = 0, parts = {}, t = GetTime(), sender = sender }
             partials[key] = p
         end
+        if p.total ~= total then return end
         if not p.parts[idx] then
             p.parts[idx] = chunk
             p.got = p.got + 1
@@ -228,6 +237,14 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
     if err or type(data) ~= "table" then
         ns:Debug("bad payload from " .. tostring(sender) .. ": " .. tostring(err))
         return
+    end
+    -- other players' text: game links stay, every other escape code goes
+    data = ns.SanitizeTree(data)
+    if type(data) ~= "table" then return end
+    -- Only players who hold the officer channel's password can talk on it,
+    -- and the game says who did: that makes them officer-grade (Presence).
+    if scope == "OFFICERS" and ns.Presence and ns.Presence.NoteOfficer then
+        ns.Presence:NoteOfficer(sender, nil, "channel")
     end
     local list = handlers[kind]
     if not list then return end

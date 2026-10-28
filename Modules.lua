@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 11              -- modules check this to know which API they can use
+API.apiLevel = 12              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -39,22 +39,42 @@ function Module:Send(kind, data, scope, target, priority)
     return ns.Comms:Send(self.name .. ":" .. kind, data, scope, target, priority)
 end
 
-function Module:Listen(kind, handler)
-    local mod = self
-    ns.Comms:Register(self.name .. ":" .. kind, function(data, sender, scope)
+-- Who may reach a module at all (level 12). Messages on the org, officer and
+-- guild channels come from members (the game checks the channel); a whisper
+-- can come from anyone on the realm, so it reaches a module only from someone
+-- RUIN knows as a member: seen on the org channel, or in your guild's roster.
+-- A handler that should hear outsiders passes { anyone = true } to Listen.
+local function isMember(name)
+    if type(name) ~= "string" or name == "" then return false end
+    if ns.roster and ns.roster[ns.NormalizeName(name)] then return true end
+    return ns.Presence:IsOrgPeer(name)
+end
+
+local function deliverable(sender, scope, opts)
+    if scope == "ORG" or scope == "OFFICERS" or scope == "GUILD" then return true end
+    if scope == "PEER" then return (opts and opts.anyone) or isMember(sender) end
+    return false
+end
+
+local function listen(mod, fullKind, handler, opts)
+    ns.Comms:Register(fullKind, function(data, sender, scope)
+        if not deliverable(sender, scope, opts) then return end
+        if opts and opts.scopes and not opts.scopes[scope] then return end
         local fn = type(handler) == "string" and mod[handler] or handler
         if fn then fn(mod, data, sender, scope) end
     end)
 end
 
+-- opts (level 12): { anyone = true } also hears whispers from non-members;
+-- { scopes = { ORG = true, ... } } hears only those scopes.
+function Module:Listen(kind, handler, opts)
+    listen(self, self.name .. ":" .. kind, handler, opts)
+end
+
 -- Listen for a message kind under its full name, e.g. "Intel:SPOT" (level 5).
 -- Lets a module keep understanding messages from a retired addon's old versions.
-function Module:ListenRaw(fullKind, handler)
-    local mod = self
-    ns.Comms:Register(fullKind, function(data, sender, scope)
-        local fn = type(handler) == "string" and mod[handler] or handler
-        if fn then fn(mod, data, sender, scope) end
-    end)
+function Module:ListenRaw(fullKind, handler, opts)
+    listen(self, fullKind, handler, opts)
 end
 
 -- Send under a full kind name, e.g. "Muster:TIMER" (level 11). Lets a module
@@ -224,6 +244,43 @@ function API:GetGuildBank() return ns.Bank:Snapshot() end
 -- A right-click on a player: their RUIN version (nil if unknown).
 function API:GetVersionOf(name) return ns.Updates:VersionOf(name) end
 
+---------------------------------------------------------------------------
+-- Level 12: checking who sent a message
+-- The game vouches for the sender's name and nothing in the message itself,
+-- so handlers authorize on `sender`, never on a name, GUID or flag inside `data`.
+---------------------------------------------------------------------------
+-- Is this name the org admin (one of the admin's characters)?
+function API:IsAdminName(name) return ns.Watch.IsAdminName(name) end
+-- Is this name a member RUIN knows (seen on the org channel, or a guildmate)?
+function API:IsMember(name) return isMember(name) end
+-- Is this name a moderator (the admin or a verified officer)?
+function API:IsModeratorName(name) return ns.Watch.SenderIsModerator(name) end
+-- A player's GUID: a guildmate's from the guild roster (the game's), anyone
+-- else's from their org hello (first come; nobody can take a GUID another
+-- member is using). nil when RUIN doesn't know it.
+function API:GUIDOf(name)
+    local e = name and ns.roster and ns.roster[ns.NormalizeName(name)]
+    if e and e.guid then return e.guid end
+    local p = name and ns.Presence:OrgPeerByName(name)
+    return p and p.guid or nil
+end
+-- Is `guid` this sender's own? True when it can't be checked (not a guildmate).
+function API:GUIDMatches(sender, guid)
+    local g = API:GUIDOf(sender)
+    return g == nil or g == guid
+end
+-- Same name, any spelling of realm and spaces?
+function API:SameName(a, b)
+    return type(a) == "string" and type(b) == "string" and ns.NormalizeName(a) == ns.NormalizeName(b)
+end
+-- A timestamp from another player, or nil if it's not one (or in the future).
+function API:SaneTime(t) return ns.SaneTime(t) end
+-- A guildmate's rank index from the guild roster (0 = guild master), or nil.
+function API:GuildRankOf(name)
+    local e = name and ns.roster and ns.roster[ns.NormalizeName(name)]
+    return e and tonumber(e.rank) or nil
+end
+
 -- Events: "KEY_CHANGED", "PEERS_CHANGED", "ROSTER_UPDATED", "GUILD_CHANGED", "CHANNELS_CHANGED",
 -- "ITEMS_LOADED" (level 9), "GUILD_SETTINGS_CHANGED" and "ORG_ROSTER_UPDATED" (level 10),
 -- "CENSUS_SAMPLED", "OFFICES_CHANGED", "WATCH_CHANGED" and "BANK_CHANGED" (level 11)
@@ -251,9 +308,13 @@ function API.Util.Decode(kind, text)
     if ns.Hash(body) ~= hash then return nil, "the string is damaged or incomplete" end
     local raw = ns.Base64Decode(body)
     if not raw then return nil, "the string is damaged" end
-    return ns.Deserialize(raw)
+    local v, err = ns.Deserialize(raw)
+    if err then return nil, err end
+    return ns.SanitizeTree(v)
 end
 
 API.Util.DeepCopy = ns.DeepCopy
+API.Util.SafeText = ns.SafeText
+API.Util.SaneTime = ns.SaneTime
 API.Util.Trim = ns.Trim
 API.Util.ShortName = ns.ShortName

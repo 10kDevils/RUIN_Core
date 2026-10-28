@@ -40,7 +40,8 @@ Admin changes (adding or removing a guild, choosing a new key) are announced to 
 ## Day to day
 
 - Type in `/g` as usual. Other RUIN guilds see `[RUIN·YourTag] Name: message`, and you see theirs.
-- Officers type in `/o` as usual; other guilds' officers see `[RUIN Officer·Tag]`. Lines from officers not yet confirmed by their guild show "(unverified)".
+- Officers type in `/o` as usual; other guilds' officers see `[RUIN Officer·Tag]`.
+- A line shows as its author's only when the author sent it. A line relayed for someone else (the bridge, for a guildmate without RUIN) always shows who relayed it: `Name (via Bridge): ...`.
 - Guildmates without the addon are relayed by an automatically chosen "bridge" (an online member with RUIN). They will not *see* other guilds' chat until they install RUIN.
 
 ## Commands
@@ -81,9 +82,25 @@ Two characters in two different guilds (or a friend) are enough:
 6. `/reload` and log out/in: is the key still there? (Tests the beta SavedVariables bug.)
 7. Turn on `/ruin debug` and report any "send failed" lines with the number shown.
 
+## Who RUIN trusts (0.4.5)
+
+For every addon message the game vouches for exactly one thing: the name of the character who sent it. RUIN authorizes on that name and never on a name, GUID, officer flag or time written inside a message.
+
+- **The org admin** is recognized by name: the org key lists the admin's characters. Only they can change the key; an officer may pass the current key on to someone who was offline, but nobody passing it on can change who the admin is. A key that jumps too far ahead (or carries an absurd revision) is refused.
+- **Officers** of your own guild are checked against your guild roster. An officer of another guild counts as one when they talked on the officer channel (only officers hold its password, and the game says who talked), or when an officer of your guild vouches for them.
+- **The Watch** takes sanctions, deleted lines and cases only from the admin and verified officers. Only the admin can sanction an officer, nobody can sanction the admin, a lift always wins, and only moderators pass sanctions on.
+- **Modules** never hear whispers from players RUIN doesn't know as members. Events, sign-ups, loot notes, bounties, the treasury book, official routes and listings are each checked against their sender (author, officer, keeper).
+- **Text** from other players keeps its item, spell and quest links; every other escape code becomes a plain character and line breaks become spaces.
+- **Times** from other players can't be in the future, so nobody can freeze a setting by stamping it with a far-future date.
+
 ## Known limits
 
-- Addons cannot do real encryption. Anyone with the channel password and a modified client can read or fake RUIN traffic. Choosing a new key locks out people who left; keep truly sensitive officer talk in Discord.
+- Addons cannot do real encryption. Anyone with a channel's password and a modified client can read RUIN traffic on it. Choosing a new key locks out people who left; keep truly sensitive officer talk in Discord.
+- Officers are trusted: anyone holding the officer channel's password (including a demoted officer until the admin chooses a new key) counts as an officer to other guilds. An officer can pass on a key with other channels in it (never a new admin); the admin's next edit always lands above it. Choose a new key after removing an officer.
+- Joining by key phrase takes the member key from whoever answers first on the phrase's channel. Someone who knows the phrase can answer with a forged key; give phrases only to people you trust and change them when people leave.
+- Keys from before 0.4.5 don't list the admin by name until the admin logs in with 0.4.5 (RUIN adds the name then). Until that happens, a key on the officer channel that keeps the admin and names its sender as the admin is accepted.
+- Members verify other guilds' officers through their own guild's officers. In a guild where no officer runs RUIN, members won't apply other guilds' sanctions or bounties until one does.
+- Each guild's roster comes from one of its members and can't be proven; RUIN only keeps a stranger from crowning a new guild master in it.
 - Hidden channels use one of your 10 chat channel slots each (two for officers).
 - If someone outside RUIN learns a channel name and joins it first with a different password, RUIN cannot join it. The org admin fixes this with *Choose new key*.
 - Unverified on the live game: the addon-message results, channel scoping by ruleset/faction, and First Last name formats are from Retail behavior and beta notes. Please report what you see.
@@ -109,6 +126,12 @@ API level 8 (Core 0.3.15) adds:
 API level 10 (Core 0.3.17; 0.3.18 adds `Widgets.FitScrollBar(scrollFrame)`, which shows a scroll bar only when there is something to scroll) adds `RUIN_API:CanCreateEvents()` and `GetEventRank()` (which ranks of your guild may create events, set by its officers), and the `GUILD_SETTINGS_CHANGED` and `ORG_ROSTER_UPDATED` callbacks.
 
 API level 9 (Core 0.3.16) adds `RUIN_API.Items`: `Items.Text(id, fallbackName, fallbackQuality)` gives an item's link, else its remembered name in quality color, else the fallback, else "Loading item..." (never a bare ID); `Items.Info(id)` gives name, link, quality; `Items.RememberLinks(text)`, `Items.QualityHex(q)`, `Items.QualityName(q)`. Pages redraw on the `ITEMS_LOADED` callback (`RUIN_API:Subscribe("ITEMS_LOADED", fn)`).
+
+API level 12 (Core 0.4.5) is about checking who sent a message. Authorize on the `sender` argument, never on fields inside `data`:
+- `Module:Listen(kind, handler, opts)` no longer delivers whispers from players RUIN doesn't know as members (guild roster, or seen on the org channel); pass `{ anyone = true }` for a message meant for outsiders, `{ scopes = { ORG = true } }` to hear only some scopes.
+- `RUIN_API:IsAdminName(name)`, `IsModeratorName(name)` (the admin or a verified officer), `IsMember(name)`, `SameName(a, b)`.
+- `RUIN_API:GUIDOf(name)` (from the guild roster, else the member's org hello) and `GUIDMatches(sender, guid)` (true when it can't be checked).
+- `RUIN_API:GuildRankOf(name)` for guildmates, `RUIN_API:SaneTime(t)` (nil for a time in the future), and `RUIN_API.Util.SafeText(s)`. Everything a module receives and every `Util.Decode` result is already passed through `SafeText`.
 
 ## Chat channel numbers
 RUIN's two hidden channels (org and officers) always sit after your other channels: General, Trade and the rest keep the low numbers, RUIN's come last and are never /1. Right after login RUIN waits (up to 45 seconds) for the game's own channels to join first, then moves its channels to the end of the list one swap at a time, keeping your other channels in their order. Nothing is moved during combat. If you have left every other channel, RUIN's has to be /1 until you join one.

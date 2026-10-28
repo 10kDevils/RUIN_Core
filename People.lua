@@ -122,25 +122,38 @@ local function guildLeaderName(guild)
     end
 end
 
+-- May this sender publish this guild's offices? Its guild master (by the
+-- roster), the org admin, or a verified officer of that guild, by the name
+-- the game reports, never by a name in the message.
+local function mayPublishOffices(sender, guild)
+    if ns.Org:IsAdminName(sender) then return true end
+    if guild == ns.guildName then
+        local e = ns.roster and ns.roster[norm(sender)]
+        return e ~= nil and (e.rank == 0 or ns.Org:IsOfficerRank(e.rank))
+    end
+    local leader = guildLeaderName(guild)
+    if leader and norm(leader) == norm(sender) then return true end
+    local o = ns.Presence:VerifiedOfficer(sender)
+    return o ~= nil and o.gu == guild
+end
+
 ns.Comms:Register("OFFICES", function(d, sender, scope)
     if scope ~= "ORG" or type(d.gu) ~= "string" or not ns.Org:GuildInfo(d.gu) then return end
-    local t = tonumber(d.t)
+    local t = ns.SaneTime(d.t)
     if not t then return end
     local cur = officeStore()[d.gu]
     if cur and (cur.t or 0) >= t then return end
-    -- set by that guild's master (as its roster says), or by the org admin
-    local by = type(d.by) == "string" and d.by or sender
-    local leader = guildLeaderName(d.gu)
-    local k = ns.Org:Get()
-    local peer = ns.Presence:OrgPeerByName(by)
-    local isAdmin = k and peer and peer.guid == k.admin
-    if not ((leader and norm(leader) == norm(by)) or isAdmin) then return end
+    if not mayPublishOffices(sender, d.gu) then return end
+    local by = (type(d.by) == "string" and d.by ~= "") and d.by:sub(1, 48) or sender
     officeStore()[d.gu] = { t = t, by = by, list = cleanList(d.l) }
     ns:Fire("OFFICES_CHANGED", d.gu)
 end)
 
--- The roster sender also republishes the guild's offices, so new members get them.
-ns:Subscribe("ORG_ROSTER_SENT", function() if ns.guildName then publishOffices(ns.guildName) end end)
+-- The roster sender also republishes the guild's offices, so new members get
+-- them (when they're an officer: nobody else's copy is accepted).
+ns:Subscribe("ORG_ROSTER_SENT", function()
+    if ns.guildName and (ns.guildRank == 0 or ns.Org:AmOfficer()) then publishOffices(ns.guildName) end
+end)
 
 ---------------------------------------------------------------------------
 -- Hierarchy: guild masters, officers and office holders of every guild

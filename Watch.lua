@@ -50,12 +50,16 @@ function Watch:IsModerator()
     return ns.Org:IsAdmin() or (ns.Org:MyGuildInOrg() and ns.Org:AmOfficer())
 end
 
--- Is this sender a moderator? Your guild's roster for guildmates; what their
--- RUIN reports for other guilds; the org admin by GUID.
+-- Is this sender a moderator? The org admin by name (the key lists the
+-- admin's characters); officers by your guild roster, or for other guilds by
+-- the verified officer list (Presence). Never by what a message claims.
+local function isAdminName(name)
+    return ns.Org:IsAdminName(name) or (ns.Org.SenderIsAdmin and ns.Org.SenderIsAdmin(name)) or false
+end
+Watch.IsAdminName = isAdminName
+
 local function senderIsModerator(name)
-    local k = ns.Org:Get()
-    local peer = ns.Presence:OrgPeerByName(name)
-    if k and peer and peer.guid == k.admin then return true end
+    if isAdminName(name) then return true end
     return ns.Presence:IsOfficerName(name)
 end
 Watch.SenderIsModerator = senderIsModerator
@@ -122,7 +126,11 @@ function Watch:SanctionOn(name, kind)
     return best
 end
 
-function Watch:IsHidden(name) return Watch:SanctionOn(name, "hide") ~= nil end
+-- The org admin is never hidden or muted: their key updates must always get through.
+function Watch:IsHidden(name)
+    if isAdminName(name) then return false end
+    return Watch:SanctionOn(name, "hide") ~= nil
+end
 -- Any hide in force at all? (a cheap check before the per-message one)
 function Watch:AnyHidden()
     local w, at = store(), now()
@@ -131,7 +139,10 @@ function Watch:AnyHidden()
     end
     return false
 end
-function Watch:IsMuted(name) return Watch:SanctionOn(name) ~= nil end      -- a hide mutes too
+function Watch:IsMuted(name)                                                 -- a hide mutes too
+    if isAdminName(name) then return false end
+    return Watch:SanctionOn(name) ~= nil
+end
 
 -- Sanctions in force, newest first.
 function Watch:Sanctions(all)
@@ -161,7 +172,11 @@ Watch.Describe = describe
 local function accept(s, fresh)
     local w = store()
     local cur = w.sanctions[s.id]
-    if cur and (cur.u or 0) >= (s.u or 0) then return false end
+    if cur then
+        if cur.lifted and not s.lifted then return false end          -- a lifted sanction stays lifted
+        local lifting = s.lifted and not cur.lifted                   -- a lift always wins
+        if not lifting and (cur.u or 0) >= (s.u or 0) then return false end
+    end
     w.sanctions[s.id] = s
     -- fill in the BattleTag once the target is seen online
     if not s.tag then s.tag = tagOf(s.target) end
@@ -193,13 +208,14 @@ local function newId() return ns.RandomToken(6) .. tostring(now() % 100000) end
 
 -- Is this player beyond your reach? Officers and the admin can only be
 -- sanctioned by the org admin.
-local function protectedTarget(name)
-    if ns.Org:IsAdmin() then return false end
-    local k = ns.Org:Get()
-    local peer = ns.Presence:OrgPeerByName(name)
-    if k and peer and peer.guid == k.admin then return true end
+local function protectedTarget(name, actor)
+    if isAdminName(name) then return true end                          -- nobody sanctions the admin
+    local actorIsAdmin
+    if actor then actorIsAdmin = isAdminName(actor) else actorIsAdmin = ns.Org:IsAdmin() end
+    if actorIsAdmin then return false end
     return ns.Presence:IsOfficerName(name)
 end
+Watch.ProtectedTarget = protectedTarget
 
 -- kind: "hide" | "mute" | "warn"; seconds: 0 = until lifted
 function Watch:Sanction(kind, target, seconds, reason, caseId)
@@ -246,22 +262,35 @@ function Watch:Lift(id)
     return true
 end
 
+local MAX_SANCTION = 400 * 86400
+
 ns.Comms:Register("WSAN", function(d, sender, scope)
     if scope ~= "ORG" or type(d.id) ~= "string" or type(d.target) ~= "string" then return end
     if not (d.kind == "hide" or d.kind == "mute" or d.kind == "warn") then return end
     if not senderIsModerator(sender) then return end
+    -- officers and the admin: only the admin may sanction them (checked here too,
+    -- not only on the sender's screen)
+    if protectedTarget(d.target, sender) then return end
+    if d.tag ~= nil and type(d.tag) == "string" and d.tag == Watch:MyTagHash() and isAdminName(ns.playerName) then return end
+    -- times from another client: never in the future (they'd win every comparison)
+    local at = now()
+    local t, u = ns.SaneTime(d.t) or at, ns.SaneTime(d.u) or at
+    local untilT = tonumber(d.untilT) or 0
+    if untilT ~= 0 and (untilT ~= untilT or untilT < 0 or untilT > at + MAX_SANCTION) then return end
+    local lifted = d.lifted ~= nil and (ns.SaneTime(d.lifted) or at) or nil
     local s = { id = d.id:sub(1, 24), kind = d.kind, target = d.target:sub(1, 48), tag = type(d.tag) == "string" and d.tag:sub(1, 24) or nil,
-                untilT = tonumber(d.untilT) or 0, reason = type(d.reason) == "string" and d.reason:gsub("|", "/"):sub(1, 120) or "",
-                by = sender, cover = type(d.cover) == "string" and d.cover:sub(1, 24) or nil, t = tonumber(d.t) or now(),
-                u = tonumber(d.u) or now(), lifted = tonumber(d.lifted), liftedBy = type(d.liftedBy) == "string" and d.liftedBy or nil,
-                case = type(d.case) == "string" and d.case or nil }
+                untilT = untilT, reason = type(d.reason) == "string" and d.reason:gsub("|", "/"):sub(1, 120) or "",
+                by = sender, cover = type(d.cover) == "string" and d.cover:sub(1, 24) or nil, t = t,
+                u = u, lifted = lifted, liftedBy = lifted and (type(d.liftedBy) == "string" and d.liftedBy:sub(1, 48) or sender) or nil,
+                case = type(d.case) == "string" and d.case:sub(1, 24) or nil }
     accept(s, true)
 end)
 
 -- Someone just connected: one member answers with the sanctions in force.
 local lastSanList = -999
 ns.Comms:Register("WSANQ", function(_, _, scope)
-    if scope ~= "ORG" then return end
+    -- only moderators pass sanctions on (and everyone checks that they are one)
+    if scope ~= "ORG" or not Watch:IsModerator() then return end
     C_Timer.After(2 + math.random() * 6, function()
         if GetTime() - lastSanList < 60 then return end
         lastSanList = GetTime()
@@ -411,9 +440,10 @@ end
 
 ns.Comms:Register("WCASE", function(d, sender, scope)
     if scope ~= "OFFICERS" or not caseValid(d) or not senderIsModerator(sender) then return end
-    local c = { id = d.id:sub(1, 24), target = d.target:sub(1, 48), tag = d.tag, reason = tostring(d.reason or "Other"):sub(1, 40),
-                note = tostring(d.note or ""):sub(1, 200), reporter = tostring(d.reporter or "?"), gu = d.gu, tgu = d.tgu,
-                t = tonumber(d.t) or now(), u = tonumber(d.u) or now(), status = (d.status == "resolved" or d.status == "dismissed") and d.status or "open",
+    local function str(v, n) return type(v) == "string" and v:sub(1, n) or nil end
+    local c = { id = d.id:sub(1, 24), target = d.target:sub(1, 48), tag = str(d.tag, 24), reason = tostring(d.reason or "Other"):sub(1, 40),
+                note = tostring(d.note or ""):sub(1, 200), reporter = tostring(d.reporter or "?"):sub(1, 48), gu = str(d.gu, 48), tgu = str(d.tgu, 48),
+                t = ns.SaneTime(d.t) or now(), u = ns.SaneTime(d.u) or now(), status = (d.status == "resolved" or d.status == "dismissed") and d.status or "open",
                 log = {} }
     for i, l in ipairs(d.log) do
         if i > 60 then break end
@@ -498,7 +528,7 @@ function Watch:Cover() return store() and store().cover end
 ---------------------------------------------------------------------------
 ns:Subscribe("KEY_CHANGED", function(source)
     local k = ns.Org:Get()
-    if source == "edit" or source == "officer" or source == "import" or source == "create" then
+    if source == "edit" or source == "officer" or source == "admin" or source == "import" or source == "create" then
         Watch:Log(source == "edit" and ns.ShortName(ns.playerName) or "the org admin", "org key", ("rev %d (%s)"):format(k and k.rev or 0, source))
     end
 end)

@@ -70,6 +70,12 @@ end
 ---------------------------------------------------------------------------
 ns.Comms:Register("HELLO", function(d, sender, scope)
     if scope ~= "GUILD" or type(d.g) ~= "string" or d.g == ns.playerGUID then return end
+    -- the GUID must be the sender's own (the guild roster comes from the game)
+    local e = ns.roster and ns.roster[ns.NormalizeName(sender)]
+    if e and e.guid and e.guid ~= d.g then return end
+    local old = guildPeers[d.g]
+    if old and ns.NormalizeName(old.name) ~= ns.NormalizeName(sender) and GetTime() - old.t <= GUILD_EXPIRE then return end
+    if Presence:IsOfficerName(sender) then ns.Org:NoteRev(d.kr) end
     local p = guildPeers[d.g] or {}
     p.guid, p.name, p.t = d.g, sender, GetTime()
     p.v, p.p = d.v, d.p
@@ -92,6 +98,14 @@ end)
 ns.Comms:Register("OHELLO", function(d, sender, scope)
     if scope ~= "ORG" or type(d.g) ~= "string" or d.g == ns.playerGUID then return end
     if type(d.gu) ~= "string" or not ns.Org:GuildInfo(d.gu) then return end
+    -- one GUID, one character: nobody takes over another member's record
+    local old = orgPeers[d.g]
+    if old and ns.NormalizeName(old.name) ~= ns.NormalizeName(sender) and GetTime() - old.t <= ORG_EXPIRE then return end
+    if d.gu == ns.guildName then
+        local e = ns.roster and ns.roster[ns.NormalizeName(sender)]
+        if e and e.guid and e.guid ~= d.g then return end
+    end
+    if Presence:IsOfficerName(sender) or ns.Org:IsAdminName(sender) then ns.Org:NoteRev(d.kr) end
     local p = orgPeers[d.g] or {}
     p.guid, p.name, p.t = d.g, sender, GetTime()
     p.guild, p.v, p.c, p.l = d.gu, d.v, d.c, tonumber(d.l)
@@ -150,7 +164,9 @@ function Presence:OfficerBridgeGUID()
     if not org or not ns.Org:MyGuildInOrg() or not ns.db then return nil end
     local selfEligible = ns.db.settings.allowBridge and ns.Org:AmOfficer() and ns.Org:HasOfficerPart()
     return elect(selfEligible, function(p)
-        return p.b == 1 and p.o == 1 and p.ko == 1 and p.org == org
+        -- an officer by the guild roster, not by their own say-so
+        local e = ns.rosterByGUID[p.guid]
+        return p.b == 1 and p.ko == 1 and p.org == org and e ~= nil and ns.Org:IsOfficerRank(e.rank)
     end)
 end
 
@@ -181,19 +197,114 @@ function Presence:NameForGUID(guid)
     return e and e.name
 end
 
--- Is this player an officer? Checked against your own guild roster when they
--- are a guildmate; for other RUIN guilds, what their RUIN reported.
+---------------------------------------------------------------------------
+-- Verified officers
+-- What a message says about its sender proves nothing; the game vouches for
+-- the sender's name only. So an officer of another guild counts as one when
+--   * they talked on the officer channel (only officers hold its password,
+--     and the game says who talked), or
+--   * an officer of your own guild (checked against your guild roster)
+--     passed on the list of officers their client saw there (OLIST).
+-- Guildmates are always checked against your own guild roster instead.
+-- Entries last a week after an officer was last seen.
+---------------------------------------------------------------------------
+local OFFICER_KEEP = 7 * 86400
+local OFFHI_EVERY, OLIST_EVERY = 300, 600
+local MAX_OFFICERS = 300
+local lastOffHi, lastOList, lastOListHeard = -999, -999, -999
+
+local function officerStore()
+    if not ns.db then return {} end
+    local k = ns.Org:Get()
+    local s = ns.db.officersSeen
+    if type(s) ~= "table" or (k and s.org ~= k.org) or type(s.list) ~= "table" then
+        s = { org = k and k.org, list = {} }
+        ns.db.officersSeen = s
+    end
+    return s.list
+end
+
+local function serverNow() return GetServerTime and GetServerTime() or time() end
+
+function Presence:NoteOfficer(name, guild, via, t)
+    if type(name) ~= "string" or name == "" or not ns.Org:Get() then return end
+    local n = ns.NormalizeName(name)
+    if n == ns.playerNorm then return end
+    local list = officerStore()
+    local e = list[n]
+    t = t or serverNow()
+    if e and (e.t or 0) >= t and (e.via == "channel" or via ~= "channel") then return end
+    if not e then
+        local count = 0
+        for _ in pairs(list) do count = count + 1 end
+        if count >= MAX_OFFICERS then return end
+        e = {}
+        list[n] = e
+    end
+    e.n, e.t = ns.ShortName(name):sub(1, 48), math.max(e.t or 0, t)
+    if type(guild) == "string" and guild ~= "" then e.gu = guild:sub(1, 48) end
+    if via == "channel" or not e.via then e.via = via end
+end
+
+-- name -> { n, gu, t, via } for a verified officer of another guild, or nil.
+function Presence:VerifiedOfficer(name)
+    if type(name) ~= "string" then return nil end
+    local e = officerStore()[ns.NormalizeName(name)]
+    if e and serverNow() - (e.t or 0) <= OFFICER_KEEP then return e end
+    return nil
+end
+
+-- Is this player an officer? Guildmates by your own guild roster; others by
+-- the verified list above. What a player's own RUIN claims never counts.
 function Presence:IsOfficerName(name)
     if not name then return false end
     local norm = ns.NormalizeName(name)
     if norm == ns.NormalizeName(ns.playerName or "") then return ns.Org:AmOfficer() end
     local e = ns.roster and ns.roster[norm]
     if e then return ns.Org:IsOfficerRank(e.rank) end
-    for _, p in pairs(orgPeers) do
-        if ns.NormalizeName(p.name) == norm then return p.o == 1 end
-    end
-    return false
+    return Presence:VerifiedOfficer(name) ~= nil
 end
+
+-- Officers say hello on the officer channel, so other guilds' officers can verify them.
+function Presence:SendOfficerHello()
+    if not (ns.Comms:IsJoined("OFFICERS") and ns.playerGUID) then return end
+    lastOffHi = GetTime()
+    ns.Comms:Send("OFFHI", { gu = ns.guildName }, "OFFICERS", nil, ns.Comms.PRIORITY.BULK)
+end
+
+ns.Comms:Register("OFFHI", function(d, sender, scope)
+    if scope ~= "OFFICERS" then return end
+    Presence:NoteOfficer(sender, type(d.gu) == "string" and d.gu or nil, "channel")
+end)
+
+-- An officer passes the verified list on to their guild, so members can tell
+-- other guilds' officers too.
+function Presence:SendOfficerList()
+    if not (ns.Org:AmOfficer() and ns.Comms:IsJoined("OFFICERS")) then return end
+    if GetTime() - lastOListHeard < OLIST_EVERY / 2 then return end
+    lastOList = GetTime()
+    local out, now = {}, serverNow()
+    for _, e in pairs(officerStore()) do
+        if e.via == "channel" and now - (e.t or 0) <= OFFICER_KEEP and #out < 120 then
+            out[#out + 1] = { n = e.n, gu = e.gu, t = e.t }
+        end
+    end
+    if #out > 0 then ns.Comms:Send("OLIST", { l = out }, "GUILD", nil, ns.Comms.PRIORITY.BULK) end
+end
+
+ns.Comms:Register("OLIST", function(d, sender, scope)
+    if scope ~= "GUILD" or type(d.l) ~= "table" then return end
+    local e = ns.roster and ns.roster[ns.NormalizeName(sender)]
+    if not (e and ns.Org:IsOfficerRank(e.rank)) then return end
+    lastOListHeard = GetTime()
+    for i, o in ipairs(d.l) do
+        if i > 120 then break end
+        local t = type(o) == "table" and ns.SaneTime(o.t)
+        if t and type(o.n) == "string" and serverNow() - t <= OFFICER_KEEP then
+            Presence:NoteOfficer(o.n, type(o.gu) == "string" and o.gu or nil, "guild", t)
+        end
+    end
+end)
 
 -- An org peer (fresh OHELLO) by character name, or nil.
 function Presence:OrgPeerByName(name)
@@ -320,6 +431,11 @@ local function tick()
     if not ns.loggedIn then return end
     if now - lastGuildHello >= GUILD_EVERY then Presence:SendGuildHello(false) end
     if now - lastOrgHello >= ORG_EVERY then Presence:SendOrgHello(false) end
+    if now - lastOffHi >= OFFHI_EVERY then Presence:SendOfficerHello() end
+    if now - lastOList >= OLIST_EVERY then
+        lastOList = now - OLIST_EVERY + 30 + math.random() * 60    -- spread officers out; try again soon if skipped
+        Presence:SendOfficerList()
+    end
 end
 
 C_Timer.NewTicker(5, tick)
@@ -342,6 +458,10 @@ ns:Subscribe("SETTINGS_CHANGED", function()
 end)
 
 ns:Subscribe("CHANNELS_CHANGED", function()
+    if ns.Comms:IsJoined("OFFICERS") then
+        C_Timer.After(3, function() Presence:SendOfficerHello() end)
+        C_Timer.After(8 + math.random() * 8, function() Presence:SendOfficerList() end)
+    end
     if ns.Comms:IsJoined("ORG") then
         C_Timer.After(2, function() Presence:SendOrgHello(true) end)
     else

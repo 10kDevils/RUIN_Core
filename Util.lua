@@ -142,7 +142,9 @@ local function readValue(s, pos, depth)
         local semi = s:find(";", pos + 1, true)
         if not semi then return nil, nil, "bad number" end
         local num = tonumber(s:sub(pos + 1, semi - 1))
-        if not num then return nil, nil, "bad number" end
+        -- NaN and infinities never travel: NaN breaks table keys, infinity
+        -- breaks every "newest wins" comparison.
+        if not num or num ~= num or num == math.huge or num == -math.huge then return nil, nil, "bad number" end
         return num, semi + 1
     elseif c == "T" then
         return true, pos + 1
@@ -237,4 +239,58 @@ end
 
 function ns.Now()
     return (GetServerTime and GetServerTime()) or time()
+end
+
+---------------------------------------------------------------------------
+-- Text from other players
+-- Everything RUIN receives is cleaned once, where it arrives (Comms, pasted
+-- keys and export strings): game links (items, spells, quests...) stay
+-- clickable, every other "|" escape code (colors, textures, fake links) is
+-- turned into a plain "/", and line breaks become spaces, so nobody can
+-- dress their text up as a system message or a link it isn't.
+---------------------------------------------------------------------------
+local LINK_TYPES = { item = true, spell = true, enchant = true, quest = true, achievement = true, currency = true,
+                     trade = true, talent = true, battlepet = true, mount = true, transmogillusion = true,
+                     instancelock = true, journal = true, keystone = true }
+
+function ns.SafeText(s)
+    if type(s) ~= "string" or not s:find("[|\r\n\001\002]") then return s end
+    s = s:gsub("[\001\002]", "")
+    local kept = {}
+    local function keep(all, kind)
+        if not LINK_TYPES[kind] then return nil end
+        kept[#kept + 1] = all
+        return "\001" .. #kept .. "\002"
+    end
+    s = s:gsub("(|c%x%x%x%x%x%x%x%x|H(%a+):[^|]*|h%[[^|%]]*%]|h|r)", keep)
+    s = s:gsub("(|cn[%w_]+:|H(%a+):[^|]*|h%[[^|%]]*%]|h|r)", keep)
+    s = s:gsub("(|H(%a+):[^|]*|h%[[^|%]]*%]|h)", keep)
+    s = s:gsub("|", "/"):gsub("[\r\n]", " ")
+    s = s:gsub("\001(%d+)\002", function(i) return kept[tonumber(i)] or "" end)
+    return s
+end
+
+-- A received table with every string (keys too) passed through SafeText.
+function ns.SanitizeTree(v, depth)
+    local t = type(v)
+    if t == "string" then return ns.SafeText(v) end
+    if t ~= "table" then return v end
+    depth = depth or 0
+    if depth > 24 then return nil end
+    local out = {}
+    for k, val in pairs(v) do
+        local ck = type(k) == "string" and ns.SafeText(k) or k
+        out[ck] = ns.SanitizeTree(val, depth + 1)
+    end
+    return out
+end
+
+-- A timestamp from another player, or nil when it isn't one. A time more
+-- than a few minutes in the future would win every "newest wins" comparison
+-- forever, so it is refused.
+ns.CLOCK_SLACK = 300
+function ns.SaneTime(t)
+    t = tonumber(t)
+    if not t or t ~= t or t < 0 or t > ns.Now() + ns.CLOCK_SLACK then return nil end
+    return t
 end

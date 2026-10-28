@@ -194,19 +194,22 @@ end
 
 ns.Comms:Register("GSET", function(d, sender, scope)
     if scope ~= "GUILD" or d.gu ~= ns.guildName then return end
-    local t, er = tonumber(d.t), tonumber(d.er)
-    if not (t and er and er >= 0 and er <= 9) then return end
-    -- set by an officer of this guild (sent by them, or passed on by a guildmate)
-    if not (isOfficerName(sender) or (type(d.by) == "string" and isOfficerName(d.by))) then return end
+    local t, er = ns.SaneTime(d.t), tonumber(d.er)
+    if not (t and er and er >= 0 and er <= 9 and er == math.floor(er)) then return end
+    -- sent by an officer of this guild (the game says who sent it; a name in
+    -- the message proves nothing)
+    if not isOfficerName(sender) then return end
     local s = settingsStore()
     if not s or (s.t or 0) >= t then return end
-    s.er, s.t, s.by = er, t, type(d.by) == "string" and d.by or sender
+    s.er, s.t, s.by = er, t, (type(d.by) == "string" and isOfficerName(d.by)) and d.by or sender
     ns:Fire("GUILD_SETTINGS_CHANGED")
 end)
 
--- A guildmate's HELLO says how new their settings are; if ours are newer, pass them on.
+-- A guildmate's HELLO says how new their settings are; if ours are newer, pass
+-- them on (officers only: nobody else's copy would be accepted).
 local settingsCooldown = 0
 function G:OnPeerSettings(stamp)
+    if not ns.Org:AmOfficer() then return end
     if (tonumber(stamp) or 0) >= G:SettingsStamp() or G:SettingsStamp() == 0 then return end
     if GetTime() < settingsCooldown then return end
     settingsCooldown = GetTime() + 60

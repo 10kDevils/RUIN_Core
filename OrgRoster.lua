@@ -163,6 +163,24 @@ ns.Comms:Register("OROSTER", function(d, sender, scope)
     end
     local s = store()
     if not s then return end
+    -- The sender must be on the roster they send. Once a guild's roster is
+    -- known, only someone already on it can change who its guild master is
+    -- (offices and the hierarchy trust the guild master).
+    local sn, inNew, gmNew = ns.NormalizeName(sender), false, nil
+    for _, e in ipairs(members) do
+        if ns.NormalizeName(e.name) == sn then inNew = true end
+        if e.rank == 0 then gmNew = ns.NormalizeName(e.name) end
+    end
+    if not inNew then return end
+    local old = s[d.gu]
+    if old and type(old.members) == "table" and #old.members > 0 then
+        local inOld, gmOld = false, nil
+        for _, e in ipairs(old.members) do
+            if ns.NormalizeName(e.name) == sn then inOld = true end
+            if e.rank == 0 then gmOld = ns.NormalizeName(e.name) end
+        end
+        if not inOld and gmOld and gmNew ~= gmOld then return end
+    end
     local ranks = {}
     for i, r in ipairs(box.ranks or {}) do ranks[i] = clean(r, 20) end
     s[d.gu] = { t = (GetServerTime and GetServerTime() or time()), members = members, ranks = ranks,

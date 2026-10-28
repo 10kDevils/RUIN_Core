@@ -44,8 +44,9 @@ ns.ReportError = report
 -- "[RUIN] Waypoint set: ..." in RUIN teal, as in the brief's chat lines.
 local TAG = "|cff54b7d9[RUIN]|r"
 
+-- One line per message: a line break can't start a fake second line.
 function ns:Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage(TAG .. " " .. tostring(msg))
+    DEFAULT_CHAT_FRAME:AddMessage(TAG .. " " .. (tostring(msg):gsub("[\r\n]+", " ")))
 end
 
 function ns:Debug(msg)

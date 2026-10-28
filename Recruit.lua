@@ -111,10 +111,13 @@ end
 
 function Recruit:Asks() return ns.Guild:Can("invite") and asks() or {} end
 
+local MAX_ASKS = 50
 local function addAsk(d, who)
+    if type(who) ~= "string" or who == "" or #who > 48 then return end
     local list = asks()
     for _, a in ipairs(list) do if norm(a.name) == norm(who) then a.t, a.m = now(), d.m; ns:Fire("RECRUIT_CHANGED"); return end end
-    list[#list + 1] = { name = who, m = tostring(d.m or ""):gsub("|", "/"):sub(1, 200), c = type(d.c) == "string" and d.c or nil,
+    if #list >= MAX_ASKS then table.remove(list, 1) end
+    list[#list + 1] = { name = who, m = tostring(d.m or ""):gsub("|", "/"):sub(1, 200), c = type(d.c) == "string" and d.c:sub(1, 16) or nil,
                         l = tonumber(d.l), t = now() }
     if ns.Guild:Can("invite") then ns:Print(("%s asks to join %s (Guild > Overview)."):format(ns.ShortName(who), ns.guildName or "your guild")) end
     ns:Fire("RECRUIT_CHANGED")

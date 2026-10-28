@@ -20,6 +20,12 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.4.5", {
+        "Security update: RUIN now checks who really sent every message. Only the org admin changes the org key, and only the admin and officers can sanction anyone.",
+        "Chat: a line shows as its author's only when they sent it; a relayed line says who relayed it (via Name).",
+        "Links in other players' text stay clickable; fake system lines, colors and links no longer get through.",
+        "Muster, Exchange, Finder and Pathfinder check each message against its sender: nobody changes someone else's event, sign-up, listing, request or the treasury book.",
+    } },
     { "0.4.4", {
         "Guild > Watch is for officers only. Members report a player by right-clicking them, from People or a chat line, or with /ruin report.",
         "Muster has five tabs: Events, Plan (Groups and Squads), Loot (Reserves and Drops), Wanted (Most Wanted and Bounties) and Sightings.",

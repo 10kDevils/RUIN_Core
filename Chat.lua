@@ -11,8 +11,6 @@ ns.Chat = Chat
 
 local DEDUP_WINDOW = 15     -- long enough to cover relay delay, short enough to allow repeats
 local seen = {}             -- dedup key -> time
-local officerLists = {}     -- guild name -> { set = { [guid] = true }, t = time }
-local attestRequested = {}  -- guild name -> time
 
 local function dedupKey(guid, text)
     return (guid or "?") .. ":" .. ns.Hash(text)
@@ -193,7 +191,10 @@ local function sanitize(text)
     return text
 end
 
-function Chat:Display(officer, d, unverified)
+-- via: who relayed the line when the author couldn't send it themselves
+-- (the guild's bridge, for a guildmate without RUIN); shown after the name,
+-- so a relayed line never passes for one the author sent.
+function Chat:Display(officer, d, via)
     local frame = _G["ChatFrame" .. (ns.db.settings.chatFrame or 1)] or DEFAULT_CHAT_FRAME
     local info = ChatTypeInfo and ChatTypeInfo[officer and "OFFICER" or "GUILD"]
     local r, g, b = 0.25, 1.0, 0.25
@@ -201,27 +202,45 @@ function Chat:Display(officer, d, unverified)
     local gi = ns.Org:GuildInfo(d.gu)
     local tag = (gi and gi.tag) or d.gu
     local label = officer and ("RUIN Officer·" .. tag) or ("RUIN·" .. tag)
-    local mark = unverified and " |cffff8800(unverified)|r" or ""
+    local mark = via and (" |cff888888(via " .. ns.ShortName(via) .. ")|r") or ""
     frame:AddMessage(("[%s] %s%s: %s"):format(label, colorName(d.a, d.c), mark, sanitize(d.t)), r, g, b)
 end
 
 ---------------------------------------------------------------------------
 -- Incoming
+-- The game says who sent each message. A line whose author is the sender is
+-- shown as theirs; any other line is a relay, shown with who relayed it, and
+-- only accepted from a member of the author's guild.
 ---------------------------------------------------------------------------
 local function validLine(d)
     return type(d.t) == "string" and d.t ~= "" and #d.t <= 512
-        and type(d.gu) == "string" and type(d.a) == "string"
+        and type(d.gu) == "string" and type(d.a) == "string" and d.a ~= "" and #d.a <= 48
+        and not d.a:find("[:%[%]/]")
+        and (d.c == nil or (type(d.c) == "string" and d.c:match("^%u+$") ~= nil))
+end
+
+-- nil when the sender wrote the line, the sender's name when they relayed it,
+-- false when the line should be dropped (the relayer is known to be in
+-- another guild). A relayer whose hello hasn't arrived yet still gets the
+-- line through, always labeled with their name.
+local function relayOf(d, sender)
+    local g = ns.Presence:GuildOfName(sender)
+    if g ~= nil and g ~= d.gu then return false end            -- a line from another guild than the sender's
+    if ns.NormalizeName(d.a) == ns.NormalizeName(sender) then return nil end
+    return sender
 end
 
 ns.Comms:Register("GCHAT", function(d, sender, scope)
     if scope ~= "ORG" or not validLine(d) then return end
     if d.gu == ns.guildName then return end              -- we already saw it in /g
     if not ns.Org:GuildInfo(d.gu) then return end       -- not an org guild
-    if isDuplicate(dedupKey(d.g, d.t)) then return end
+    local via = relayOf(d, sender)
+    if via == false then return end
+    if isDuplicate(dedupKey(ns.NormalizeName(d.a), d.t)) then return end
     if Chat:Hidden(d.a, d.t) then return end
-    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false })
+    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false, via = via })
     if not ns.db.settings.showOrgChat then return end
-    Chat:Display(false, d, false)
+    Chat:Display(false, d, via)
 end)
 
 ns.Comms:Register("OCHAT", function(d, sender, scope)
@@ -229,47 +248,11 @@ ns.Comms:Register("OCHAT", function(d, sender, scope)
     if not ns.Org:AmOfficer() then return end
     if d.gu == ns.guildName then return end
     if not ns.Org:GuildInfo(d.gu) then return end
-    if isDuplicate(dedupKey(d.g, d.t)) then return end
-
-    local list = officerLists[d.gu]
-    local verified = list ~= nil and type(d.r) == "string" and list.set[d.r] == true
-    if not list and (not attestRequested[d.gu] or GetTime() - attestRequested[d.gu] > 60) then
-        attestRequested[d.gu] = GetTime()
-        ns.Comms:Send("ATTREQ", { gu = d.gu }, "OFFICERS", nil, ns.Comms.PRIORITY.BULK)
-    end
+    local via = relayOf(d, sender)
+    if via == false then return end
+    if isDuplicate(dedupKey(ns.NormalizeName(d.a), d.t)) then return end
     if not ns.db.settings.showOfficerChat then return end
-    Chat:Display(true, d, not verified)
-end)
-
----------------------------------------------------------------------------
--- Officer attestation: each guild's officer bridge publishes the GUIDs of
--- its officers so other guilds can mark officer lines as verified.
----------------------------------------------------------------------------
-function Chat:SendAttest()
-    if not ns.Presence:IsOfficerBridge() or not ns.Comms:IsJoined("OFFICERS") then return end
-    local list = {}
-    for guid, e in pairs(ns.rosterByGUID) do
-        if ns.Org:IsOfficerRank(e.rank) then list[#list + 1] = guid end
-    end
-    ns.Comms:Send("ATTEST", { gu = ns.guildName, l = list }, "OFFICERS", nil, ns.Comms.PRIORITY.BULK)
-end
-
-ns.Comms:Register("ATTEST", function(d, sender, scope)
-    if scope ~= "OFFICERS" or type(d.gu) ~= "string" or type(d.l) ~= "table" then return end
-    if d.gu == ns.guildName or not ns.Org:GuildInfo(d.gu) then return end
-    local set = {}
-    for _, guid in ipairs(d.l) do
-        if type(guid) == "string" then set[guid] = true end
-    end
-    officerLists[d.gu] = { set = set, t = GetTime() }
-end)
-
-local lastAttestReply = -999
-ns.Comms:Register("ATTREQ", function(d, sender, scope)
-    if scope ~= "OFFICERS" or d.gu ~= ns.guildName then return end
-    if GetTime() - lastAttestReply < 30 then return end
-    lastAttestReply = GetTime()
-    C_Timer.After(1 + math.random() * 3, function() Chat:SendAttest() end)
+    Chat:Display(true, d, via)
 end)
 
 ---------------------------------------------------------------------------
@@ -279,13 +262,5 @@ C_Timer.NewTicker(60, function()
     local now = GetTime()
     for key, t in pairs(seen) do
         if now - t > DEDUP_WINDOW then seen[key] = nil end
-    end
-end)
-
-C_Timer.NewTicker(300, function() Chat:SendAttest() end)
-
-ns:Subscribe("CHANNELS_CHANGED", function()
-    if ns.Comms:IsJoined("OFFICERS") then
-        C_Timer.After(20, function() Chat:SendAttest() end)
     end
 end)

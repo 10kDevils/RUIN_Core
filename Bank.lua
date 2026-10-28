@@ -82,7 +82,7 @@ ns.Comms:Register("BANKSNAP", function(d, sender, scope)
     if scope ~= "GUILD" or not ns.guildName or type(d.tabs) ~= "table" then return end
     if not (ns.roster and ns.roster[norm(sender)]) then return end
     local cur = store()[ns.guildName]
-    local t = tonumber(d.t)
+    local t = ns.SaneTime(d.t)
     if not t or (cur and (cur.t or 0) >= t) then return end
     local snap = { t = t, by = sender, money = tonumber(d.money) or 0, tabs = {} }
     for i, tab in ipairs(d.tabs) do
