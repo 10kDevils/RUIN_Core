@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.8 — 2026-11-01
+
+1 change since 0.4.7:
+
+1. **The real cause of the Retail "blocked from an action" popup.** The game's taint log showed it: RUIN Muster registered the combat log event, which Retail (12.0+) keeps for Blizzard's own UI. Core now refuses to register any event Retail reserves (the combat log events and the ping events) for RUIN or any module, so no module can raise that popup this way. 0.4.7's channel change wasn't the cause, but it stays: it's harmless and keeps RUIN off that function on Retail.
+
 ## 0.4.7 — 2026-11-01
 
 1 change since 0.4.6:

@@ -130,7 +130,7 @@ end
 -- Game events, with errors reported instead of breaking other handlers.
 function Module:RegisterEvent(event, fn)
     local mod = self
-    ns:RegisterEvent(event, function(_, ...) fn(mod, ...) end)
+    return ns:RegisterEvent(event, function(_, ...) fn(mod, ...) end)
 end
 
 local function enable(m)

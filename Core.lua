@@ -64,7 +64,23 @@ local eventHandlers = {}
 -- Events that exist in one client and not another (Classic vs Retail APIs)
 -- are skipped quietly instead of raising an error, so a module can listen
 -- for both styles and use whichever one fires. Returns false when skipped.
+-- Events Retail (12.0+) reserves for Blizzard's own UI. Registering one from
+-- an addon is blocked with the "blocked from an action" popup, and pcall
+-- can't catch that, so RUIN never asks for them there.
+local RETAIL_RESTRICTED = {
+    COMBAT_LOG_EVENT = true, COMBAT_LOG_EVENT_UNFILTERED = true,
+    COMBAT_LOG_APPLY_FILTER_SETTINGS = true, COMBAT_LOG_REFILTER_ENTRIES = true,
+    MINIMAP_PING = true, UNIT_PING_PIN_ADDED = true, UNIT_PING_PIN_REMOVED = true,
+}
+function ns:CanRegisterEvent(event)
+    return not (ns.CLIENT == "retail" and RETAIL_RESTRICTED[event])
+end
+
 function ns:RegisterEvent(event, fn)
+    if not ns:CanRegisterEvent(event) then
+        ns:Debug("skipped event Retail keeps for Blizzard's UI: " .. event)
+        return false
+    end
     if not eventHandlers[event] then
         if C_EventUtils and C_EventUtils.IsEventValid and not C_EventUtils.IsEventValid(event) then
             ns:Debug("skipped event not in this client: " .. event)

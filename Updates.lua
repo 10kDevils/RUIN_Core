@@ -20,8 +20,11 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.4.8", {
+        "Retail: the \"blocked from an action\" popup at login is gone (RUIN no longer asks for the combat log there).",
+    } },
     { "0.4.7", {
-        "Retail: the \"blocked from an action\" popup at login is gone.",
+        "Retail: RUIN no longer reorders your chat channels.",
     } },
     { "0.4.6", {
         "With Ruinous Forever Planner installed, the RUIN window has a Planner page: Now, Gear, Quests, Guide, Rating and more, plus Org, which shows who in RUIN needs drops from which dungeon.",
