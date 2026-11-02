@@ -6,6 +6,18 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.9 — 2026-11-02
+
+1 change since 0.4.8:
+
+1. **The official RUIN emblem.** The winged "R" medallion now marks RUIN everywhere in the app, replacing the ring-and-sword mark and the banner icon:
+   - the window's title bar, next to the RUIN wordmark;
+   - the Guild page header and its tab;
+   - the center banner of the Guild header's banner scene;
+   - the What's new window;
+   - the AddOns list and the addon compartment (Retail).
+   - Three textures ship in `Media/` (wide, tall and a round icon), and modules can use them through `RUIN_API.Brand` (API level 13): `Brand.Draw(parent, height, "wide" or "tall")`, or `Brand.ICON` for an icon.
+
 ## 0.4.8 — 2026-11-01
 
 1 change since 0.4.7:

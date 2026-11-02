@@ -19,7 +19,7 @@ ns.THEMES = {
                    title = "Codex", kicker = APP, tagline = "Class macros, macro commands, and a dungeon and raid journal with boss loot" },
     Pathfinder = { color = { 0.31, 0.60, 0.23 }, icon = "Interface\\Icons\\INV_Misc_Map_01",       motif = "trail",   order = 40, tab = "Pathfinder",
                    title = "Pathfinder", kicker = APP, tagline = "Leveling routes and your quests, with Questie and the rest of RUIN" },
-    Guild      = { color = { 0.90, 0.72, 0.38 }, icon = "Interface\\Icons\\INV_Banner_03",        motif = "banners", order = 10, tab = "Guild",
+    Guild      = { color = { 0.90, 0.72, 0.38 }, icon = ns.Brand.ICON,                          motif = "banners", order = 10, tab = "Guild",
                    title = "Guild & Community", kicker = APP, tagline = "Who's online, guild news and RUIN's links", core = true },
     Finder     = { color = { 0.82, 0.31, 0.54 }, icon = "Interface\\Icons\\INV_Misc_GroupLooking", motif = "board",   order = 20, tab = "Finder",
                    title = "Finder", kicker = APP, tagline = "Find people in RUIN to group with, right now" },
@@ -92,10 +92,16 @@ function MOTIFS.banners(box, t)
         notch:SetSize(15, 15)
         notch:SetRotation(math.pi / 4)
         notch:SetPoint("CENTER", trim, "BOTTOM", 0, -1)
-        local crest = tex(box, "ARTWORK", 0.95, 0.78, 0.35, 1, 3)
-        crest:SetSize(7, 7)
-        crest:SetRotation(math.pi / 4)
-        crest:SetPoint("CENTER", field, "CENTER", 0, 6)
+        if i == 2 then
+            -- the center banner carries the RUIN emblem
+            local crest = ns.Brand.Draw(box, 18, "tall", "OVERLAY")
+            crest:SetPoint("CENTER", field, "CENTER", 0, 5)
+        else
+            local crest = tex(box, "ARTWORK", 0.95, 0.78, 0.35, 1, 3)
+            crest:SetSize(7, 7)
+            crest:SetRotation(math.pi / 4)
+            crest:SetPoint("CENTER", field, "CENTER", 0, 6)
+        end
     end
 end
 

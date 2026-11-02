@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.4.9", {
+        "The official RUIN emblem, the winged R, now marks RUIN across the app: the title bar, the Guild page and tab, the What's new window and the AddOns list.",
+    } },
     { "0.4.8", {
         "Retail: the \"blocked from an action\" popup at login is gone (RUIN no longer asks for the combat log there).",
     } },
@@ -87,10 +90,12 @@ local function getLetter()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f.emblem = ns.Brand.Draw(f, 40, "wide", "ARTWORK")
+    f.emblem:SetPoint("TOP", 0, -12)
     f.title = Wd.Label(f, "", "GameFontNormalLarge")
-    f.title:SetPoint("TOP", 0, -14)
+    f.title:SetPoint("TOP", f.emblem, "BOTTOM", 0, -6)
     f.body = Wd.Label(f, "", "GameFontHighlight")
-    f.body:SetPoint("TOPLEFT", 20, -46)
+    f.body:SetPoint("TOPLEFT", 20, -86)
     f.body:SetPoint("RIGHT", f, "RIGHT", -20, 0)
     f.body:SetJustifyH("LEFT")
     f.body:SetJustifyV("TOP")
@@ -118,7 +123,7 @@ function Updates:ShowLetter(since)
     local f = getLetter()
     f.title:SetText(C.gold .. "What's new in RUIN|r")
     f.body:SetText(table.concat(lines, "\n"))
-    f:SetHeight(math.max(220, math.min(560, (f.body:GetStringHeight() or 200) + 110)))
+    f:SetHeight(math.max(220, math.min(560, (f.body:GetStringHeight() or 200) + 150)))
     f.foot:SetText(GREY .. "Shown once per update. Settings > Options > What's new, or /ruin news, shows it again.|r")
     f:Show()
 end

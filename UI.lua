@@ -23,7 +23,6 @@ local main, content, dialog, tabStrip
 local selectedTab
 local guild, settings = {}, {}   -- page widgets
 
-local MARK_ICON = "Interface\\Icons\\INV_Sword_39"
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
 
@@ -61,18 +60,9 @@ local function closeButton(parent, onClick)
     return b
 end
 
--- The RUIN mark: a gold ring around a sword, then the wordmark.
+-- The RUIN mark: the winged emblem, then the wordmark.
 local function drawMark(parent, size)
-    local ring = parent:CreateTexture(nil, "ARTWORK")
-    ring:SetSize(size, size)
-    ring:SetColorTexture(P.gold[1], P.gold[2], P.gold[3], 1)
-    pcall(ring.SetMask, ring, ROUND_MASK)
-    local icon = parent:CreateTexture(nil, "OVERLAY")
-    icon:SetSize(size - 4, size - 4)
-    icon:SetPoint("CENTER", ring, "CENTER", 0, 0)
-    icon:SetTexture(MARK_ICON)
-    pcall(icon.SetMask, icon, ROUND_MASK)
-    return ring
+    return ns.Brand.Draw(parent, size, "wide", "OVERLAY")
 end
 
 ---------------------------------------------------------------------------
@@ -1512,8 +1502,8 @@ function UI:CreateMain()
     rule:SetPoint("BOTTOMLEFT", 0, 0)
     rule:SetPoint("BOTTOMRIGHT", 0, 0)
 
-    local ring = drawMark(bar, 32)
-    ring:SetPoint("LEFT", 12, 0)
+    local ring = drawMark(bar, 34)
+    ring:SetPoint("LEFT", 10, 0)
     local word = bar:CreateFontString(nil, "OVERLAY")
     word:SetFontObject(GameFontNormalHuge)
     word:SetFont(TITLE_FONT, 28, "")

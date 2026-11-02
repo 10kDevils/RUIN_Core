@@ -16,6 +16,29 @@ local mainline = WOW_PROJECT_MAINLINE or 1
 ns.CLIENT = (WOW_PROJECT_ID ~= nil and WOW_PROJECT_ID == mainline) and "retail" or "forever"
 ns.CLIENT_NAME = ns.CLIENT == "retail" and "Retail" or "WoW Forever"
 
+-- The official RUIN emblem: gold wings around a ringed "R" medallion. Three
+-- textures ship in Media/: the wide emblem (title bars, headers), a tall one
+-- (banners, small spaces) and a round icon (page and tab icons, addon list).
+-- coords trim each texture to the art; aspect is width / height after that.
+local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
+ns.Brand = {
+    EMBLEM = MEDIA .. "Emblem",     coords = { 0, 1, 16 / 128, 113 / 128 }, aspect = 256 / 97,
+    TALL   = MEDIA .. "EmblemTall", tallCoords = { 3 / 128, 125 / 128, 7 / 128, 121 / 128 }, tallAspect = 122 / 114,
+    ICON   = MEDIA .. "EmblemIcon",
+}
+-- Draws the emblem on `parent`: kind "wide" (default) or "tall"; `height` in
+-- pixels, width follows the art. Returns the texture.
+function ns.Brand.Draw(parent, height, kind, layer)
+    local B = ns.Brand
+    local t = parent:CreateTexture(nil, layer or "ARTWORK")
+    local tall = kind == "tall"
+    t:SetTexture(tall and B.TALL or B.EMBLEM)
+    local c = tall and B.tallCoords or B.coords
+    t:SetTexCoord(c[1], c[2], c[3], c[4])
+    t:SetSize(math.floor(height * (tall and B.tallAspect or B.aspect) + 0.5), height)
+    return t
+end
+
 local DEFAULTS = {
     settings = {
         showOrgChat = true,      -- show other guilds' guild chat
