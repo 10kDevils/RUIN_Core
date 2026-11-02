@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.4.7 — 2026-11-01
+
+1 change since 0.4.6:
+
+1. **No more "blocked from an action" popup on Retail.** Right after joining its hidden channels, RUIN moved them behind General and Trade with `C_ChatInfo.SwapChatChannelsByChannelIndex`, which Retail now lets only Blizzard's own UI call. RUIN now sorts channels only on WoW Forever, and if the game ever blocks a channel swap it stops trying for the rest of the session. On Retail RUIN still waits for General and Trade before joining, so its channels normally come after them anyway.
+
 ## 0.4.6 — 2026-11-01
 
 1 change since 0.4.5:

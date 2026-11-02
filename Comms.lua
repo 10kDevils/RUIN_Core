@@ -353,10 +353,23 @@ otherChannelCount = function()
     return n
 end
 
+-- Retail (12.0+) lets only Blizzard's own UI swap channel numbers; an addon
+-- calling it gets the "blocked from an action" popup (pcall can't catch it).
+-- So RUIN only sorts channels on WoW Forever, and stops for the session if
+-- the game ever blocks a swap anywhere else.
+local swapAllowed = ns.CLIENT ~= "retail"
+ns:RegisterEvent("ADDON_ACTION_BLOCKED", function(_, addon, func)
+    if addon == ADDON and type(func) == "string" and func:find("SwapChatChannel", 1, true) then swapAllowed = false end
+end)
+ns:RegisterEvent("ADDON_ACTION_FORBIDDEN", function(_, addon, func)
+    if addon == ADDON and type(func) == "string" and func:find("SwapChatChannel", 1, true) then swapAllowed = false end
+end)
+function Comms:CanSortChannels() return swapAllowed end
+
 local swapPending = false
 function Comms:SortChannels()
     local swap = C_ChatInfo and C_ChatInfo.SwapChatChannelsByChannelIndex
-    if not swap or (InCombatLockdown and InCombatLockdown()) then return false end
+    if not swapAllowed or not swap or (InCombatLockdown and InCombatLockdown()) then return false end
     local list = channelList()
     for i, ch in ipairs(list) do
         local nxt = list[i + 1]
