@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.5.0 — 2026-11-02
+
+RUIN 0.5.0: every addon in the suite moves to 0.5.0 together. Since 0.4.6 (the last release on the site): no chat channel reordering on Retail (0.4.7), no "blocked from an action" popup on Retail because RUIN never asks for the combat log there (0.4.8), and the official RUIN emblem across the app (0.4.9).
+
 ## 0.4.9 — 2026-11-02
 
 1 change since 0.4.8:

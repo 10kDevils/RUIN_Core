@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.5.0", {
+        "RUIN 0.5.0: the whole suite moves to 0.5.0 together, with the RUIN emblem and a clean start on Retail.",
+    } },
     { "0.4.9", {
         "The official RUIN emblem, the winged R, now marks RUIN across the app: the title bar, the Guild page and tab, the What's new window and the AddOns list.",
     } },
