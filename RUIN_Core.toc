@@ -4,6 +4,7 @@
 ## Author: RUIN
 ## Version: 0.4.5
 ## SavedVariables: RUIN_DB
+## OptionalDeps: RuinousForeverPlanner, QuestieDB
 ## IconTexture: Interface\Icons\INV_Banner_03
 ## AddonCompartmentFunc: RUIN_OnAddonCompartmentClick
 ## X-Category: Guild
@@ -29,4 +30,5 @@ People.lua
 Recruit.lua
 Bank.lua
 Updates.lua
+Planner.lua
 UI.lua

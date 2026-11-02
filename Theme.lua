@@ -29,6 +29,8 @@ ns.THEMES = {
                    title = "Warfront (retired)", kicker = APP, tagline = "Retired: use Overlord Forever and RUIN Muster" },
     Intel      = { color = { 0.22, 0.71, 0.91 }, icon = "Interface\\Icons\\INV_Misc_Spyglass_03",  motif = "radar",   order = 75, tab = "Intel",
                    title = "Intel (retired)", kicker = APP, tagline = "Retired: sightings and timers moved to RUIN Muster" },
+    Planner    = { color = { 0.36, 0.62, 0.78 }, icon = "Interface\\Icons\\INV_Misc_Book_09",       motif = "trail",   order = 45, tab = "Planner",
+                   title = "Planner", kicker = APP, tagline = "Ruinous Forever Planner: your next steps, gear and goals, shared with RUIN" },
     Exchange   = { color = { 0.84, 0.60, 0.16 }, icon = "Interface\\Icons\\INV_Misc_Coin_02",      motif = "ledger",  order = 60, tab = "Exchange",
                    title = "Exchange", kicker = APP, tagline = "Auction prices, crafters and craft requests across RUIN" },
     Settings   = { color = { 0.33, 0.72, 0.85 }, icon = "Interface\\Icons\\Trade_Engineering",    motif = nil,       order = 99, tab = "Settings",

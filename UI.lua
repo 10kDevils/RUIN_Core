@@ -1029,7 +1029,7 @@ local function buildSettingsPanel(p)
     local disp = Wd.Card(dispPage)
     disp:SetPoint("TOPLEFT", 0, 0)
     disp:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
-    disp:SetHeight(108)
+    disp:SetHeight(134)
     local dh = Wd.Header(disp, "Chat and display")
     dh:SetPoint("TOPLEFT", 10, -8)
     local s = function() return ns.db.settings end
@@ -1047,6 +1047,10 @@ local function buildSettingsPanel(p)
         Wd.Check(disp, "Count my characters as one player", function() return s().linkAlts end,
             function(v) s().linkAlts = v; ns:Fire("SETTINGS_CHANGED") end),
     }
+    settings.checks[7] = Wd.Check(disp, "Planner page (Ruinous Forever Planner)", function() return s().plannerTab ~= false end,
+        function(v) s().plannerTab = v; if v then ns.Planner:AddPage() else ns:Print("The Planner page goes away after /reload.") end end)
+    settings.checks[7].tip = "Show Ruinous Forever Planner as a page in the RUIN window when it's installed."
+    settings.checks[7]:SetPoint("TOPLEFT", settings.checks[5], "BOTTOMLEFT", 0, -2)
     settings.checks[6].tip = "In the Guild census, your characters count as one player. RUIN shares a random token only your characters send; nothing else about you."
     settings.checks[6]:SetPoint("TOPLEFT", settings.checks[4], "BOTTOMLEFT", 0, -2)
     settings.news = Wd.Button(disp, "What's new", 100, function() ns.Updates:ShowLetter(nil) end)
