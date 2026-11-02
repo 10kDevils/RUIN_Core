@@ -20,6 +20,12 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.4.6", {
+        "With Ruinous Forever Planner installed, the RUIN window has a Planner page: Now, Gear, Quests, Guide, Rating and more, plus Org, which shows who in RUIN needs drops from which dungeon.",
+        "Pathfinder reads the QuestieDB addon (the one that comes with the planner) for quest places and routes, no Questie needed.",
+        "Codex: dungeon and raid drops reach the whole org more reliably, including groupmates without RUIN, and you catch up on drops you missed while offline.",
+        "Exchange: the Planner page shows who in RUIN can craft your targets and uses RUIN's auction prices for selling.",
+    } },
     { "0.4.5", {
         "Security update: RUIN now checks who really sent every message. Only the org admin changes the org key, and only the admin and officers can sanction anyone.",
         "Chat: a line shows as its author's only when they sent it; a relayed line says who relayed it (via Name).",

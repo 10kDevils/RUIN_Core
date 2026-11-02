@@ -4,6 +4,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+(nothing yet)
+
+## 0.4.6 — 2026-11-01
+
+1 change since 0.4.5:
+
 1. **Planner page for Ruinous Forever Planner.** When the planner addon is installed, the RUIN window gets a Planner page that shows and drives it: *Now*, *Gear*, *Quests*, *Guide*, *Rating*, *More* (class quests, professions, sell advisor, group objectives, inventory, preparation, priorities, help) and *Org*. The class, spec, PvE/PvP and solo/group it plans for, Scan gear, pinning the top action or upgrade, task checkboxes, and the planner's own windows (targets, quest catalogue, settings, sell estimates, dungeon/XP, route import, map waypoint) are all on the page. Everything comes from the planner itself; its own /rfp window keeps working. Settings → Options can hide the page.
    - **Org:** your planner's group goals (the dungeon drops you still need) are shared with the org, and the Org tab lists who needs what from which dungeon, with *Find group* (RUIN Finder) and *Whisper*. Untick *Share my group goals* to keep yours to yourself.
    - **Gear and Rating** show who in RUIN can craft a target item (RUIN Exchange).
