@@ -51,6 +51,8 @@ local DEFAULTS = {
         chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
         linkAlts = false,        -- count my characters as one player in the census (shares a random token)
         leaderAwayDays = 3,      -- tell officers when their guild master has been away this many days
+        partySignal = true,      -- share which dungeons your planner wants with your party
+        partyAutoPost = true,    -- post the party's need to party chat once it gets loud (one player does it)
         debug = false,
     },
 }
@@ -404,6 +406,8 @@ SlashCmdList.RUIN = function(input)
         ns.UI:OpenGuildTab(cmd)
     elseif cmd == "report" then
         ns.Watch:PromptReport(rest ~= "" and rest or (UnitExists and UnitExists("target") and UnitIsPlayer("target") and GetUnitName("target", true)) or nil)
+    elseif cmd == "party" then
+        ns.PartyPlan:Command(rest)
     elseif cmd == "news" then
         ns.Updates:ShowLetter(nil)
     elseif cmd == "status" then

@@ -2,9 +2,13 @@
 
 Versioning: the third number counts the meaningful changes made since the second number last went up.
 
-## Unreleased
+## Unreleased (planned 0.5.1)
 
-(nothing yet)
+Party Dungeon Signal, first framework (not released; needs in-game testing):
+- New PartyPlan.lua: your planner's dungeon needs are scored (gear first: a top gear step is a Need; a later gear drop is a Could use; open quests alone are a Could use; open quests plus a gear drop equal a Need), shared with your party, and tallied as Heat = 2 x Need + 1 x Could use. Open quests also break ties at half a Could use each.
+- Comms has a PARTY scope (party or instance chat). Messages count only from someone in your current group.
+- A small movable strip, tiered toasts (Quiet, Noticed, Loud, Full party), and one player posts the party's need to party chat once it is Loud.
+- Settings: partySignal and partyAutoPost, both on by default; /ruin party [on|off|post on|off].
 
 ## 0.5.0 — 2026-11-02
 

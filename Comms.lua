@@ -1,5 +1,5 @@
 -- RUIN Core: comms layer
--- One addon prefix, four scopes (GUILD, ORG, OFFICERS, PEER), chunking,
+-- One addon prefix, five scopes (GUILD, ORG, OFFICERS, PEER, PARTY), chunking,
 -- a throttled send queue and hidden password-protected org channels.
 local ADDON, ns = ...
 
@@ -44,7 +44,7 @@ local function nextId()
     return sessionTag .. counter
 end
 
--- scope: "GUILD" | "ORG" | "OFFICERS" | "PEER" (target = character name)
+-- scope: "GUILD" | "ORG" | "OFFICERS" | "PEER" (target = character name) | "PARTY" (your 5-player group)
 function Comms:Send(kind, data, scope, target, priority)
     local ok, payload = pcall(ns.Serialize, data)
     if not ok then
@@ -104,6 +104,11 @@ local function resolve(item)
     elseif scope == "PEER" then
         if not item.target then return nil, nil, "drop" end
         return "WHISPER", item.target
+    elseif scope == "PARTY" then
+        -- a party only: never a raid, and never when not grouped
+        if not (IsInGroup and IsInGroup()) or (IsInRaid and IsInRaid()) then return nil, nil, "drop" end
+        local instance = LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE)
+        return instance and "INSTANCE_CHAT" or "PARTY", nil
     end
     return nil, nil, "drop"
 end
@@ -193,10 +198,15 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
         scope = "GUILD"
     elseif chatType == "WHISPER" then
         scope = "PEER"
+    elseif chatType == "PARTY" or chatType == "INSTANCE_CHAT" then
+        scope = "PARTY"
     elseif chatType == "CHANNEL" then
         scope = Comms:ScopeForChannel(channelName, target, localID)
     end
     if not scope then return end
+
+    -- party messages count only from someone in my current group
+    if scope == "PARTY" and not (ns.PartyPlan and ns.PartyPlan:InGroup(sender)) then return end
 
     local f = parseFrame(text)
     if not f or f[1] ~= FRAME_VERSION then return end

@@ -31,4 +31,5 @@ Recruit.lua
 Bank.lua
 Updates.lua
 Planner.lua
+PartyPlan.lua
 UI.lua
