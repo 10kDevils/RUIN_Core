@@ -2,13 +2,22 @@
 
 Versioning: the third number counts the meaningful changes made since the second number last went up.
 
-## Unreleased (planned 0.5.1)
+## Unreleased
 
-Party Dungeon Signal, first framework (not released; needs in-game testing):
-- New PartyPlan.lua: your planner's dungeon needs are scored (gear first: a top gear step is a Need; a later gear drop is a Could use; open quests alone are a Could use; open quests plus a gear drop equal a Need), shared with your party, and tallied as Heat = 2 x Need + 1 x Could use. Open quests also break ties at half a Could use each.
-- Comms has a PARTY scope (party or instance chat). Messages count only from someone in your current group.
-- A small movable strip, tiered toasts (Quiet, Noticed, Loud, Full party), and one player posts the party's need to party chat once it is Loud.
-- Settings: partySignal and partyAutoPost, both on by default; /ruin party [on|off|post on|off].
+(nothing yet)
+
+## 0.5.1 — 2026-11-04
+
+Party dungeon signal (new, PartyPlan.lua). With Ruinous Forever Planner installed, Core tells the people you are grouped with which dungeons your planner wants, and how much.
+- Scoring per player and dungeon, gear first: a current-level group target from the planner (priority 35 or better) is a Need; a later drop (future level, a quest step first, near the end of a level window) is a Could use; a drop the planner measured as no better than what you wear doesn't count. Open quests in your quest log there are a Could use; open quests plus a gear drop are a Need. Heat = 2 x Need + 1 x Could use over the party; open quests break ties at 0.5 each and never change the tier. A solo profile in a party is judged as a group.
+- Plan steps are matched to the planner's own dungeon list ("Cookie, The Deadmines" is the Deadmines; the longest name wins, so Scarlet Monastery wings stay apart). Quests are counted with the planner's own quest rules (faction, class and race, completed, exclusive and blocked quests, level).
+- Every dungeon has one fixed key on the wire (DM, SMGY, HT ...), the same for everyone whatever addons they have; what you see is RUIN Codex's own short name when Codex knows it.
+- Tiers: Quiet 1-2, Noticed 3-4, Loud 5-7 (pulses, sound, Run it?), Full party 8+ (gold, Let's go). Toasts and the party chat post wait until the tally settles, and one player (the first name among those who allow it) posts once per dungeon per 5 minutes; a post someone already made is heard and not repeated.
+- The strip: up to two dungeons, a dot per party member (filled gold needs it, gold ring could use it, grey ring nothing there, faint ring no RUIN report), movable, fades in combat. Its tooltip names everyone with up to three items as links, their open quests and the entrance (Codex).
+- Planner page, Org tab: two new switches, both on: *Show my party which dungeons I need* and *Say it in party chat when most of us need it*. Also `/ruin party`, `/ruin party on|off`, `/ruin party post on|off`.
+- Comms: a PARTY scope (party chat, or instance chat in a dungeon finder group). Party messages count only from members of your current group, only the party signal's own message kinds are accepted over it (pick-up group members can be strangers), at most four reports per player every 20 seconds, one entry per dungeon, strict parsing. A report is about 60-120 bytes, one addon message.
+- Retail 12.x: nothing is said or sent while the game has chat locked (encounters, Mythic+ keys, PvP matches: C_ChatInfo.InChatMessagingLockdown and C_RestrictedActions). Party messages queued during a lockdown are dropped, others wait; a send refused with AddOnMessageLockdown is retried. Messages carrying secret values are ignored. Inside an instance there are no toasts or automatic posts. No restricted event is registered.
+- A player without the planner only listens: they see the strip and count as "no report".
 
 ## 0.5.0 — 2026-11-02
 

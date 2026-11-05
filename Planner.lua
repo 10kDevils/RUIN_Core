@@ -416,10 +416,20 @@ local function buildPage(panel)
         end
     end)
     ui.org.frame:SetPoint("TOPLEFT", 0, -46)
-    ui.org.frame:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -24, 64)
+    ui.org.frame:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", -24, 124)
     ui.shareCheck = Wd.Check(body, "Share my group goals with the org", function() return not (ns.db and ns.db.settings.plannerShare == false) end,
         function(v) ns.db.settings.plannerShare = v and true or false; if v then Planner:Share(true) end end)
     ui.shareCheck:SetPoint("BOTTOMLEFT", 2, 36)
+    -- Party dungeon signal (PartyPlan.lua): both on unless switched off
+    local function partyOn(key) return function() return not (ns.db and ns.db.settings[key] == false) end end
+    ui.partyCheck = Wd.Check(body, "Show my party which dungeons I need", partyOn("partySignal"),
+        function(v) if ns.PartyPlan then ns.PartyPlan:SetSetting("partySignal", v) end end)
+    ui.partyCheck:SetPoint("BOTTOMLEFT", 2, 92)
+    ui.partyCheck.tip = "Your planner's dungeon needs go to the people you are grouped with, and their needs show on a small strip."
+    ui.postCheck = Wd.Check(body, "Say it in party chat when most of us need it", partyOn("partyAutoPost"),
+        function(v) if ns.PartyPlan then ns.PartyPlan:SetSetting("partyAutoPost", v) end end)
+    ui.postCheck:SetPoint("BOTTOMLEFT", 2, 64)
+    ui.postCheck.tip = "When a dungeon gets loud (heat 5 or more), one player in the party posts \"3 of 5 need DM\" once. Never inside an instance."
 
     -- action rows
     local function btn(text, w, fn, tip) local b = Wd.Button(body, text, w, fn); b.tip = tip; return b end
@@ -507,7 +517,7 @@ function Planner:Refresh()
     for _, f in ipairs({ ui.class, ui.spec, ui.context, ui.mode, ui.scan }) do f:SetEnabled(ready and true or false) end
     if not ready then
         ui.info:SetText("")
-        ui.org.frame:Hide(); ui.shareCheck:Hide(); ui.view.frame:Show()
+        ui.org.frame:Hide(); ui.shareCheck:Hide(); ui.partyCheck:Hide(); ui.postCheck:Hide(); ui.view.frame:Show()
         setText(ui.view, { P and ("The planner isn't ready: " .. clean(P.dbError or "log in fully, then open this page again.")) or "Ruinous Forever Planner isn't loaded." })
         for _, b in ipairs({ ui.primary, ui.prev, ui.next, ui.done, ui.price, ui.targets, ui.catalogue, ui.settings, ui.dungeon, ui.route, ui.waypoint }) do b:Hide() end
         return
@@ -521,7 +531,8 @@ function Planner:Refresh()
         P.profileDetection and ("  ·  " .. clean(P.profileDetection)) or ""))
 
     local org = tab == "Org"
-    ui.org.frame:SetShown(org); ui.shareCheck:SetShown(org); ui.view.frame:SetShown(not org)
+    ui.org.frame:SetShown(org); ui.shareCheck:SetShown(org); ui.partyCheck:SetShown(org); ui.postCheck:SetShown(org); ui.view.frame:SetShown(not org)
+    if org then ui.partyCheck:Refresh(); ui.postCheck:Refresh() end
     ui.primary:SetShown(not org)
     ui.primary:SetText(page == "Now" and "Pin next action" or page == "Sell" and "Sell estimates" or page == "Class quests" and "Track class quest"
         or page == "Guide" and "Pin top goal" or "Track top upgrade")

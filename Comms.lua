@@ -16,6 +16,8 @@ local PARTIAL_MAX_AGE = 90     -- long messages (shared routes) arrive at about 
 local PARTIALS_PER_SENDER, PARTIALS_MAX = 8, 400
 
 Comms.PRIORITY = { ALERT = 1, NORMAL = 2, BULK = 3 }
+-- The only message kinds accepted over party or instance chat.
+Comms.PARTY_KINDS = { PARTYPLAN = true, PARTYPLANQ = true }
 
 local handlers = {}                       -- kind -> { fn, ... }
 local queues = { {}, {}, {} }             -- by priority
@@ -119,6 +121,22 @@ local function isThrottled(result)
     return result == E.AddonMessageThrottle or result == E.ChannelThrottle
 end
 
+-- Retail 12.x: addon messages are refused while the game has addon chat
+-- locked (instance encounters, Mythic+ keys, PvP matches).
+local function isLockdown(result)
+    local E = Enum and Enum.SendAddonMessageResult
+    return type(result) == "number" and E ~= nil and E.AddOnMessageLockdown ~= nil and result == E.AddOnMessageLockdown
+end
+
+function Comms:Locked()
+    local CI = C_ChatInfo
+    if CI and type(CI.InChatMessagingLockdown) == "function" then
+        local ok, v = pcall(CI.InChatMessagingLockdown)
+        if ok and v then return true end
+    end
+    return false
+end
+
 local function isFailure(result)
     return result == false or (type(result) == "number" and result ~= 0)
 end
@@ -138,6 +156,8 @@ local function flush()
                 table.remove(queue, i)
             else
                 local chatType, target, reason = resolve(item)
+                -- while addon chat is locked: party news is stale by the end, the rest waits
+                if not reason and Comms:Locked() then reason = item.scope == "PARTY" and "drop" or "wait" end
                 if reason == "drop" then
                     table.remove(queue, i)
                 elseif reason == "wait" then
@@ -146,6 +166,10 @@ local function flush()
                     local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, chatType, target)
                     if isThrottled(result) then
                         tokens = 0
+                        return
+                    end
+                    if isLockdown(result) then
+                        -- keep it queued (it ages out after a minute); try again next tick
                         return
                     end
                     if isFailure(result) then
@@ -190,6 +214,9 @@ function Comms:ScopeForChannel(...)
 end
 
 function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChannelID, localID, channelName)
+    -- Retail 12.x can hand addons "secret" values during a lockdown: they can't be compared or read
+    local secret = rawget(_G, "issecretvalue")
+    if secret and (secret(prefix) or secret(text) or secret(sender) or secret(chatType)) then return end
     if prefix ~= ns.PREFIX or type(text) ~= "string" then return end
     if ns.playerNorm and ns.NormalizeName(sender) == ns.playerNorm then return end
 
@@ -211,6 +238,8 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
     local f = parseFrame(text)
     if not f or f[1] ~= FRAME_VERSION then return end
     local kind, id = f[2], f[3]
+    -- party members can be strangers (a pick-up group): from them, only party kinds
+    if scope == "PARTY" and not Comms.PARTY_KINDS[kind] then return end
     -- The Watch hid this player from the RUIN network.
     if ns.Watch and ns.Watch:AnyHidden() and kind:sub(1, 1) ~= "W" and ns.Watch:IsHidden(sender) then return end
     local idx, total, chunk = tonumber(f[4]), tonumber(f[5]), f[6]

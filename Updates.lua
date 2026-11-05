@@ -20,6 +20,10 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.5.1", {
+        "Party dungeon signal: with Ruinous Forever Planner, RUIN tells your party which dungeon your planner wants. A small strip shows each dungeon, like DM, with a dot per player: filled gold needs a gear upgrade there, a gold ring could use it.",
+        "The more of you need the same dungeon, the louder it gets: a toast, then a pulse, a sound and a Run it? button that says \"3 of 5 need DM\" in party chat. One player posts it automatically once it gets loud. Both switches are on the Planner page's Org tab, or /ruin party off.",
+    } },
     { "0.5.0", {
         "RUIN 0.5.0: the whole suite moves to 0.5.0 together, with the RUIN emblem and a clean start on Retail.",
     } },
