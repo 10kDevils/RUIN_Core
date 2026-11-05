@@ -6,6 +6,11 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.5.2 — 2026-11-05
+
+- Party dungeon strip: only the top dungeon shows; a button under it ("3 more dungeons") opens the rest, up to six, and *Show less* closes them. Open or closed is remembered (settings.partyStripOpen).
+- Party dungeon signal: with RUIN Codex installed, Codex decides whether a planner drop is an upgrade for your spec (`Codex:IsUpgrade`), counting the "Equip:" spell damage and healing lines the item API, and so the planner's own estimate, can miss. Without Codex, or while Codex can't read an item yet, the planner's estimate decides as before.
+
 ## 0.5.1 — 2026-11-04
 
 Party dungeon signal (new, PartyPlan.lua). With Ruinous Forever Planner installed, Core tells the people you are grouped with which dungeons your planner wants, and how much.

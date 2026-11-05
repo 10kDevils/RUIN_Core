@@ -260,6 +260,27 @@ function PP.OpenQuests(P, d)
     return n
 end
 
+-- Is a planner item NOT an upgrade for me? RUIN Codex decides when it can:
+-- it reads the item's "Equip:" lines (spell damage, healing, crit, hit, mp5 ...)
+-- that the item API, and so the planner's own estimate, can miss on
+-- Classic-style items. Without Codex, or when Codex can't tell yet (item not
+-- loaded), the planner's estimate decides. Unknown counts as an upgrade.
+function PP.CodexVerdict(id)
+    local R = rawget(_G, "RUIN_API")
+    local codex = R and R.GetModule and R:GetModule("Codex")
+    if not (codex and type(codex.IsUpgrade) == "function" and tonumber(id)) then return nil end
+    local ok, v = pcall(codex.IsUpgrade, codex, tonumber(id))
+    if ok and type(v) == "boolean" then return v end
+    return nil
+end
+
+function PP.NotAnUpgrade(P, it)
+    local v = PP.CodexVerdict(it.id)
+    if v ~= nil then return not v end
+    local est = call(P.UpgradeEstimate, it)
+    return type(est) == "table" and type(est.percent) == "number" and est.percent <= 0
+end
+
 -- Plan steps that never make a dungeon worth running.
 local SKIP_KIND = { owned = true, unknown = true, completed = true, levelFirst = true, blocked = true }
 
@@ -294,9 +315,7 @@ function PP.Collect(P)
     end
     for _, a in ipairs(call(P.Plan) or {}) do
         local it = a.item
-        local est = type(it) == "table" and call(P.UpgradeEstimate, it)
-        -- the planner measured it and it is not better than what you wear: not an upgrade
-        local notBetter = type(est) == "table" and type(est.percent) == "number" and est.percent <= 0
+        local notBetter = type(it) == "table" and it.mode == "group" and PP.NotAnUpgrade(P, it)
         if type(it) == "table" and it.mode == "group" and not SKIP_KIND[a.kind] and (it.activity or it.dungeonID) and not notBetter then
             local d = PP.DungeonFor(it, all)
             local e = slot(d and d.name or labelName(it.activity))
@@ -617,7 +636,7 @@ for _, ev in ipairs({ "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_INSTA
 end
 
 ---------------------------------------------------------------------------
--- The strip: up to two dungeons, a dot per party member
+-- The strip: the top dungeon (a button opens the rest), a dot per party member
 --   filled gold = needs it, gold ring = could use it,
 --   grey ring = nothing there, faint grey ring = no RUIN report
 -- Quiet and Noticed sit still; Loud pulses orange and shows "Run it?";
@@ -762,17 +781,32 @@ end
 
 local function inCombat() return UnitAffectingCombat and UnitAffectingCombat("player") and true or false end
 
+-- Only the top dungeon shows; a toggle under it opens the rest (up to
+-- PP.STRIP_MAX in all). Open or closed is remembered (settings.partyStripOpen).
+PP.STRIP_MAX = 6
+local TOGGLE_H = 18
+
+function PP:StripOpen() return ns.db and ns.db.settings.partyStripOpen == true end
+function PP:ToggleStrip()
+    ns.db.settings.partyStripOpen = not PP:StripOpen()
+    PP:Draw(PP.rows or {}, PP.reporting or 0, PP.size or 0)
+end
+
 function PP:Draw(rows, reporting, size)
     if not (Wd and Wd.HudFrame and CreateFrame) then return end
-    local shown = {}
-    for _, r in ipairs(rows) do if r.tier and #shown < 2 then shown[#shown + 1] = r end end
-    if #shown == 0 or not PP:Enabled() then
+    local all = {}
+    for _, r in ipairs(rows) do if r.tier and #all < PP.STRIP_MAX then all[#all + 1] = r end end
+    if #all == 0 or not PP:Enabled() then
         if strip_ui then strip_ui:Hide() end
         return
     end
     if not strip_ui then
         strip_ui = Wd.HudFrame("RUIN_PartyPlanStrip", "Guild", ns.db.settings, "partyStripPos", { "TOPLEFT", UIParent, "TOPLEFT", 240, -160 })
-        strip_ui.rows = { buildRow(strip_ui, 1), buildRow(strip_ui, 2) }
+        strip_ui.rows = {}
+        strip_ui.toggle = Wd.Button(strip_ui, "", 120, function() PP:ToggleStrip() end)
+        strip_ui.toggle:SetHeight(TOGGLE_H)
+        strip_ui.toggle:SetPoint("BOTTOMRIGHT", -8, 6)
+        strip_ui.toggle.tip = "Show or hide the other dungeons your party could run"
         local t = 0
         strip_ui:SetScript("OnUpdate", function(self, elapsed)
             t = t + (elapsed or 0)
@@ -788,10 +822,22 @@ function PP:Draw(rows, reporting, size)
         end)
         PP.strip = strip_ui
     end
+    local open = PP:StripOpen()
+    local count = open and #all or 1
+    for i = #strip_ui.rows + 1, count do strip_ui.rows[i] = buildRow(strip_ui, i) end
     for i, r in ipairs(strip_ui.rows) do
-        if shown[i] then paintRow(r, shown[i], size); r:Show() else r.row = nil; r:Hide() end
+        if i <= count then paintRow(r, all[i], size); r:Show() else r.row = nil; r.pulse = false; r:Hide() end
     end
-    strip_ui:SetSize(STRIP_W, 16 + #shown * ROW_H + (#shown - 1) * ROW_GAP)
+    local more = #all - 1
+    strip_ui.more = more
+    local tog = strip_ui.toggle
+    if more > 0 then
+        tog:SetText(open and "Show less" or (more == 1 and "1 more dungeon" or (more .. " more dungeons")))
+        tog:Show()
+    else
+        tog:Hide()
+    end
+    strip_ui:SetSize(STRIP_W, 16 + count * ROW_H + (count - 1) * ROW_GAP + (more > 0 and (TOGGLE_H + 4) or 0))
     strip_ui:SetAlpha(inCombat() and 0.35 or 1)
     strip_ui:Show()
 end
