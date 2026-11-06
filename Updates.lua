@@ -23,6 +23,7 @@ Updates.NOTES = {
     { "0.5.3", {
         "Settings > Org keeps the key phrase hidden, so it never shows on a stream. Show key phrase reveals it for 20 seconds.",
         "With RUIN Exchange: Find: Crafters shows one row per recipe, with the online member who has the lowest skill (they gain the most from crafting it). Click their name for everyone else who can craft it, and switch on Offline crafters to include members who are offline. Whisper now uses the full name.",
+        "With RUIN Codex: click an item in the Dungeon Journal for its full tooltip. Each boss shows how often RUIN killed it and how often each listed drop dropped, and a new General list shows the greens and blues from the dungeon's mobs with their chance per mob looted.",
         "With RUIN Finder: the census mark on a zone's map is now just the winged R, in the corner with the member count. Continent and world maps still show a mark on each zone.",
     } },
     { "0.5.2", {
