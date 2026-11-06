@@ -10,6 +10,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 - Settings > Org hides the key phrase (it lets anyone join, and Settings may be on a stream). *Show key phrase* shows it; it hides again after 20 seconds, with *Hide key phrase*, or when you leave the page.
 - Setting a new key phrase no longer prints it in chat.
+- Map pins: `plain` pins draw their art alone (no ring or round mask) at its own aspect, and `corner` pins sit in the top-left corner of their own zone's map with a `label`, while continent maps still place them on the zone. New `Brand.MARK` (Media/EmblemMark.tga): the winged R with no disc or ring, for map marks.
 
 ## 0.5.2 — 2026-11-05
 

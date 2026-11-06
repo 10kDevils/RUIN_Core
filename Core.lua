@@ -25,6 +25,8 @@ ns.Brand = {
     EMBLEM = MEDIA .. "Emblem",     coords = { 0, 1, 16 / 128, 113 / 128 }, aspect = 256 / 97,
     TALL   = MEDIA .. "EmblemTall", tallCoords = { 3 / 128, 125 / 128, 7 / 128, 121 / 128 }, tallAspect = 122 / 114,
     ICON   = MEDIA .. "EmblemIcon",
+    -- the winged R alone, with no medallion disc or ring: map marks
+    MARK   = MEDIA .. "EmblemMark", markCoords = { 0, 1, 16 / 128, 113 / 128 }, markAspect = 256 / 97,
 }
 -- Draws the emblem on `parent`: kind "wide" (default) or "tall"; `height` in
 -- pixels, width follows the art. Returns the texture.

@@ -5,6 +5,12 @@
 --       icon = "Interface\\Icons\\INV_BannerPVP_01", color = { 0.77, 0.12, 0.23 },
 --       title = "Crossroads", text = "Held by Briar Fang", alpha = 1,
 --       minimap = true, worldmap = true })
+--
+-- Optional: plain = true draws the icon as it is (no colored ring, no round
+-- mask), with iconCoords = { l, r, t, b } and aspect = width / height;
+-- corner = true puts the pin in the top-left corner of the map when that
+-- zone's own map is open (a reference, not a place), with label beside it.
+-- On a continent or the world map it still sits on the zone.
 --   RUIN_API.Map:RemovePin("Muster", id)    RUIN_API.Map:ClearPins("Muster")
 --
 -- Positions are a uiMapID plus 0-1 coordinates, the same as
@@ -150,6 +156,13 @@ end
 local function makePin(parent)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(16, 16)
+    -- plain pins: the art alone, no ring and no round mask
+    f.art = f:CreateTexture(nil, "ARTWORK")
+    f.art:SetAllPoints()
+    f.art:Hide()
+    f.label = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    f.label:SetPoint("LEFT", f, "RIGHT", 4, 0)
+    f.label:Hide()
     f.ring = f:CreateTexture(nil, "BACKGROUND")
     f.ring:SetPoint("TOPLEFT", -2, 2)
     f.ring:SetPoint("BOTTOMRIGHT", 2, -2)
@@ -174,19 +187,39 @@ local function makePin(parent)
     return f
 end
 
-local function dressPin(f, p, size)
+local function dressPin(f, p, size, withLabel)
     f.pin = p
-    f:SetSize(size, size)
     local c = p.color or { 1, 0.82, 0 }
-    f.ring:SetVertexColor(c[1], c[2], c[3], 1)
-    f.icon:SetTexture(p.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    if p.plain then
+        f:SetSize(size * (p.aspect or 1), size)
+        f.ring:Hide(); f.icon:Hide()
+        f.art:SetTexture(p.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        local tc = p.iconCoords
+        if tc then f.art:SetTexCoord(tc[1], tc[2], tc[3], tc[4]) else f.art:SetTexCoord(0, 1, 0, 1) end
+        f.art:Show()
+    else
+        f:SetSize(size, size)
+        f.art:Hide()
+        f.ring:Show(); f.icon:Show()
+        f.ring:SetVertexColor(c[1], c[2], c[3], 1)
+        f.icon:SetTexture(p.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+    if withLabel and p.label and p.label ~= "" then
+        f.label:SetText(p.label)
+        f.label:Show()
+    else
+        f.label:Hide()
+    end
     f:SetAlpha(p.alpha or 1)
 end
+Map.DressPin = dressPin
 
 ---------------------------------------------------------------------------
 -- World map
 ---------------------------------------------------------------------------
 local worldPins = {}
+local cornerPins = {}       -- on the visible map, not the zoomable canvas
+Map.worldPins, Map.cornerPins = worldPins, cornerPins
 
 local function worldCanvas()
     if not WorldMapFrame then return nil end
@@ -201,15 +234,34 @@ drawWorld = function()
     local canvas = worldCanvas()
     if not canvas or not WorldMapFrame:IsShown() then
         for _, f in ipairs(worldPins) do f:Hide() end
+        for _, f in ipairs(cornerPins) do f:Hide() end
         return
     end
     local shown = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
     local cw, ch = canvas:GetWidth() or 0, canvas:GetHeight() or 0
     if not shown or cw <= 0 then return end
     local size = math.max(14, math.min(28, cw / 45))
-    local used = 0
+    local used, corners = 0, 0
+    local view = WorldMapFrame.ScrollContainer
+    if type(view) ~= "table" then view = canvas end
     eachPin(function(_, _, p)
         if p.worldmap == false then return end
+        if p.corner and p.map == shown then
+            -- the zone's own map: a reference in the corner of what you see
+            corners = corners + 1
+            local f = cornerPins[corners]
+            if not f then
+                f = makePin(view)
+                cornerPins[corners] = f
+            end
+            f:SetParent(view)
+            f:SetFrameLevel((view:GetFrameLevel() or 1) + 2100)
+            dressPin(f, p, 28, true)
+            f:ClearAllPoints()
+            f:SetPoint("TOPLEFT", view, "TOPLEFT", 12, -10 - (corners - 1) * 34)
+            f:Show()
+            return
+        end
         local x, y = Map:Translate(p.map, p.x, p.y, shown)
         if not x or x < 0 or x > 1 or y < 0 or y > 1 then return end
         used = used + 1
@@ -226,6 +278,7 @@ drawWorld = function()
         f:Show()
     end)
     for i = used + 1, #worldPins do worldPins[i]:Hide() end
+    for i = corners + 1, #cornerPins do cornerPins[i]:Hide() end
 end
 
 local hooked = false
@@ -233,7 +286,10 @@ local function hookWorldMap()
     if hooked or not WorldMapFrame then return end
     hooked = true
     WorldMapFrame:HookScript("OnShow", function() drawWorld() end)
-    WorldMapFrame:HookScript("OnHide", function() for _, f in ipairs(worldPins) do f:Hide() end end)
+    WorldMapFrame:HookScript("OnHide", function()
+        for _, f in ipairs(worldPins) do f:Hide() end
+        for _, f in ipairs(cornerPins) do f:Hide() end
+    end)
     if WorldMapFrame.OnMapChanged then
         pcall(hooksecurefunc, WorldMapFrame, "OnMapChanged", function() drawWorld() end)
     end
