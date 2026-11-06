@@ -6,6 +6,11 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.5.3 — 2026-11-06
+
+- Settings > Org hides the key phrase (it lets anyone join, and Settings may be on a stream). *Show key phrase* shows it; it hides again after 20 seconds, with *Hide key phrase*, or when you leave the page.
+- Setting a new key phrase no longer prints it in chat.
+
 ## 0.5.2 — 2026-11-05
 
 - Party dungeon strip: only the top dungeon shows; a button under it ("3 more dungeons") opens the rest, up to six, and *Show less* closes them. Open or closed is remembered (settings.partyStripOpen).

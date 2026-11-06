@@ -281,7 +281,8 @@ function UI:PromptNewKey()
         UI:ShowConfirm("Choose new key", ph and ("Change the org's key to the phrase\n\n%s\n\nThe old key and phrase stop working."):format(ns.Escape(ph))
             or "Change the org's key to a new random key?\n\nThe old key and phrase stop working.", function()
             local ok, e = ns.Org:ChooseNewKey(ph)
-            ns:Print(ok and (ph and ("New key phrase set: " .. ph .. ".") or "New random org key set.") or e)
+            -- the phrase itself stays off chat (someone may be streaming); Settings > Org shows it on request
+            ns:Print(ok and (ph and "New key phrase set. See it under Settings > Org with Show key phrase." or "New random org key set.") or e)
             UI:Refresh()
         end)
     end, true)
@@ -990,6 +991,23 @@ local function buildSettingsPanel(p)
     end)
     settings.blockWords.tip = "Words hidden from RUIN chat for the whole org"
     settings.keyCard = keyCard
+    -- The key phrase lets anyone join, so it stays hidden (someone may be streaming)
+    -- until you ask to see it, and hides again after 20 seconds or when you leave the page.
+    settings.reveal = Wd.Button(keyCard, "Show key phrase", 130, function()
+        settings.showPhrase = not settings.showPhrase
+        settings.phraseShownAt = GetTime()
+        if settings.showPhrase and C_Timer then
+            local at = settings.phraseShownAt
+            C_Timer.After(20, function()
+                if settings.showPhrase and settings.phraseShownAt == at then settings.showPhrase = false; refreshSettings() end
+            end)
+        end
+        refreshSettings()
+    end)
+    settings.reveal:SetPoint("TOPRIGHT", keyCard, "TOPRIGHT", -10, -6)
+    settings.reveal:SetHeight(20)
+    settings.reveal.tip = "The key phrase lets anyone join RUIN. It stays hidden so it never shows on stream; it hides again by itself."
+    keyCard:HookScript("OnHide", function() settings.showPhrase = false end)
 
     -- Your guild's settings (officers change them): who can create events.
     local gs = Wd.Card(orgPage)
@@ -1104,6 +1122,7 @@ local function buildSettingsPanel(p)
 end
 
 function UI:SelectSettingsTab(i) if settings.tabs then settings.tabs:Select(i) end end
+UI.settings = settings   -- for tests
 
 local function setEnabled(button, on)
     if on then button:Enable() else button:Disable() end
@@ -1116,7 +1135,7 @@ refreshSettings = function()
     if k then
         lines[#lines + 1] = ("Org: |cffffffff%s|r   key rev %d%s%s"):format(ns.Escape(k.org), k.rev,
             ns.Org:IsAdmin() and ("   " .. C.gold .. "you are the org admin|r") or "",
-            k.ph and ("   key phrase: " .. C.gold .. ns.Escape(k.ph) .. "|r") or "")
+            k.ph and ("   key phrase: " .. (settings.showPhrase and (C.gold .. ns.Escape(k.ph) .. "|r") or (GREY .. "hidden|r"))) or "")
     else
         lines[#lines + 1] = ns.Org:IsJoining() and (YELLOW .. "Joining with the key phrase...|r waiting for a RUIN member online to send the key.")
             or (RED .. "No org key yet.|r An officer shares it automatically, or use Import key (the key or the org's key phrase).")
@@ -1133,6 +1152,10 @@ refreshSettings = function()
     lines[#lines + 1] = "Guild bridge: " .. (bridge and (bridge == ns.playerGUID and "you"
         or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or GREY .. "none|r")
     settings.status:SetText(table.concat(lines, "\n"))
+    if settings.reveal then
+        settings.reveal:SetShown(k ~= nil and k.ph ~= nil)
+        settings.reveal:SetText(settings.showPhrase and "Hide key phrase" or "Show key phrase")
+    end
 
     -- Only the buttons that do something for you, in one or two rows.
     local admin = ns.Org:IsAdmin()

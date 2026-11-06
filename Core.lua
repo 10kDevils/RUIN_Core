@@ -364,7 +364,7 @@ local function handleKey(rest)
     elseif sub == "newkey" or sub == "phrase" or sub == "rotate" then
         if arg ~= "" then
             local ok, err = Org:ChooseNewKey(arg)
-            ns:Print(ok and ("New key phrase set: " .. ns.Org.NormalizePhrase(arg) .. ".") or err)
+            ns:Print(ok and "New key phrase set. See it under Settings > Org with Show key phrase." or err)
         else
             ns.UI:PromptNewKey()
         end

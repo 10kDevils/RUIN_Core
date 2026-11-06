@@ -20,6 +20,10 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.5.3", {
+        "Settings > Org keeps the key phrase hidden, so it never shows on a stream. Show key phrase reveals it for 20 seconds.",
+        "With RUIN Exchange: Find: Crafters shows one row per recipe, with the online member who has the lowest skill (they gain the most from crafting it). Click their name for everyone else who can craft it, and switch on Offline crafters to include members who are offline. Whisper now uses the full name.",
+    } },
     { "0.5.2", {
         "The party dungeon strip shows only the top dungeon now. The button under it opens the other dungeons your party could run, and Show less closes them again.",
         "With RUIN Codex, the party dungeon signal asks Codex whether a drop is an upgrade, so items whose spell damage or healing is on an \"Equip:\" line count for casters and healers.",
