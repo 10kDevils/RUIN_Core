@@ -181,9 +181,30 @@ local function makePin(parent)
         if p.text and p.text ~= "" then GameTooltip:AddLine(p.text, 1, 1, 1, true) end
         local dist = Map:DistanceText(p.map, p.x, p.y)
         if dist then GameTooltip:AddLine(dist, 0.7, 0.7, 0.7) end
+        if self.zoomTo then
+            local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(self.zoomTo)
+            GameTooltip:AddLine("Click to open " .. ((info and info.name) or "the zone") .. "'s map.", 0.6, 0.8, 1)
+        end
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    -- a zone mark on a continent or world map clicks through into the zone;
+    -- right-click zooms out, as it does anywhere on the map
+    f:SetScript("OnMouseUp", function(self, button)
+        local wmf = rawget(_G, "WorldMapFrame")
+        if not wmf or not self.zoomTo and button ~= "RightButton" then return end
+        if button == "RightButton" then
+            if wmf.NavigateToParentMap then pcall(wmf.NavigateToParentMap, wmf)
+            else
+                local cur = wmf.GetMapID and wmf:GetMapID()
+                local info = cur and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(cur)
+                if info and info.parentMapID and info.parentMapID > 0 and wmf.SetMapID then pcall(wmf.SetMapID, wmf, info.parentMapID) end
+            end
+        elseif wmf.SetMapID then
+            if GameTooltip then GameTooltip:Hide() end
+            pcall(wmf.SetMapID, wmf, self.zoomTo)
+        end
+    end)
     return f
 end
 
@@ -256,6 +277,7 @@ drawWorld = function()
             end
             f:SetParent(view)
             f:SetFrameLevel((view:GetFrameLevel() or 1) + 2100)
+            f.zoomTo = nil
             dressPin(f, p, 28, true)
             f:ClearAllPoints()
             f:SetPoint("TOPLEFT", view, "TOPLEFT", 12, -10 - (corners - 1) * 34)
@@ -272,7 +294,10 @@ drawWorld = function()
         end
         f:SetParent(canvas)
         f:SetFrameLevel((canvas:GetFrameLevel() or 1) + 2000)
-        dressPin(f, p, size)
+        -- a zone mark seen from a continent or the world: smaller, and a way into the zone
+        local zoneMark = p.corner and p.map ~= shown
+        f.zoomTo = zoneMark and p.map or nil
+        dressPin(f, p, (zoneMark and p.plain) and math.max(12, size * 0.7) or size)
         f:ClearAllPoints()
         f:SetPoint("CENTER", canvas, "TOPLEFT", x * cw, -y * ch)
         f:Show()
@@ -353,6 +378,7 @@ drawMinimap = function()
             f = makePin(Minimap)
             miniPins[used] = f
         end
+        f.zoomTo = nil
         dressPin(f, p, edge and 10 or 14)
         if edge then f:SetAlpha((p.alpha or 1) * 0.6) end
         f:ClearAllPoints()
