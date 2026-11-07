@@ -38,6 +38,27 @@ ns.THEMES = {
 }
 ns.THEMES.Org = ns.THEMES.Guild
 
+-- Color a button that opens another addon (Codex's "Post in Muster", "Quest
+-- route" to Pathfinder) with that addon's color; pass nil to make it plain again.
+function W.LinkTo(b, addon)
+    if not b then return b end
+    local t = addon and ns.THEMES[addon]
+    b.linkColor = t and t.color or nil
+    if b.hl then
+        local c = b.linkColor or W.SchemeOf(b).accent
+        b.hl:SetColorTexture(c[1], c[2], c[3], 0.10)
+    end
+    if W.PaintButton then W.PaintButton(b) end
+    return b
+end
+
+-- "|cffRRGGBB" in an addon's color, for text that leads into that addon.
+function W.AddonHex(addon)
+    local t = ns.THEMES[addon]
+    local c = t and t.color or { 1, 1, 1 }
+    return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+end
+
 local DEFAULT_THEME = { color = { 0.55, 0.58, 0.66 }, icon = "Interface\\Icons\\INV_Misc_QuestionMark", motif = nil, tagline = "" }
 
 -- A module may pass its own theme in RegisterModule's info table.

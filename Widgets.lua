@@ -199,6 +199,18 @@ end
 -- marks a button as selected (used by list-of-buttons pickers).
 local function paintButton(b)
     if not b.skinBg then return end
+    local link = b.linkColor      -- a button that opens another addon wears that addon's color
+    if link and b:IsEnabled() then
+        if b.locked or b.hover then
+            W.Skin(b, mix(P.panelHi, link, 0.42), 1, mix(link, { 1, 1, 1 }, 0.25))
+            b.label:SetTextColor(1, 1, 1)
+        else
+            W.Skin(b, mix(P.panelHi, link, 0.26), 1, link)
+            local t = mix(link, { 1, 1, 1 }, 0.6)
+            b.label:SetTextColor(t[1], t[2], t[3])
+        end
+        return
+    end
     if not b:IsEnabled() then
         W.Skin(b, "panel", 0.85, "border")
         b.label:SetTextColor(0.45, 0.50, 0.58)
@@ -229,6 +241,7 @@ function W.Button(parent, text, width, onClick)
     hl:SetAllPoints()
     local ac = W.SchemeOf(b).accent
     hl:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
+    b.hl = hl
     b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     -- b.tip = "what it does" shows on hover
