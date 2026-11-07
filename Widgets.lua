@@ -442,6 +442,80 @@ function W.FitScrollBar(sf)
     end
 end
 
+-- Scrolling that's easy to follow: the mouse wheel glides instead of
+-- jumping, a faint weave on the content moves with it (so you can see it
+-- move), and soft fades at the top and bottom edges say there's more.
+local MEDIA = "Interface\\AddOns\\RUIN_Core\\Media\\"
+function W.SmoothScroll(sf, step)
+    if not sf or sf.smoothScroll then return sf end
+    sf.smoothScroll = true
+    step = step or 64
+    local target
+    local function maxScroll(self) return (self.GetVerticalScrollRange and self:GetVerticalScrollRange()) or 0 end
+    local function glide(self, elapsed)
+        local cur = self:GetVerticalScroll() or 0
+        local diff = (target or cur) - cur
+        if math.abs(diff) < 0.5 then
+            self:SetVerticalScroll(target or cur)
+            self:SetScript("OnUpdate", nil)
+            return
+        end
+        self:SetVerticalScroll(cur + diff * math.min(1, (elapsed or 0.016) * 14))
+    end
+    sf:EnableMouseWheel(true)
+    sf:SetScript("OnMouseWheel", function(self, delta)
+        local range = maxScroll(self)
+        if range <= 0 then return end
+        target = math.max(0, math.min(range, (target or self:GetVerticalScroll() or 0) - delta * step))
+        self:SetScript("OnUpdate", glide)
+    end)
+    -- the scroll bar or a jump elsewhere resets where the glide aims
+    sf:HookScript("OnVerticalScroll", function(self, offset)
+        if not self:GetScript("OnUpdate") then target = offset end
+    end)
+    return sf
+end
+
+function W.ScrollDressing(sf, child, color)
+    if not sf or sf.dressed then return sf end
+    sf.dressed = true
+    local c = color or W.SchemeOf(sf).accent
+    if child then
+        local weave = child:CreateTexture(nil, "BACKGROUND", nil, -8)
+        weave:SetAllPoints(child)
+        weave:SetTexture(MEDIA .. "Weave", "REPEAT", "REPEAT")
+        if weave.SetHorizTile then weave:SetHorizTile(true); weave:SetVertTile(true) end
+        weave:SetVertexColor(c[1], c[2], c[3], 0.55)
+        sf.weave = weave
+    end
+    local over = CreateFrame("Frame", nil, sf)
+    over:SetAllPoints(sf)
+    over:SetFrameLevel((child and child:GetFrameLevel() or sf:GetFrameLevel()) + 6)
+    local bg = W.SchemeOf(sf).panel
+    local top = over:CreateTexture(nil, "OVERLAY")
+    top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(22)
+    top:SetTexture(MEDIA .. "Fade")
+    top:SetVertexColor(bg[1], bg[2], bg[3], 1)
+    local bottom = over:CreateTexture(nil, "OVERLAY")
+    bottom:SetPoint("BOTTOMLEFT"); bottom:SetPoint("BOTTOMRIGHT"); bottom:SetHeight(22)
+    bottom:SetTexture(MEDIA .. "Fade")
+    bottom:SetTexCoord(0, 1, 1, 0)
+    bottom:SetVertexColor(bg[1], bg[2], bg[3], 1)
+    sf.fadeTop, sf.fadeBottom = top, bottom
+    local function update(self)
+        local range = (self.GetVerticalScrollRange and self:GetVerticalScrollRange()) or 0
+        local at = self:GetVerticalScroll() or 0
+        top:SetShown(at > 2)
+        bottom:SetShown(range > 0 and at < range - 2)
+    end
+    sf:HookScript("OnVerticalScroll", update)
+    sf:HookScript("OnScrollRangeChanged", update)
+    sf:HookScript("OnShow", update)
+    sf.UpdateFades = update
+    update(sf)
+    return sf
+end
+
 function W.List(parent, rowHeight, setupRow, updateRow)
     local sf = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
     local child = CreateFrame("Frame", nil, sf)

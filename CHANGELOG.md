@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.5.3 — 2026-11-06
 
+- `W.SmoothScroll(scrollFrame, step)`: the mouse wheel glides instead of jumping. `W.ScrollDressing(scrollFrame, child)`: a faint weave on the content that moves as you scroll (Media/Weave.tga) and soft fades at the top and bottom edges while there's more to see (Media/Fade.tga).
 - `W.LinkTo(button, addon)`: a button that opens another addon wears that addon's color (Codex's *Post in Muster* in Muster orange, *Quest route* in Pathfinder green); `W.AddonHex(addon)` gives text the same color.
 - Settings > Org hides the key phrase (it lets anyone join, and Settings may be on a stream). *Show key phrase* shows it; it hides again after 20 seconds, with *Hide key phrase*, or when you leave the page.
 - Setting a new key phrase no longer prints it in chat.
