@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.5.3 — 2026-11-06
 
+- Floating windows (the party dungeon strip, guild chat, Finder's badge, Pathfinder's tracker) move the moment you press the left button, with no drag threshold to wait out, and the party strip moves from anywhere on it, its dungeon rows included (their tooltips still show). `hud:DragBy(child)` lets a child pass the press on; `hud.justMoved` tells a drag from a click.
 - Gold accents across every RUIN page, so controls stand out from the navy: buttons and dropdowns wear a gold edge (bright gold on hover, a gold fill when picked, like the selected dungeon), check boxes have a gold edge and a gold check, the open sub-tab is gold with a gold underline, and section titles (`W.Header`) are gold. Each page keeps its addon's color for its banner, cards and section rules, and buttons into another addon keep that addon's color.
 - Map: a zone mark (`corner` pin) seen on a continent or world map is drawn smaller and clicks through into its zone's map (its tooltip says so); right-click zooms out as anywhere on the map.
 - `W.SmoothScroll(scrollFrame, step)`: the mouse wheel glides instead of jumping. `W.ScrollDressing(scrollFrame, child)`: a faint weave on the content that moves as you scroll (Media/Weave.tga) and soft fades at the top and bottom edges while there's more to see (Media/Fade.tga).

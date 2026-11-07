@@ -1033,17 +1033,51 @@ function W.HudFrame(name, themeKey, store, key, point)
     else
         f:SetPoint(unpack(point or { "CENTER" }))
     end
+    -- Moving: it follows the mouse the moment the left button goes down (no
+    -- drag threshold to wait out), from anywhere on it; children that take the
+    -- mouse (rows with tooltips) pass the press on with f:DragBy(child).
     f:EnableMouse(true)
     f:SetMovable(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        if store then
-            local pt, _, rel, x, y = self:GetPoint()
-            store[key] = { point = pt, rel = rel, x = x, y = y }
+    -- the move ends when the button comes up, even if the module set its own
+    -- OnMouseUp (a click badge); f.justMoved says the press was a drag, not a click
+    local watcher = CreateFrame("Frame")
+    local startX, startY
+    local stopMove
+    local function startMove(self)
+        if self.moving then return end
+        self.moving, self.justMoved = true, false
+        startX, startY = self:GetLeft(), self:GetTop()
+        if GameTooltip then GameTooltip:Hide() end
+        self:StartMoving()
+        local down = rawget(_G, "IsMouseButtonDown")
+        if down then
+            watcher:SetScript("OnUpdate", function()
+                if not down("LeftButton") then stopMove(self) end
+            end)
         end
-    end)
+    end
+    function stopMove(self)
+        if not self.moving then return end
+        self.moving = false
+        watcher:SetScript("OnUpdate", nil)
+        self:StopMovingOrSizing()
+        local x, y = self:GetLeft(), self:GetTop()
+        self.justMoved = startX ~= nil and x ~= nil and (math.abs(x - startX) + math.abs((y or 0) - (startY or 0))) > 3
+        if store then
+            local pt, _, rel, px, py = self:GetPoint()
+            store[key] = { point = pt, rel = rel, x = px, y = py }
+        end
+    end
+    f.StartMove, f.StopMove = startMove, stopMove
+    f:SetScript("OnMouseDown", function(self, button) if button == "LeftButton" then startMove(self) end end)
+    f:SetScript("OnMouseUp", function(self, button) if button == "LeftButton" then stopMove(self) end end)
+    f:HookScript("OnHide", stopMove)
+    function f:DragBy(child)
+        child:EnableMouse(true)
+        child:HookScript("OnMouseDown", function(_, button) if button == "LeftButton" then startMove(f) end end)
+        child:HookScript("OnMouseUp", function(_, button) if button == "LeftButton" then stopMove(f) end end)
+        return child
+    end
     f:SetScale(hudScale())
     hudFrames[#hudFrames + 1] = f
     return f

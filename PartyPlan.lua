@@ -735,7 +735,8 @@ local function buildRow(parent, i)
     r.run:SetPoint("RIGHT", 0, 0)
     r.run.tip = "Say it in party chat"
     r:EnableMouse(true)
-    r:SetScript("OnEnter", function(self) PP.Tooltip(self, self.row) end)
+    if parent.DragBy then parent:DragBy(r) end          -- grab the strip anywhere, rows too
+    r:SetScript("OnEnter", function(self) if not parent.moving then PP.Tooltip(self, self.row) end end)
     r:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     return r
 end
