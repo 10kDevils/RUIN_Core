@@ -8,7 +8,7 @@
 --
 -- Optional: plain = true draws the icon as it is (no colored ring, no round
 -- mask), with iconCoords = { l, r, t, b } and aspect = width / height;
--- corner = true puts the pin in the top-left corner of the map when that
+-- corner = true puts the pin in the bottom-right corner of the map when that
 -- zone's own map is open (a reference, not a place), with label beside it.
 -- On a continent or the world map it still sits on the zone.
 --   RUIN_API.Map:RemovePin("Muster", id)    RUIN_API.Map:ClearPins("Muster")
@@ -279,8 +279,11 @@ drawWorld = function()
             f:SetFrameLevel((view:GetFrameLevel() or 1) + 2100)
             f.zoomTo = nil
             dressPin(f, p, 28, true)
+            -- bottom-right corner, the count to its left; more marks stack upward
+            f.label:ClearAllPoints()
+            f.label:SetPoint("RIGHT", f, "LEFT", -4, 0)
             f:ClearAllPoints()
-            f:SetPoint("TOPLEFT", view, "TOPLEFT", 12, -10 - (corners - 1) * 34)
+            f:SetPoint("BOTTOMRIGHT", view, "BOTTOMRIGHT", -14, 12 + (corners - 1) * 34)
             f:Show()
             return
         end
