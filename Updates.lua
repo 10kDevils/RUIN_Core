@@ -24,6 +24,7 @@ Updates.NOTES = {
         "Settings > Org keeps the key phrase hidden, so it never shows on a stream. Show key phrase reveals it for 20 seconds.",
         "With RUIN Exchange: Find: Crafters shows one row per recipe, with the online member who has the lowest skill (they gain the most from crafting it). Click their name for everyone else who can craft it, and switch on Offline crafters to include members who are offline. Whisper now uses the full name.",
         "With RUIN Codex: click an item in the Dungeon Journal for its full tooltip. Each boss shows how often RUIN killed it and how often each listed drop dropped, and a new General list shows the greens and blues from the dungeon's mobs with their chance per mob looted.",
+        "Gold accents on buttons, check boxes, tabs and section titles make every page easier to read.",
         "Buttons that open another RUIN addon wear its color: Post in Muster is orange, Quest route is Pathfinder green.",
         "With RUIN Codex: the Journal's sections fold (click a header); quests start folded.",
         "With RUIN Codex: every dungeon in the Journal shows everything that drops there, boss by boss, plus trash, read from QuestieDB while you play. Click an item for its tooltip.",

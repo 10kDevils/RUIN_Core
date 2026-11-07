@@ -76,6 +76,16 @@ local function mix(a, b, t)
 end
 W.Mix = mix
 
+-- Gold accents make the controls easy to pick out on navy: buttons and
+-- toggles wear a gold edge (bright gold on hover, a gold fill when picked),
+-- section titles are gold, and the open sub-tab is underlined in gold. Each
+-- page keeps its addon's color for its banner, cards and section rules.
+local GOLD = P.gold
+local GOLD_EDGE = mix(P.border, P.gold, 0.78)
+local GOLD_TEXT = mix(P.text, P.gold, 0.22)
+local GOLD_FILL = mix(P.panelHi, P.gold, 0.26)
+W.GOLD_EDGE, W.GOLD_FILL = GOLD_EDGE, GOLD_FILL
+
 W.CORE_SCHEME = { accent = P.glow, edge = P.border, panel = P.panel, panelHi = P.panelHi, bg = P.bg,
                   mark = P.gold, core = true }
 local schemes = {}
@@ -185,7 +195,7 @@ W.currentTheme = nil
 -- Section heading: light title with a short rule beneath in the page's color.
 function W.Header(parent, text)
     local fs = W.Label(parent, text, "GameFontNormal")
-    fs:SetTextColor(rgb("text"))
+    fs:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
     local rule = parent:CreateTexture(nil, "ARTWORK")
     local a = W.SchemeOf(parent).accent
     rule:SetColorTexture(a[1], a[2], a[3], 0.85)
@@ -215,14 +225,14 @@ local function paintButton(b)
         W.Skin(b, "panel", 0.85, "border")
         b.label:SetTextColor(0.45, 0.50, 0.58)
     elseif b.locked then
-        W.Skin(b, "panelHi", 1, "glow")
+        W.Skin(b, GOLD_FILL, 1, GOLD)
         b.label:SetTextColor(1, 1, 1)
     elseif b.hover then
-        W.Skin(b, "panelHi", 1, "glow")
+        W.Skin(b, mix(P.panelHi, GOLD, 0.12), 1, GOLD)
         b.label:SetTextColor(1, 1, 1)
     else
-        W.Skin(b, "panelHi", 1, "border")
-        b.label:SetTextColor(rgb("text"))
+        W.Skin(b, "panelHi", 1, GOLD_EDGE)
+        b.label:SetTextColor(GOLD_TEXT[1], GOLD_TEXT[2], GOLD_TEXT[3])
     end
 end
 W.PaintButton = paintButton
@@ -239,8 +249,7 @@ function W.Button(parent, text, width, onClick)
     W.Skin(b, "panelHi", 1, "border")
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    local ac = W.SchemeOf(b).accent
-    hl:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
+    hl:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.08)
     b.hl = hl
     b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -275,12 +284,11 @@ function W.Check(parent, label, getter, setter)
     c.box = CreateFrame("Frame", nil, c)
     c.box:SetSize(16, 16)
     c.box:SetPoint("LEFT", 3, 0)
-    W.Skin(c.box, "bg", 1, "border")
+    W.Skin(c.box, "bg", 1, GOLD_EDGE)
     c.mark = c.box:CreateTexture(nil, "OVERLAY")
     c.mark:SetPoint("TOPLEFT", 3, -3)
     c.mark:SetPoint("BOTTOMRIGHT", -3, 3)
-    local ac = W.SchemeOf(c).accent
-    c.mark:SetColorTexture(ac[1], ac[2], ac[3], 1)
+    c.mark:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
     c.label = W.Label(c, label)          -- a child, so it hides with the box
     c.label:SetPoint("LEFT", c, "RIGHT", -1, 0)
     if c.SetHitRectInsets then c:SetHitRectInsets(0, -((c.label:GetStringWidth() or 60) + 6), 0, 0) end
@@ -291,7 +299,7 @@ function W.Check(parent, label, getter, setter)
     end)
     -- c.tip = "One line saying what it does" shows on hover.
     c:SetScript("OnEnter", function(self)
-        W.SetBorder(self.box, "glow")
+        W.SetBorder(self.box, GOLD)
         if self.tip and GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(self.tip, 1, 1, 1, true)
@@ -299,7 +307,7 @@ function W.Check(parent, label, getter, setter)
         end
     end)
     c:SetScript("OnLeave", function(self)
-        W.SetBorder(self.box, "border")
+        W.SetBorder(self.box, GOLD_EDGE)
         if self.tip and GameTooltip then GameTooltip:Hide() end
     end)
     c.Refresh = function(self) self:SetChecked(getter() and true or false); sync() end
@@ -595,10 +603,10 @@ function W.SubTabs(parent, names, onSelect)
         local b = obj.buttons[i]
         local on = obj.selected == i
         if on then
-            W.Skin(b, "panelHi", 1, "glow")
-            b.text:SetTextColor(1, 1, 1)
+            W.Skin(b, mix(P.panelHi, GOLD, 0.14), 1, GOLD)
+            b.text:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
         elseif b.hover then
-            W.Skin(b, "panelHi", 0.9, "border")
+            W.Skin(b, "panelHi", 0.9, GOLD_EDGE)
             b.text:SetTextColor(rgb("text"))
         else
             W.Skin(b, "panel", 0.9, "border")
@@ -633,8 +641,7 @@ function W.SubTabs(parent, names, onSelect)
         b:SetHeight(24)
         W.Skin(b, "panel", 0.9, "border")
         b.line = b:CreateTexture(nil, "ARTWORK")
-        local ac = W.SchemeOf(b).accent
-        b.line:SetColorTexture(ac[1], ac[2], ac[3], 1)
+        b.line:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
         b.line:SetHeight(2)
         b.line:SetPoint("BOTTOMLEFT", 1, 1)
         b.line:SetPoint("BOTTOMRIGHT", -1, 1)
