@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.5.4 — 2026-11-08
+
+- The party dungeon strip hides while you're inside a dungeon or raid and comes back when you leave.
+
 ## 0.5.3 — 2026-11-06
 
 - No more "blocked from an action" (Disable / Ignore) popup for RUIN Core on every reload in WoW Forever. Forever runs on the Retail engine and keeps the combat log for Blizzard's UI, so Core now skips those events there too (Codex and Muster asked for them).

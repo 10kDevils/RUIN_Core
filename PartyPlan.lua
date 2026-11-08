@@ -805,7 +805,8 @@ function PP:Draw(rows, reporting, size)
     if not (Wd and Wd.HudFrame and CreateFrame) then return end
     local all = {}
     for _, r in ipairs(rows) do if r.tier and #all < PP.STRIP_MAX then all[#all + 1] = r end end
-    if #all == 0 or not PP:Enabled() then
+    -- out of the way inside a dungeon or raid; it comes back when you leave
+    if #all == 0 or not PP:Enabled() or PP.InInstance() then
         if strip_ui then strip_ui:Hide() end
         return
     end
@@ -873,6 +874,11 @@ function PP:SetSetting(key, on)
 end
 
 ns:RegisterEvent("PLAYER_REGEN_ENABLED", function() PP:Soon() end)
+
+-- entering or leaving an instance hides or brings back the strip
+local function redraw() PP:Draw(PP.rows or {}, PP.reporting or 0, PP.size or 0) end
+ns:RegisterEvent("PLAYER_ENTERING_WORLD", redraw)
+ns:RegisterEvent("ZONE_CHANGED_NEW_AREA", redraw)
 
 ---------------------------------------------------------------------------
 -- Refreshing my own report, group changes, commands
