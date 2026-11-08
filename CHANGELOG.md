@@ -9,6 +9,7 @@ Versioning: the third number counts the meaningful changes made since the second
 ## 0.5.4 — 2026-11-08
 
 - The party dungeon strip hides while you're inside a dungeon or raid and comes back when you leave.
+- A list tooltip that shows "Loading item..." fills in the name as soon as the game sends it.
 
 ## 0.5.3 — 2026-11-06
 

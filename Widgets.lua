@@ -404,9 +404,11 @@ end
 -- A row with row.link set shows that item's tooltip on hover; row.tip
 -- (a function(tooltip)) adds any other tooltip. list:SetEmptyText(text)
 -- shows a line when there is nothing to list.
+local tipRow     -- the list row whose tooltip is showing
 local function rowEnter(r)
     local ac = W.SchemeOf(r).accent
     r.zebra:SetColorTexture(ac[1], ac[2], ac[3], 0.14)
+    tipRow = r
     if (r.link or r.tip) and GameTooltip then
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
         if r.link then pcall(GameTooltip.SetHyperlink, GameTooltip, r.link) end
@@ -416,9 +418,22 @@ local function rowEnter(r)
 end
 
 local function rowLeave(r)
+    if tipRow == r then tipRow = nil end
     local c = W.SchemeOf(r).panelHi
     r.zebra:SetColorTexture(c[1], c[2], c[3], r.zebraAlpha or 0)
     if (r.link or r.tip) and GameTooltip then GameTooltip:Hide() end
+end
+
+-- Item names that arrive while a row's tooltip is open fill it in at once
+-- ("Loading item..." turns into the name), after the pages have redrawn.
+if ns.Subscribe then
+    ns:Subscribe("ITEMS_LOADED", function()
+        if not (tipRow and C_Timer) then return end
+        C_Timer.After(0, function()
+            local r = tipRow
+            if r and GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(r) and r:IsShown() then rowEnter(r) end
+        end)
+    end)
 end
 
 -- Show a scroll frame's scroll bar only when there is something to scroll.

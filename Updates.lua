@@ -23,6 +23,7 @@ Updates.NOTES = {
     { "0.5.4", {
         "The party dungeon strip hides while you're inside a dungeon or raid.",
         "With RUIN Exchange: opening the auction house scans every listing (once every 15 minutes), so prices fill in without searching. /ex scan asks for one.",
+        "With RUIN Exchange: Leveling uses current RUIN prices, and the Prices list shows the newest prices with their names.",
     } },
     { "0.5.3", {
         "No more Disable / Ignore popup for RUIN Core on reload in WoW Forever.",
