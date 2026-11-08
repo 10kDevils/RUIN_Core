@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.5.3 — 2026-11-06
 
+- A dropdown's hint tooltip opens to the left of the button, beside its list instead of over it.
 - Every button with the down arrow is a real dropdown: clicking it opens the list of choices under it (the current one highlighted) instead of stepping to the next choice. `W.Cycle` now opens the same list as `W.Dropdown` (Finder's listing, activity, filter and level pickers, Muster's type and size, Codex's weights, raid size, class and tag, Exchange's mode, Pathfinder's note type). Long lists show 14 at a time and scroll with the mouse wheel, starting with the current choice in view. `W.AttachMenu(button, spec)` gives any button the list.
 - Party dungeon strip: about a third narrower (it was sized for a button that rarely shows). *Run it?* / *Let's go* now sits in a short bar under each dungeon worth running, as wide as its name, dots and count; rows without it stay compact.
 - Floating windows (the party dungeon strip, guild chat, Finder's badge, Pathfinder's tracker) move the moment you press the left button, with no drag threshold to wait out, and the party strip moves from anywhere on it, its dungeon rows included (their tooltips still show). `hud:DragBy(child)` lets a child pass the press on; `hud.justMoved` tells a drag from a click.

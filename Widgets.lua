@@ -379,7 +379,10 @@ function W.MarkChoice(b, hint)
     end
     b:HookScript("OnEnter", function(self)
         if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        -- to the left of the button, beside the list that opens under it
+        GameTooltip:SetOwner(self, "ANCHOR_NONE")
+        GameTooltip:ClearAllPoints()
+        GameTooltip:SetPoint("TOPRIGHT", self, "TOPLEFT", -6, 0)
         if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
         GameTooltip:AddLine(hint or "Click to pick from a list.", 0.7, 0.75, 0.8)
         GameTooltip:Show()
