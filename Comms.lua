@@ -309,6 +309,8 @@ end
 -- the chat UI and caused "blocked from an action" popups).
 local otherChannelCount        -- defined with channel ordering, below
 local loadedAt = GetTime()
+local lastAnyJoin = -999       -- joins are spaced out: the server throttles quick ones
+local JOIN_SPACING = 4
 
 function Comms:JoinChannel(scope)
     local ch = channels[scope]
@@ -318,6 +320,12 @@ function Comms:JoinChannel(scope)
     -- Let the game's own channels (General, Trade...) take the low numbers
     -- first: right after login RUIN waits up to 45 seconds for one of them.
     if otherChannelCount() == 0 and GetTime() - loadedAt < 45 then return end
+    -- one join every few seconds (the org and guild channels used to go back to back)
+    if GetTime() - lastAnyJoin < JOIN_SPACING then
+        C_Timer.After(JOIN_SPACING - (GetTime() - lastAnyJoin) + 0.1, function() Comms:JoinChannel(scope) end)
+        return
+    end
+    lastAnyJoin = GetTime()
     ch.lastJoin = GetTime()
     if JoinTemporaryChannel then
         JoinTemporaryChannel(ch.name, ch.password)

@@ -21,6 +21,8 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
     { "0.5.3", {
+        "No more Disable / Ignore popup for RUIN Core on reload in WoW Forever.",
+        "Fixed \"You're doing that too fast\" when hovering players.",
         "Settings > Org keeps the key phrase hidden, so it never shows on a stream. Show key phrase reveals it for 20 seconds.",
         "With RUIN Exchange: Find: Crafters shows one row per recipe, with the online member who has the lowest skill (they gain the most from crafting it). Click their name for everyone else who can craft it, and switch on Offline crafters to include members who are offline. Whisper now uses the full name.",
         "With RUIN Codex: click an item in the Dungeon Journal for its full tooltip. Each boss shows how often RUIN killed it and how often each listed drop dropped, and a new General list shows the greens and blues from the dungeon's mobs with their chance per mob looted.",

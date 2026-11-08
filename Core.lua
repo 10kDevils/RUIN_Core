@@ -99,8 +99,12 @@ local RETAIL_RESTRICTED = {
     COMBAT_LOG_APPLY_FILTER_SETTINGS = true, COMBAT_LOG_REFILTER_ENTRIES = true,
     MINIMAP_PING = true, UNIT_PING_PIN_ADDED = true, UNIT_PING_PIN_REMOVED = true,
 }
+-- WoW Forever runs on the same engine (C_RestrictedActions) and keeps the
+-- same events for Blizzard's UI: registering one there raised the "blocked
+-- from an action" popup on every reload, blamed on RUIN Core.
 function ns:CanRegisterEvent(event)
-    return not (ns.CLIENT == "retail" and RETAIL_RESTRICTED[event])
+    local restricted = ns.CLIENT == "retail" or rawget(_G, "C_RestrictedActions") ~= nil
+    return not (restricted and RETAIL_RESTRICTED[event])
 end
 
 function ns:RegisterEvent(event, fn)
@@ -199,8 +203,22 @@ function ns:RefreshGuild()
     end
 end
 
+-- The roster request goes to the server, which answers "You're doing that
+-- too fast" when asked too often: one request per 15 seconds at most, and a
+-- request made sooner waits for the next free moment (several merge into one).
+local ROSTER_EVERY = 15
+local lastRoster, rosterQueued = -999, false
 function ns:RequestRoster()
     if not IsInGuild() then return end
+    local wait = ROSTER_EVERY - (GetTime() - lastRoster)
+    if wait > 0 then
+        if not rosterQueued then
+            rosterQueued = true
+            C_Timer.After(wait, function() rosterQueued = false; ns:RequestRoster() end)
+        end
+        return
+    end
+    lastRoster = GetTime()
     -- The game lists offline members only while "Show offline members" is
     -- on; RUIN's roster shows everyone, so it turns that on.
     if SetGuildRosterShowOffline and GetGuildRosterShowOffline and not GetGuildRosterShowOffline() then
@@ -250,7 +268,12 @@ ns:RegisterEvent("GUILD_ROSTER_UPDATE", function()
     scheduleRosterScan()
 end)
 
-ns:RegisterEvent("PLAYER_GUILD_UPDATE", function()
+-- This fires for every unit whose guild the game looks up, which includes
+-- each player you hover (their tooltip shows their guild). Only your own
+-- guild changing needs a fresh roster; asking on every hover made the server
+-- answer "You're doing that too fast".
+ns:RegisterEvent("PLAYER_GUILD_UPDATE", function(_, unit)
+    if unit ~= nil and unit ~= "player" then return end
     ns:RefreshGuild()
     ns:RequestRoster()
 end)
