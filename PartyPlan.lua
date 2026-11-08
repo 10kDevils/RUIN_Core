@@ -645,7 +645,12 @@ end
 local PIP = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Pip"
 local GOLD, ORANGE, GREY = { 0.90, 0.72, 0.38 }, { 0.94, 0.54, 0.29 }, { 0.44, 0.53, 0.72 }
 local ROW_H, ROW_GAP, PIPS = 28, 4, 5
-local STRIP_W = 296
+local CHIP_W, PIP_STEP, COUNT_W = 70, 17, 30
+-- a row is the dungeon chip, the five dots and the count; the strip is as
+-- wide as that, and "Run it?" sits in a short bar under a dungeon worth running
+local ROW_W = CHIP_W + 8 + (PIPS - 1) * PIP_STEP + 14 + 6 + COUNT_W
+local STRIP_W = ROW_W + 16
+local RUN_H = 16
 local strip_ui
 PP.PIP = PIP
 
@@ -712,12 +717,12 @@ end
 
 local function buildRow(parent, i)
     local r = CreateFrame("Frame", nil, parent)
-    r:SetSize(STRIP_W - 16, ROW_H)
-    r:SetPoint("TOPLEFT", 8, -8 - (i - 1) * (ROW_H + ROW_GAP))
+    r:SetSize(ROW_W, ROW_H)
+    r:SetPoint("TOPLEFT", 8, -8 - (i - 1) * (ROW_H + ROW_GAP))     -- PP:Draw places the rows
     r.glow = r:CreateTexture(nil, "BACKGROUND")
     r.glow:SetAllPoints()
     r.chip = r:CreateTexture(nil, "ARTWORK")
-    r.chip:SetSize(70, ROW_H - 4)
+    r.chip:SetSize(CHIP_W, ROW_H - 4)
     r.chip:SetPoint("LEFT", 0, 0)
     r.key = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     r.key:SetPoint("CENTER", r.chip, "CENTER", 0, 0)
@@ -726,13 +731,15 @@ local function buildRow(parent, i)
         local t = r:CreateTexture(nil, "ARTWORK")
         t:SetTexture(PIP)
         t:SetSize(14, 14)
-        t:SetPoint("LEFT", r.chip, "RIGHT", 8 + (p - 1) * 17, 0)
+        t:SetPoint("LEFT", r.chip, "RIGHT", 8 + (p - 1) * PIP_STEP, 0)
         r.pips[p] = t
     end
     r.count = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.count:SetPoint("LEFT", r.pips[PIPS], "RIGHT", 6, 0)
-    r.run = Wd.Button(r, "Run it?", 66, function() PP:Post(r.row, true) end)
-    r.run:SetPoint("RIGHT", 0, 0)
+    r.run = Wd.Button(r, "Run it?", ROW_W, function() PP:Post(r.row, true) end)
+    r.run:SetHeight(RUN_H)
+    r.run:SetPoint("TOPLEFT", r, "BOTTOMLEFT", 0, -2)
+    if r.run.label and r.run.label.SetFontObject then r.run.label:SetFontObject("GameFontHighlightSmall") end
     r.run.tip = "Say it in party chat"
     r:EnableMouse(true)
     if parent.DragBy then parent:DragBy(r) end          -- grab the strip anywhere, rows too
@@ -774,7 +781,8 @@ local function paintRow(r, row, size)
         end
     end
     r.count:SetText(("%d/%d"):format(row.need, size))
-    r.run:SetShown(lvl >= 3)
+    r.runShown = lvl >= 3
+    r.run:SetShown(r.runShown)
     r.run:SetText(lvl >= 4 and "Let's go" or "Run it?")
     if r.run.SetEnabled then r.run:SetEnabled(not PP.ChatLocked()) end
     r.pulse = lvl == 3
@@ -826,9 +834,19 @@ function PP:Draw(rows, reporting, size)
     local open = PP:StripOpen()
     local count = open and #all or 1
     for i = #strip_ui.rows + 1, count do strip_ui.rows[i] = buildRow(strip_ui, i) end
+    local y = 8
     for i, r in ipairs(strip_ui.rows) do
-        if i <= count then paintRow(r, all[i], size); r:Show() else r.row = nil; r.pulse = false; r:Hide() end
+        if i <= count then
+            paintRow(r, all[i], size)
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", 8, -y)
+            r:Show()
+            y = y + ROW_H + (r.runShown and (RUN_H + 2) or 0) + ROW_GAP
+        else
+            r.row = nil; r.pulse = false; r:Hide()
+        end
     end
+    y = y - ROW_GAP
     local more = #all - 1
     strip_ui.more = more
     local tog = strip_ui.toggle
@@ -838,7 +856,7 @@ function PP:Draw(rows, reporting, size)
     else
         tog:Hide()
     end
-    strip_ui:SetSize(STRIP_W, 16 + count * ROW_H + (count - 1) * ROW_GAP + (more > 0 and (TOGGLE_H + 4) or 0))
+    strip_ui:SetSize(STRIP_W, y + 8 + (more > 0 and (TOGGLE_H + 4) or 0))
     strip_ui:SetAlpha(inCombat() and 0.35 or 1)
     strip_ui:Show()
 end
