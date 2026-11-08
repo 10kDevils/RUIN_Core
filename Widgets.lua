@@ -381,7 +381,7 @@ function W.MarkChoice(b, hint)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
-        GameTooltip:AddLine(hint or "Click for the next choice, right-click to go back.", 0.7, 0.75, 0.8)
+        GameTooltip:AddLine(hint or "Click to pick from a list.", 0.7, 0.75, 0.8)
         GameTooltip:Show()
     end)
     b:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -390,24 +390,10 @@ end
 
 -- Button that cycles through options: left-click next, right-click previous.
 -- A small chevron marks it as a choice, and hovering says how it works.
+-- A button with the down arrow is a dropdown: W.Cycle is kept for the
+-- modules that ask for it and opens the same list as W.Dropdown.
 function W.Cycle(parent, width, options, getter, setter, prefix)
-    local b = W.Button(parent, "", width)
-    W.MarkChoice(b)
-    -- b.format = function(value) return "Shown text" end  (then b:Refresh())
-    local function show()
-        local v = getter() or options[1]
-        b:SetText((prefix or "") .. tostring(b.format and b.format(v) or v))
-    end
-    b:SetScript("OnClick", function(_, mouse)
-        local cur, idx = getter(), 1
-        for i, v in ipairs(options) do if v == cur then idx = i end end
-        idx = (mouse == "RightButton") and (idx - 2) % #options + 1 or idx % #options + 1
-        setter(options[idx])
-        show()
-    end)
-    b.Refresh = show
-    show()
-    return b
+    return W.Dropdown(parent, width, options, getter, setter, prefix)
 end
 
 -- Scrolling list. setupRow(row) creates the row's regions once;
@@ -784,33 +770,36 @@ function W.Popover(button, width, height, title)
 end
 
 ---------------------------------------------------------------------------
--- Dropdown: a button showing the current choice; clicking it opens the list
--- of choices underneath (click one, or the button again to close).
---   local d = W.Dropdown(parent, 130, options, getter, setter, prefix)
--- options: a list of values, or a function returning one. d.format(value)
--- gives the shown text; d:Refresh() after the value changes elsewhere.
+-- A list that opens under a button (anything with the down arrow):
+--   W.AttachMenu(button, { items = function() return list end,
+--       label = function(v) return text end, current = function() return v end,
+--       pick = function(v) ... end, width = n })
+-- Click the button to open or close it; click a choice to pick it. Long
+-- lists show 14 at a time and scroll with the mouse wheel, starting with the
+-- current choice in view. It closes a moment after the mouse leaves it.
 ---------------------------------------------------------------------------
-function W.Dropdown(parent, width, options, getter, setter, prefix)
-    local b = W.Button(parent, "", width)
-    W.MarkChoice(b, "Click to pick from a list.")
+local MENU_ROWS = 14
+function W.AttachMenu(b, spec)
+    local width = spec.width or (b.GetWidth and b:GetWidth()) or 160
     local menu = W.Card(b)
     W.Skin(menu, "panel", 1, "glow")
     menu:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
     if menu.SetFrameStrata then menu:SetFrameStrata("DIALOG") end
     menu:EnableMouse(true)
     menu:Hide()
+    menu.offset = 0
+    menu.more = W.Label(menu, "", "GameFontDisableSmall")
+    menu.more:SetPoint("BOTTOMLEFT", 8, 4)
     b.menu, b.items = menu, {}
-    local function opts() return (type(options) == "function" and options()) or options or {} end
-    local function label(v) return tostring(b.format and b.format(v) or v) end
-    function b:Refresh()
-        local v = getter()
-        if v == nil then v = opts()[1] end
-        self:SetText((prefix or "") .. (v ~= nil and label(v) or ""))
-    end
-    function b:Open()
-        local list = opts()
-        local cur = getter()
-        for i, v in ipairs(list) do
+    local function list() return (spec.items and spec.items()) or {} end
+    local function label(v) return spec.label and spec.label(v) or tostring(v) end
+    local function draw()
+        local all = list()
+        local cur = spec.current and spec.current()
+        local n = math.min(#all, MENU_ROWS)
+        menu.offset = math.max(0, math.min(menu.offset, #all - n))
+        for i = 1, n do
+            local v = all[menu.offset + i]
             local it = b.items[i]
             if not it then
                 it = W.Button(menu, "", width - 8)
@@ -825,18 +814,61 @@ function W.Dropdown(parent, width, options, getter, setter, prefix)
             if v == cur then it:LockHighlight() else it:UnlockHighlight() end
             it:SetScript("OnClick", function()
                 menu:Hide()
-                setter(v)
-                b:Refresh()
+                spec.pick(v)
             end)
             it:Show()
         end
-        for i = #list + 1, #b.items do b.items[i]:Hide() end
-        menu:SetSize(width, 8 + #list * 21)
+        for i = n + 1, #b.items do b.items[i]:Hide() end
+        local extra = #all > n
+        menu.more:SetText(extra and ("%d-%d of %d  ·  scroll for more"):format(menu.offset + 1, menu.offset + n, #all) or "")
+        menu:SetSize(width, 8 + n * 21 + (extra and 14 or 0))
+    end
+    if menu.EnableMouseWheel then menu:EnableMouseWheel(true) end
+    menu:SetScript("OnMouseWheel", function(_, delta) menu.offset = menu.offset - delta * 3; draw() end)
+    menu:SetScript("OnUpdate", function(self)
+        if self.IsMouseOver and not self:IsMouseOver(10, -10, -10, 10) and not b:IsMouseOver() then
+            self.away = (self.away or 0) + 1
+            if self.away > 75 then self:Hide() end
+        else
+            self.away = 0
+        end
+    end)
+    function b:Open()
+        local all, cur = list(), spec.current and spec.current()
+        menu.offset = 0
+        for i, v in ipairs(all) do
+            if v == cur and i > MENU_ROWS then menu.offset = i - math.floor(MENU_ROWS / 2) end
+        end
+        menu.away = 0
+        draw()
         menu:Show()
     end
+    function b:CloseMenu() menu:Hide() end
     b:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else b:Open() end end)
     b:HookScript("OnHide", function() menu:Hide() end)
-    b:Refresh()
+    return b
+end
+
+---------------------------------------------------------------------------
+-- Dropdown: a button showing the current choice; clicking it opens the list
+-- of choices underneath (click one, or the button again to close).
+--   local d = W.Dropdown(parent, 130, options, getter, setter, prefix)
+-- options: a list of values, or a function returning one. d.format(value)
+-- gives the shown text; d:Refresh() (or d.Refresh()) after the value changes elsewhere.
+---------------------------------------------------------------------------
+function W.Dropdown(parent, width, options, getter, setter, prefix)
+    local b = W.Button(parent, "", width)
+    W.MarkChoice(b, "Click to pick from a list.")
+    local function opts() return (type(options) == "function" and options()) or options or {} end
+    local function label(v) return tostring(b.format and b.format(v) or v) end
+    b.Refresh = function()
+        local v = getter()
+        if v == nil then v = opts()[1] end
+        b:SetText((prefix or "") .. (v ~= nil and label(v) or ""))
+    end
+    W.AttachMenu(b, { width = width, items = opts, label = label, current = getter,
+                      pick = function(v) setter(v); b.Refresh() end })
+    b.Refresh()
     return b
 end
 
