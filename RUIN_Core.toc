@@ -13,6 +13,7 @@
 Core.lua
 Util.lua
 Items.lua
+Throttle.lua
 Widgets.lua
 Theme.lua
 Map.lua

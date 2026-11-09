@@ -435,6 +435,8 @@ SlashCmdList.RUIN = function(input)
         ns.PartyPlan:Command(rest)
     elseif cmd == "news" then
         ns.Updates:ShowLetter(nil)
+    elseif cmd == "toofast" then
+        ns.Throttle.Show()
     elseif cmd == "status" then
         ns:PrintStatus()
     elseif cmd == "versions" then

@@ -10,6 +10,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 - The party dungeon strip hides while you're inside a dungeon or raid and comes back when you leave.
 - A list tooltip that shows "Loading item..." fills in the name as soon as the game sends it.
+- Item lookups go to the server a few at a time (8 every half second) instead of all at once. A dungeon's loot list or a full price list used to ask for hundreds of items in one go. Codex and Exchange use the same queue.
+- When the server says "You're doing that too fast", RUIN prints which requests were made in the 4 seconds before and which addon made them (RUIN's or any other), so the cause can be found. `/ruin toofast` lists the last ten.
 
 ## 0.5.3 — 2026-11-06
 

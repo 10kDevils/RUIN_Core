@@ -35,13 +35,49 @@ local function remember(id, name, quality)
 end
 Items.Remember = remember
 
-local function request(id)
+-- Asking for an item the client doesn't have goes to the server. A long
+-- loot list or a full price list asks for hundreds at once, so requests
+-- queue up and go out a few at a time.
+local REQ_PER_TICK, REQ_TICK = 8, 0.5
+local queue, queued, draining = {}, {}, false
+local function send(id)
     if C_Item and C_Item.RequestLoadItemDataByID then
         pcall(C_Item.RequestLoadItemDataByID, id)
     elseif GetItemInfo then
         pcall(GetItemInfo, id)
     end
 end
+local function drain()
+    local n = 0
+    while n < REQ_PER_TICK and #queue > 0 do
+        local id = table.remove(queue, 1)
+        queued[id] = nil
+        send(id)
+        n = n + 1
+    end
+    -- after sending, wait a tick before the next ones even if the queue is
+    -- empty now, so a stream of single requests is held to the same pace
+    if n > 0 and C_Timer then C_Timer.After(REQ_TICK, drain) else draining = false end
+end
+local function request(id)
+    if not id or queued[id] or failed[id] then return end
+    if not C_Timer then return send(id) end
+    queued[id] = true
+    queue[#queue + 1] = id
+    if not draining then draining = true; drain() end
+end
+Items.Request = request
+function Items.Pending() return #queue end
+
+-- Does the client have the item already (no server request needed)?
+local function isCached(id)
+    if C_Item and C_Item.IsItemDataCachedByID then
+        local ok, v = pcall(C_Item.IsItemDataCachedByID, id)
+        if ok then return v and true or false end
+    end
+    return true        -- older clients: GetItemInfo is the only way to tell
+end
+Items.IsCached = isCached
 
 -- "|cff0070dd" for a quality (1 = white, 2 = green, 3 = blue, 4 = purple ...).
 function Items.QualityHex(q)
@@ -67,7 +103,9 @@ function Items.Info(id)
     id = tonumber(id)
     if not id then return nil end
     local name, link, quality
-    if GetItemInfo then name, link, quality = GetItemInfo(id) end
+    -- an uncached item would go straight to the server through GetItemInfo;
+    -- it goes through the queue instead
+    if GetItemInfo and isCached(id) then name, link, quality = GetItemInfo(id) end
     if name then
         remember(id, name, quality)
         return name, link, quality
