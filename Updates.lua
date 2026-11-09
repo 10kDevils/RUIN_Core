@@ -22,6 +22,7 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 Updates.NOTES = {
     { "0.5.4", {
         "The party dungeon strip hides while you're inside a dungeon or raid.",
+        "With RUIN Pathfinder: City of Dalaran's quest route has every quest, in order, from the attunement to the follow-ups.",
         "With RUIN Exchange: opening the auction house scans every listing (once every 15 minutes), so prices fill in without searching. /ex scan asks for one.",
         "With RUIN Exchange: your profession window shows each recipe's cost per skill point.",
         "With RUIN Exchange: Leveling uses current RUIN prices, and the Prices list shows the newest prices with their names.",
