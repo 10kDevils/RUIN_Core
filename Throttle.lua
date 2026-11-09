@@ -22,7 +22,7 @@ local function caller()
     local st = debugstack and debugstack(2, 14, 0) or ""
     for line in st:gmatch("[^\n]+") do
         if not line:find("Throttle.lua", 1, true) then
-            local name = line:match("AddOns[/\\]([^/\\]+)[/\\]")
+            local name = line:match("AddOns[/\\]([^/\\]+)[/\\]") or line:match("[/\\](RUIN_%w+)[/\\]")
             if name and name ~= "!BugGrabber" and name ~= "BugSack" then return name end
         end
     end
@@ -31,6 +31,10 @@ end
 
 local function note(api)
     head = head % KEEP + 1
+    if Throttle.selfSending then        -- RUIN's own send queue, marked by Comms.lua
+        calls[head] = { t = GetTime(), api = api, who = ADDON }
+        return
+    end
     local ok, who = pcall(caller)
     calls[head] = { t = GetTime(), api = api, who = ok and who or "?" }
 end
@@ -79,6 +83,15 @@ function Throttle.Recent(now)
     return order
 end
 
+-- addon messages other addons sent in the last `window` seconds
+function Throttle.OthersSending(window)
+    local now, n = GetTime(), 0
+    for _, c in pairs(calls) do
+        if now - c.t <= window and c.api:find("SendAddonMessage", 1, true) and not tostring(c.who):find("^RUIN") then n = n + 1 end
+    end
+    return n
+end
+
 local function isTooFast(msg)
     if type(msg) ~= "string" then return false end
     if ERR_GENERIC_THROTTLE and msg == ERR_GENERIC_THROTTLE then return true end
@@ -97,6 +110,7 @@ end
 
 function Throttle.OnError(msg)
     if not isTooFast(msg) then return end
+    if ns.Comms and ns.Comms.Backoff then ns.Comms:Backoff() end     -- RUIN goes quiet a moment either way
     local list = Throttle.Recent()
     local text = describe(list)
     if ns.db then

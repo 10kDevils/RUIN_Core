@@ -23,6 +23,7 @@ Updates.NOTES = {
     { "0.5.4", {
         "The party dungeon strip hides while you're inside a dungeon or raid.",
         "Item lookups go out a few at a time, and \"You're doing that too fast\" now says what was asked just before (/ruin toofast).",
+        "RUIN waits while other addons are sending and slows down after \"too fast\", so the two don't trip the server's limit together.",
         "With RUIN Pathfinder: City of Dalaran's quest route has every quest, in order, from the attunement to the follow-ups.",
         "With RUIN Pathfinder: a quest route for every zone (with Questie), all routes in the Guide's list, and a checkbox to hide the ones you don't want there.",
         "With RUIN Exchange: opening the auction house scans every listing (once every 15 minutes), so prices fill in without searching. /ex scan asks for one.",

@@ -10,7 +10,13 @@ local SEP = "\030"            -- record separator between frame fields
 local FRAME_VERSION = "1"
 local MAX_MSG = 250           -- stay under the 255-byte addon message cap
 local TICK = 0.1
-local TOKEN_CAP, TOKEN_RATE = 10, 1.0   -- Blizzard allows ~10 burst, ~1/s per prefix
+-- The server's addon message limit is shared by every addon on the
+-- character, so RUIN keeps well under it: a small burst, under one a
+-- second, and it backs off when the server says "too fast" or when other
+-- addons are busy sending.
+local TOKEN_CAP, TOKEN_RATE = 6, 1.0
+local BACKOFF_PAUSE, BACKOFF_FOR = 6, 90     -- after "too fast": silent 6 s, half speed for 90 s
+local OTHERS_WINDOW, OTHERS_MAX = 3, 4       -- other addons sent this many in 3 s: wait
 local QUEUE_MAX_AGE = 60
 local PARTIAL_MAX_AGE = 90     -- long messages (shared routes) arrive at about one part a second
 local PARTIALS_PER_SENDER, PARTIALS_MAX = 8, 400
@@ -141,11 +147,32 @@ local function isFailure(result)
     return result == false or (type(result) == "number" and result ~= 0)
 end
 
-local function flush()
-    if tokens < TOKEN_CAP then
-        tokens = math.min(TOKEN_CAP, tokens + TOKEN_RATE * TICK)
-    end
+local pauseUntil, slowUntil = 0, 0
+-- "too fast" from the server (Throttle.lua) or a throttled send: stop a moment, then go slower
+function Comms:Backoff()
     local now = GetTime()
+    tokens = 0
+    pauseUntil = now + BACKOFF_PAUSE
+    slowUntil = now + BACKOFF_FOR
+end
+function Comms:Pace()
+    local now = GetTime()
+    return { paused = now < pauseUntil, slow = now < slowUntil, tokens = tokens }
+end
+
+local function othersBusy()
+    local T = ns.Throttle
+    return T and T.OthersSending and T.OthersSending(OTHERS_WINDOW) >= OTHERS_MAX
+end
+
+local function flush()
+    local now = GetTime()
+    if now < pauseUntil then return end
+    if tokens < TOKEN_CAP then
+        local rate = now < slowUntil and TOKEN_RATE / 2 or TOKEN_RATE
+        tokens = math.min(TOKEN_CAP, tokens + rate * TICK)
+    end
+    if tokens >= 1 and othersBusy() then return end
     for p = 1, #queues do
         local queue = queues[p]
         local i = 1
@@ -163,9 +190,12 @@ local function flush()
                 elseif reason == "wait" then
                     i = i + 1
                 else
+                    local T = ns.Throttle
+                    if T then T.selfSending = true end
                     local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, chatType, target)
+                    if T then T.selfSending = false end
                     if isThrottled(result) then
-                        tokens = 0
+                        Comms:Backoff()
                         return
                     end
                     if isLockdown(result) then

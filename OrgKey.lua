@@ -595,25 +595,37 @@ ns:Subscribe("LOGIN", function() C_Timer.After(3, function() Org:ApplyChannels()
 local function scheduleGuildShare()
     if guildSharePending then return end
     guildSharePending = true
-    C_Timer.After(2 + math.random() * 6, function()
+    -- shared in the last 30 s: wait until then (a late joiner asking right
+    -- after a share used to be dropped until their next hello)
+    local wait = math.max(0, guildShareSuppressedUntil - GetTime())
+    C_Timer.After(wait + 2 + math.random() * 6, function()
         guildSharePending = false
         local k = Org:Get()
-        if not k or GetTime() < guildShareSuppressedUntil then return end
+        if not k then return end
         if not (Org:MyGuildInOrg() and Org:AmOfficer()) then return end
         ns.Comms:Send("KEY", { k = memberCopy(k) }, "GUILD", nil, ns.Comms.PRIORITY.BULK)
         guildShareSuppressedUntil = GetTime() + 30
     end)
 end
 
-local function scheduleOfficerShare(name)
+local function scheduleOfficerShare(name, tries)
     local norm = ns.NormalizeName(name)
-    if officerShareCooldown[norm] and GetTime() < officerShareCooldown[norm] then return end
+    if not tries and officerShareCooldown[norm] and GetTime() < officerShareCooldown[norm] then return end
     officerShareCooldown[norm] = GetTime() + 120
     C_Timer.After(1 + math.random() * 3, function()
         local k = Org:Get()
         if not (k and k.oc and Org:AmOfficer()) then return end
         local entry = ns.roster[norm]
-        if not (entry and Org:IsOfficerRank(entry.rank)) then return end
+        if not entry then
+            -- someone new to the guild isn't in our roster yet: refresh it and
+            -- look again (the roster is asked for at most every 15 seconds)
+            if (tries or 0) < 3 then
+                ns:RequestRoster()
+                C_Timer.After(16, function() scheduleOfficerShare(name, (tries or 0) + 1) end)
+            end
+            return
+        end
+        if not Org:IsOfficerRank(entry.rank) then return end
         ns.Comms:Send("OKEY", { org = k.org, rev = k.rev, oc = k.oc }, "PEER", name, ns.Comms.PRIORITY.BULK)
     end)
 end
