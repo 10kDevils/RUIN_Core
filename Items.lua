@@ -38,7 +38,11 @@ Items.Remember = remember
 -- Asking for an item the client doesn't have goes to the server. A long
 -- loot list or a full price list asks for hundreds at once, so requests
 -- queue up and go out a few at a time.
-local REQ_PER_TICK, REQ_TICK = 8, 0.5
+-- WoW Forever answers "too fast" at about a dozen lookups a second, so
+-- RUIN asks for 4 a second, and 1 a second for a while after "too fast".
+local REQ_PER_TICK, REQ_TICK = 1, 0.25
+local slowUntil = 0
+function Items.Backoff() slowUntil = GetTime() + 90 end
 local queue, queued, draining = {}, {}, false
 local function send(id)
     if C_Item and C_Item.RequestLoadItemDataByID then
@@ -57,7 +61,7 @@ local function drain()
     end
     -- after sending, wait a tick before the next ones even if the queue is
     -- empty now, so a stream of single requests is held to the same pace
-    if n > 0 and C_Timer then C_Timer.After(REQ_TICK, drain) else draining = false end
+    if n > 0 and C_Timer then C_Timer.After(GetTime() < slowUntil and 1 or REQ_TICK, drain) else draining = false end
 end
 local function request(id)
     if not id or queued[id] or failed[id] then return end
@@ -98,7 +102,8 @@ end
 
 -- name, link, quality for an item ID (or link). Missing data is requested;
 -- the remembered name and quality stand in until it arrives.
-function Items.Info(id)
+-- quiet: don't ask the game for it (for scanning thousands of items)
+function Items.Info(id, quiet)
     if type(id) == "string" then id = tonumber(id:match("item:(%d+)") or id) end
     id = tonumber(id)
     if not id then return nil end
@@ -110,10 +115,10 @@ function Items.Info(id)
         remember(id, name, quality)
         return name, link, quality
     end
-    request(id)
     local c = cache()
     local e = c and c[id]
-    if e then return e.n, nil, e.q end
+    if e then return e.n, nil, e.q end      -- a remembered name will do; no need to ask
+    if not quiet then request(id) end
     return nil
 end
 

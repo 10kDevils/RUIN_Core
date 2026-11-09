@@ -111,6 +111,7 @@ end
 function Throttle.OnError(msg)
     if not isTooFast(msg) then return end
     if ns.Comms and ns.Comms.Backoff then ns.Comms:Backoff() end     -- RUIN goes quiet a moment either way
+    if ns.Items and ns.Items.Backoff then ns.Items.Backoff() end
     local list = Throttle.Recent()
     local text = describe(list)
     if ns.db then
