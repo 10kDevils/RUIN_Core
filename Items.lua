@@ -102,6 +102,16 @@ end
 
 -- name, link, quality for an item ID (or link). Missing data is requested;
 -- the remembered name and quality stand in until it arrives.
+-- An item's id from its name, among the items RUIN has seen (nil if none)
+function Items.IdByName(name)
+    local c = cache()
+    if not (c and type(name) == "string") then return nil end
+    for id, e in pairs(c) do
+        if type(e) == "table" and e.n == name then return id end
+    end
+    return nil
+end
+
 -- quiet: don't ask the game for it (for scanning thousands of items)
 function Items.Info(id, quiet)
     if type(id) == "string" then id = tonumber(id:match("item:(%d+)") or id) end
