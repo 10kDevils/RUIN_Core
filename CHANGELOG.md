@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.5.4 — 2026-11-08
 
+- Item names and details come from C_Item when the old global item functions aren't there (the Retail 12 client WoW Forever runs on), so items stop showing as "Loading item...".
 - The party dungeon strip hides while you're inside a dungeon or raid and comes back when you leave.
 - A list tooltip that shows "Loading item..." fills in the name as soon as the game sends it.
 - Item lookups go to the server 4 a second instead of all at once, and 1 a second for a minute and a half after "too fast" (Forever answers "too fast" at about a dozen a second). An item RUIN already knows the name of isn't looked up again. A dungeon's loot list or a full price list used to ask for hundreds of items in one go. Codex and Exchange use the same queue.
