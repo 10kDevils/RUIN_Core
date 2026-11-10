@@ -135,6 +135,8 @@ function Map:ZoneMapID(name)
                 end
             end
         end
+        -- asked before the map data was ready: try again next time
+        if next(zoneIDs) == nil then zoneIDs = nil; return nil end
     end
     return zoneIDs[name]
 end
