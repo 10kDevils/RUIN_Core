@@ -52,12 +52,47 @@ function Map:Translate(fromMap, x, y, toMap)
     return nil
 end
 
+-- A map point in world yards: continent, north, west (the game's own world
+-- coordinates). nil when the client can't place it.
+function Map:WorldPos(map, x, y)
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return nil end
+    local ok, cont, pos = pcall(C_Map.GetWorldPosFromMapPos, map, CreateVector2D(x, y))
+    if not ok or not cont or not pos then return nil end
+    local wx, wy = pos.x, pos.y
+    if pos.GetXY then wx, wy = pos:GetXY() end
+    if type(wx) ~= "number" or type(wy) ~= "number" then return nil end
+    return cont, wx, wy
+end
+
+-- Yards between two points on one map (or nil).
+function Map:Yards(map, x1, y1, x2, y2)
+    local c1, n1, w1 = self:WorldPos(map, x1, y1)
+    local c2, n2, w2 = self:WorldPos(map, x2, y2)
+    if c1 and c1 == c2 then
+        local dn, dw = n2 - n1, w2 - w1
+        return math.sqrt(dn * dn + dw * dw)
+    end
+    if not (C_Map and C_Map.GetMapWorldSize) then return nil end
+    local w, h = C_Map.GetMapWorldSize(map)
+    if not w or w <= 0 or not h or h <= 0 then return nil end
+    local dx, dy = (x2 - x1) * w, (y2 - y1) * h
+    return math.sqrt(dx * dx + dy * dy)
+end
+
 -- Yards east and north from you to a point, and the straight distance.
 -- nil when the point is on a map that can't be related to yours. Callers
 -- drawing many pins can pass your position (pm, px, py) to save lookups.
 function Map:Offset(map, x, y, pm, px, py)
     if not pm then pm, px, py = self:PlayerPos() end
     if not pm then return nil end
+    -- world positions: works across zones on the same continent
+    local tc, tn, tw = self:WorldPos(map, x, y)
+    local pc, pn, pw = self:WorldPos(pm, px, py)
+    if tc and pc then
+        if tc ~= pc then return nil end
+        local east, north = -(tw - pw), tn - pn
+        return east, north, math.sqrt(east * east + north * north)
+    end
     local tx, ty = x, y
     if pm ~= map then
         tx, ty = self:Translate(map, x, y, pm)

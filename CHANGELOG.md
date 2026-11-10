@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.5.5 — 2026-11-09
+
+- Distances and directions to map points use the game's world positions, so they work on WoW Forever's client (they came out blank before) and between neighbouring zones on the same continent. Pathfinder's arrow and distance, and Muster's rally distances, use them.
+
 ## 0.5.4 — 2026-11-08
 
 - Item names and details come from C_Item when the old global item functions aren't there (the Retail 12 client WoW Forever runs on), so items stop showing as "Loading item...".

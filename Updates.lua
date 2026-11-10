@@ -20,6 +20,10 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.5.5", {
+        "With RUIN Pathfinder: the step gets the game's waypoint, a pin in the world over the spot with the distance under it.",
+        "With RUIN Pathfinder: the tracker's arrow now shows and points the way, even to the next zone over.",
+    } },
     { "0.5.4", {
         "The party dungeon strip hides while you're inside a dungeon or raid.",
         "Item lookups go out a few at a time, and \"You're doing that too fast\" now says what was asked just before (/ruin toofast).",
