@@ -20,6 +20,10 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.6.1", {
+        "With RUIN Pathfinder: quest routes come from RUIN Quest Data, a new addon that ships with the suite, so zone and dungeon routes work with no other quest addon.",
+        "With RUIN Pathfinder: quests that share targets are done in one step, and routes walk less: a search over the whole order, and real distances between neighbouring zones.",
+    } },
     { "0.6.0", {
         "With RUIN Pathfinder: the step gets the game's waypoint, a pin in the world over the spot with the distance under it.",
         "With RUIN Pathfinder: the tracker's arrow now shows and points the way, even to the next zone over.",
@@ -32,7 +36,7 @@ Updates.NOTES = {
         "RUIN waits while other addons are sending and slows down after \"too fast\", so the two don't trip the server's limit together.",
         "With RUIN Pathfinder: City of Dalaran's quest route has every quest, in order, from the attunement to the follow-ups.",
         "With RUIN Pathfinder: a route to the Cozy Sleeping Bag for each faction.",
-        "With RUIN Pathfinder: a quest route for every zone (with Questie), all routes in the Guide's list, and a checkbox to hide the ones you don't want there.",
+        "With RUIN Pathfinder: a quest route for every zone, all routes in the Guide's list, and a checkbox to hide the ones you don't want there.",
         "With RUIN Exchange: opening the auction house scans every listing (once every 15 minutes), so prices fill in without searching. /ex scan asks for one.",
         "With RUIN Exchange: your profession window and profession trainers show each recipe's Price per Point, using how close it is to grey.",
         "With RUIN Exchange: vendor prices are tracked and used when they beat the auction house, marked as vendor.",
@@ -47,7 +51,7 @@ Updates.NOTES = {
         "Gold accents on buttons, check boxes, tabs and section titles make every page easier to read.",
         "Buttons that open another RUIN addon wear its color: Post in Muster is orange, Quest route is Pathfinder green.",
         "With RUIN Codex: the Journal's sections fold (click a header); quests start folded.",
-        "With RUIN Codex: every dungeon in the Journal shows everything that drops there, boss by boss, plus trash, read from QuestieDB while you play. Click an item for its tooltip.",
+        "With RUIN Codex: every dungeon in the Journal shows everything that drops there, boss by boss, plus trash, read from the quest database while you play. Click an item for its tooltip.",
         "With RUIN Codex and Pathfinder: the Dungeon Journal lists every quest a dungeon has for your faction, with where it starts, the quests that unlock it and whether you've done it. Quest route opens a Pathfinder route through all of them, unlocking quests first; Pathfinder's Routes page has one for every dungeon.",
         "With RUIN Finder: the census mark on a zone's map is now just the winged R, in the corner with the member count. Continent and world maps still show a mark on each zone.",
     } },
@@ -73,7 +77,7 @@ Updates.NOTES = {
     } },
     { "0.4.6", {
         "With Ruinous Forever Planner installed, the RUIN window has a Planner page: Now, Gear, Quests, Guide, Rating and more, plus Org, which shows who in RUIN needs drops from which dungeon.",
-        "Pathfinder reads the QuestieDB addon (the one that comes with the planner) for quest places and routes, no Questie needed.",
+        "Pathfinder reads the quest database that comes with the planner for quest places and routes.",
         "Codex: dungeon and raid drops reach the whole org more reliably, including groupmates without RUIN, and you catch up on drops you missed while offline.",
         "Exchange: the Planner page shows who in RUIN can craft your targets and uses RUIN's auction prices for selling.",
     } },

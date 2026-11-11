@@ -129,7 +129,7 @@ local function pageLines(P, page)
             add("Next: " .. clean(r.nextText)); add(GREY .. clean(r.reason) .. "|r")
             if r.item and r.item.acquire then add(GREY .. clean(r.item.acquire) .. "|r") end
         end
-        add(" "); add(GREY .. clean(P.baselineMessage or "QuestieDB baseline not initialized.") .. "|r")
+        add(" "); add(GREY .. clean(P.baselineMessage or "Quest baseline not initialized.") .. "|r")
         add(GREY .. "Quest catalogue searches every quest the planner knows; Track pins one.|r")
     elseif page == "Guide" then
         if opts.leveling == false then add("Leveling is turned off in the planner's settings."); return lines end

@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.6.1 — 2026-11-11
+
+- RUIN no longer names any other quest addon: the Quests page and the What's new notes talk about the quest database, and the toc no longer lists one as an optional dependency.
+
 ## 0.6.0 — 2026-11-11
 
 - Map and minimap pins are properly round (the colored ring could show as a square) and sit on a soft shadow.
