@@ -6,7 +6,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
-## 0.5.5 — 2026-11-09
+## 0.6.0 — 2026-11-11
 
 - Map and minimap pins are properly round (the colored ring could show as a square) and sit on a soft shadow.
 - Money is shown with the game's gold, silver and copper coin icons instead of the letters g, s and c, everywhere RUIN shows an amount.

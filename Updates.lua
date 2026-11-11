@@ -20,7 +20,7 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
-    { "0.5.5", {
+    { "0.6.0", {
         "With RUIN Pathfinder: the step gets the game's waypoint, a pin in the world over the spot with the distance under it.",
         "With RUIN Pathfinder: the tracker's arrow now shows and points the way, even to the next zone over.",
         "Money everywhere shows the game's gold, silver and copper coin icons.",
