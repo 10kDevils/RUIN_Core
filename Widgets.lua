@@ -1160,14 +1160,27 @@ end
 ---------------------------------------------------------------------------
 -- Formatting helpers
 ---------------------------------------------------------------------------
+-- Money with the game's own coin icons: 1[g] 5[s], 1[s] 44[c], 36[c].
+local COIN = {
+    g = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t",
+    s = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t",
+    c = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t",
+}
+W.COIN = COIN
+
 function W.Money(copper)
     copper = math.floor(tonumber(copper) or 0)
     local g = math.floor(copper / 10000)
     local s = math.floor(copper / 100) % 100
     local c = copper % 100
-    if g > 0 then return ("%dg %02ds"):format(g, s) end
-    if s > 0 then return ("%ds %02dc"):format(s, c) end
-    return ("%dc"):format(c)
+    if g > 0 then return s > 0 and (g .. COIN.g .. " " .. s .. COIN.s) or (g .. COIN.g) end
+    if s > 0 then return c > 0 and (s .. COIN.s .. " " .. c .. COIN.c) or (s .. COIN.s) end
+    return c .. COIN.c
+end
+
+-- The same text with the coin icons as letters (1g 5s), for plain text.
+function W.PlainMoney(text)
+    return (tostring(text or ""):gsub("|TInterface\\MoneyFrame\\UI%-(%a)%a+Icon[^|]*|t", function(k) return k:lower() end))
 end
 
 function W.Ago(seconds)

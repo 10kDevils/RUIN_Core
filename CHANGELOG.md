@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.5.5 — 2026-11-09
 
+- Money is shown with the game's gold, silver and copper coin icons instead of the letters g, s and c, everywhere RUIN shows an amount.
 - Looking up a zone by name no longer gives up for the session when it's first asked before the game's map data is ready.
 - Distances and directions to map points use the game's world positions, so they work on WoW Forever's client (they came out blank before) and between neighbouring zones on the same continent. Pathfinder's arrow and distance, and Muster's rally distances, use them.
 

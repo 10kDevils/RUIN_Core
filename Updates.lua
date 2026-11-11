@@ -23,6 +23,8 @@ Updates.NOTES = {
     { "0.5.5", {
         "With RUIN Pathfinder: the step gets the game's waypoint, a pin in the world over the spot with the distance under it.",
         "With RUIN Pathfinder: the tracker's arrow now shows and points the way, even to the next zone over.",
+        "Money everywhere shows the game's gold, silver and copper coin icons.",
+        "With RUIN Pathfinder: a RUIN waypoint pin over what you're tracking, and Route and Tracked tabs on the tracker.",
     } },
     { "0.5.4", {
         "The party dungeon strip hides while you're inside a dungeon or raid.",
