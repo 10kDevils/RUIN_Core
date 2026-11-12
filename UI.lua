@@ -1113,7 +1113,8 @@ local function buildSettingsPanel(p)
     local disp = Wd.Card(dispPage)
     disp:SetPoint("TOPLEFT", 0, 0)
     disp:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
-    disp:SetHeight(134)
+    disp:SetHeight(116)
+    settings.dispCard = disp
     local dh = Wd.Header(disp, "Chat and display")
     dh:SetPoint("TOPLEFT", 10, -8)
     local s = function() return ns.db.settings end
@@ -1155,7 +1156,7 @@ local function buildSettingsPanel(p)
     local priv = Wd.Card(dispPage)
     priv:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
     priv:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
-    priv:SetHeight(100)
+    priv:SetHeight(116)            -- three rows of checks (28 + 3 x 24 + 2 x 2) and a margin
     local ph = Wd.Header(priv, "What RUIN shares about you")
     ph:SetPoint("TOPLEFT", 10, -8)
     local function share(kind) return function() return ns:Shares(kind) end end
@@ -1335,6 +1336,8 @@ refreshSettings = function()
     settings.checks[2]:SetShown(officer)
     settings.checks[5]:ClearAllPoints()
     settings.checks[5]:SetPoint("TOPLEFT", officer and settings.checks[2] or settings.checks[1], "BOTTOMLEFT", 0, -2)
+    -- the card fits its rows: four on the left for officers (officer chat), three otherwise
+    if settings.dispCard then settings.dispCard:SetHeight(officer and 142 or 116) end
 
     -- tab order chips, in the order the tabs are now
     local movable = UI:MovableTabs()
