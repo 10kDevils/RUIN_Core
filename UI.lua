@@ -289,6 +289,26 @@ function UI:PromptNewKey()
 end
 UI.PromptRotate = UI.PromptNewKey
 
+-- The admin hands the org admin over to another player (they must accept).
+function UI:PromptTransferAdmin()
+    if not ns.Org:IsAdmin() then return ns:Print("Only the org admin can hand the admin over.") end
+    local suggest = ""
+    if UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target") then
+        local n, realm = UnitName("target")
+        suggest = (realm and realm ~= "") and (n .. "-" .. realm) or (n or "")
+    end
+    UI:ShowText("Transfer admin", "The character to become the org admin. They must be online, with RUIN, in one of the org's guilds, and accept.\nYou stop being the admin once they do.",
+        suggest, function(text)
+            local name = ns.Trim(text or "")
+            if name == "" then return end
+            UI:ShowConfirm("Transfer admin", ("Hand the org admin over to %s?\n\nWhen they accept, they manage the org key and you no longer can.")
+                :format(ns.Escape(name)), function()
+                local ok, err = ns.Org:OfferAdmin(name)
+                ns:Print(ok and ("Asked " .. name .. " to take over the org admin. It changes hands when they accept.") or err)
+            end)
+        end, true)
+end
+
 function UI:PromptLinks()
     if not ns.Org:IsAdmin() then
         ns:Print("Only the org admin sets the community links. They reach everyone with the org key.")
@@ -981,6 +1001,8 @@ local function buildSettingsPanel(p)
     settings.rotate = Wd.Button(keyCard, "Choose new key", 130, function() UI:PromptNewKey() end)
     settings.rotate.tip = "Set a new key phrase members type to join, or a new random key"
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
+    settings.transfer = Wd.Button(keyCard, "Transfer admin", 120, function() UI:PromptTransferAdmin() end)
+    settings.transfer.tip = "Hand the org admin over to another player; they must accept"
     settings.blockWords = Wd.Button(keyCard, "Block words", 110, function()
         local k = ns.Org:Get()
         UI:ShowText("Org block words", "Lines with these words are hidden from RUIN chat for every member. Separate them with commas.",
@@ -1163,8 +1185,9 @@ refreshSettings = function()
     if k and admin then row1[#row1 + 1] = settings.export end
     if k and (admin or (k.oc ~= nil and ns.Org:AmOfficer())) then row1[#row1 + 1] = settings.send end
     if not k then row1[#row1 + 1] = settings.create end
+    if k and admin then row1[#row1 + 1] = settings.transfer end
     local row2 = admin and { settings.addGuild, settings.rotate, settings.links, settings.blockWords } or {}
-    local all = { settings.import, settings.export, settings.send, settings.create, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
         local prev

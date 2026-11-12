@@ -8,6 +8,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.6.1 — 2026-11-11
 
+- The org admin can hand the admin over: Settings > Org > Transfer admin (or /ruin key transfer <name>). The other player must be online, with RUIN, in one of the org's guilds, and accept. Then their character is the admin, the old admin's characters no longer are, and the new key reaches officers at once and members through them. A key from anyone else naming a new admin is still ignored, and the admin's own account never loses the admin to a key from outside.
+- RUIN no longer watches the game's quest data requests for its "too fast" report: the objective tracker makes them constantly, and the hook ran on every one, in combat too.
 - With Ruinous Forever Planner: its stat estimate shows once on an item tooltip. It could be added a second time below RUIN Exchange's and Codex's lines.
 - RUIN no longer names any other quest addon: the Quests page and the What's new notes talk about the quest database, and the toc no longer lists one as an optional dependency.
 

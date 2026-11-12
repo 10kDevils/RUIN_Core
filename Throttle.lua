@@ -47,9 +47,12 @@ local WATCH = {
     { "C_GuildInfo", "GuildRoster" }, { "C_FriendList", "SendWho" }, { "C_ChatInfo", "SendAddonMessage" },
     { "C_ChatInfo", "SendAddonMessageLogged" }, { "C_Item", "RequestLoadItemDataByID" }, { "C_Item", "RequestLoadItemData" },
     { "C_AuctionHouse", "ReplicateItems" }, { "C_AuctionHouse", "SendBrowseQuery" }, { "C_AuctionHouse", "SendSearchQuery" },
-    { "C_PartyInfo", "InviteUnit" }, { "C_LFGList", "Search" }, { "C_QuestLog", "RequestLoadQuestByID" },
+    { "C_PartyInfo", "InviteUnit" }, { "C_LFGList", "Search" },
     { "C_Calendar", "OpenCalendar" }, { "C_PlayerInfo", "RequestPlayerInfo" },
 }
+-- C_QuestLog.RequestLoadQuestByID isn't watched: the game's objective
+-- tracker and quest log call it all the time, and a hook running on every
+-- one of those calls (in combat too) is the last thing the tracker needs.
 local hooked = false
 function Throttle.Hook()
     if hooked or not hooksecurefunc then return end

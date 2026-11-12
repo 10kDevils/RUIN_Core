@@ -138,6 +138,7 @@ local function validKey(k)
     if k.links ~= nil and type(k.links) ~= "table" then return false end
     if k.ph ~= nil and type(k.ph) ~= "string" then return false end
     if k.bw ~= nil and type(k.bw) ~= "table" then return false end
+    if k.xt ~= nil and (type(k.xt) ~= "table" or type(k.xt.f) ~= "string" or type(k.xt.t) ~= "string") then return false end
     return true
 end
 Org.ValidKey = validKey
@@ -220,13 +221,23 @@ function Org:Apply(k, source)
         if cur.org == k.org then
             if k.rev < cur.rev then return false, "older than the key you have" end
             if source ~= "import" then
-                -- Nobody passing a key on can name a new admin: that takes
-                -- importing a key by hand.
-                if cur.admin ~= nil and k.admin ~= cur.admin then return false, "names a different org admin" end
+                -- A new admin comes only from the admin handing it over: the
+                -- key from the admin itself, or passed on by an officer with
+                -- the hand-over's record (from the admin you know, to the new
+                -- one). The admin's own account loses it only by handing it
+                -- over itself (Org:TransferAdmin), never by a key from outside.
+                local newAdmin = cur.admin ~= nil and k.admin ~= cur.admin
+                if newAdmin then
+                    if accountIsAdmin(cur) then return false, "names a different org admin" end
+                    local handedOver = type(k.xt) == "table" and k.xt.f == cur.admin and k.xt.t == k.admin
+                    if not (source == "admin" or ((source == "officer" or source == "guild") and handedOver)) then
+                        return false, "names a different org admin"
+                    end
+                end
                 if k.rev > cur.rev + REV_JUMP then return false, "jumps too far ahead" end
                 -- Who counts as the admin changes only when the admin says so
                 -- (or, for a key from before admin names, the first time).
-                if source ~= "admin" and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
+                if source ~= "admin" and not newAdmin and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
             end
             if k.rev == cur.rev then
                 if k.oc and not cur.oc then
@@ -394,6 +405,87 @@ function Org:ChooseNewKey(phrase)
 end
 
 function Org:Rotate() return Org:ChooseNewKey(Org:Phrase()) end
+
+---------------------------------------------------------------------------
+-- Handing the org admin over to someone else
+--   1. The admin offers it (Settings > Org > Transfer admin, or
+--      /ruin key transfer <name>); the other player must be online, with
+--      RUIN, in one of the org's guilds.
+--   2. They accept (RUIN's own dialog) and answer with their character.
+--   3. The admin's client makes the new key: that character is the admin,
+--      only their name counts as the admin's, and the key records the
+--      hand-over so officers can pass it on. It goes to every officer on
+--      the officer channel and to the new admin directly; this account
+--      stops being the admin.
+---------------------------------------------------------------------------
+local OFFER_WAIT = 120
+local adminOffer                     -- { name, untilT } while waiting for an answer
+local adminOfferSeen = -999
+
+function Org:OfferAdmin(name)
+    local k = Org:Get()
+    if not k then return false, "No org key loaded." end
+    if not Org:IsAdmin() then return false, "Only the org admin can hand the admin over." end
+    name = ns.Trim(name or "")
+    if name == "" then return false, "Whom should the admin go to? Type their character name." end
+    if ns.NormalizeName(name) == ns.NormalizeName(ns.playerName or "") or Org:IsAdminName(name, k) then
+        return false, "That character is already the org admin."
+    end
+    adminOffer = { name = ns.NormalizeName(name), untilT = GetTime() + OFFER_WAIT }
+    ns.Comms:Send("ADMINOFFER", { org = k.org, rev = k.rev }, "PEER", name, ns.Comms.PRIORITY.ALERT)
+    return true
+end
+
+function Org:PendingAdminOffer()
+    if adminOffer and GetTime() < adminOffer.untilT then return adminOffer.name end
+end
+
+-- Makes `name` (character GUID `guid`) the org admin. Called when they accept.
+function Org:TransferAdmin(name, guid)
+    local k, err = editableKey()
+    if not k then return false, err end
+    if type(guid) ~= "string" or not guid:find("^Player%-") then return false, "That answer didn't name a character." end
+    if guid == k.admin then return false, "That character is already the org admin." end
+    local oldOC = k.oc and k.oc.n
+    k.xt = { f = k.admin, t = guid }
+    k.admin = guid
+    k.an = { name }
+    k.rev = nextRev(k)
+    if type(ns.db.adminOf) == "table" then ns.db.adminOf[k.org] = nil end
+    -- the new admin first (they may not be on the officer channel yet), then every officer
+    ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "PEER", name, ns.Comms.PRIORITY.ALERT)
+    publishEdit(k, oldOC)
+    adminOffer = nil
+    return true
+end
+
+ns.Comms:Register("ADMINOFFER", function(d, sender, scope)
+    if scope ~= "PEER" then return end
+    local k = Org:Get()
+    if not (k and d.org == k.org and Org:IsAdminName(sender, k)) then return end
+    if not Org:MyGuildInOrg() then
+        ns:Print(ns.ShortName(sender) .. " offered you the org admin, but your guild isn't in the org.")
+        return
+    end
+    if GetTime() - adminOfferSeen < 10 then return end
+    adminOfferSeen = GetTime()
+    ns.UI:ShowConfirm("Become the RUIN org admin?",
+        ("%s wants to hand the %s org admin over to you.\n\nYou would manage the org key: its guilds, key phrase, links and block words. %s would no longer be the admin.\n\nAccept?")
+            :format(ns.ShortName(sender), k.org, ns.ShortName(sender)),
+        function()
+            ns.Comms:Send("ADMINACCEPT", { org = k.org, g = ns.playerGUID }, "PEER", sender, ns.Comms.PRIORITY.ALERT)
+            ns:Print("You accepted the org admin. The new key arrives in a moment.")
+        end)
+end)
+
+ns.Comms:Register("ADMINACCEPT", function(d, sender, scope)
+    if scope ~= "PEER" then return end
+    local k = Org:Get()
+    if not (k and d.org == k.org and Org:IsAdmin()) then return end
+    if not (adminOffer and GetTime() < adminOffer.untilT and adminOffer.name == ns.NormalizeName(sender)) then return end
+    local ok, err = Org:TransferAdmin(sender, d.g)
+    ns:Print(ok and (ns.ShortName(sender) .. " is now the org admin. Everyone gets the new key from the officers.") or ("Didn't hand the admin over: " .. tostring(err)))
+end)
 
 ---------------------------------------------------------------------------
 -- Community links (Discord, website, streams...) travel inside the org key,

@@ -323,6 +323,7 @@ local HELP = {
     "/ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]  (org admin)",
     "/ruin key removeguild <guild>  |  /ruin key newkey [key phrase]  (org admin)",
     "/ruin key links - edit the org's community links  (org admin)",
+    "/ruin key transfer <name> - hand the org admin over to them  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
     "/ruin couch - toggle couch mode (larger window)",
@@ -393,13 +394,17 @@ local function handleKey(rest)
         else
             ns.UI:PromptNewKey()
         end
+    elseif sub == "transfer" then
+        if arg == "" then return ns.UI:PromptTransferAdmin() end
+        local ok, err = Org:OfferAdmin(arg)
+        ns:Print(ok and ("Asked " .. arg .. " to take over the org admin. It changes hands when they accept.") or err)
     elseif sub == "links" then
         ns.UI:PromptLinks()
     elseif sub == "forget" then
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, forget")
+        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, forget")
     end
 end
 
