@@ -21,11 +21,12 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
     { "0.6.1", {
+        "A new look for the whole suite: flat tabs with RUIN's own icons, a drawing for each page's header, quieter buttons that take the page's color when you use them, check marks, slim scroll bars and cleaner menus.",
         "Security: a new officer channel goes only to officers RUIN can vouch for, and the admin can lock a demoted officer out (Settings > Org > Lock out officer). Shared prices, quest places, drop counts and crafts are checked before they count.",
         "Privacy: Settings > Display > What RUIN shares about you, to switch off each thing RUIN shares.",
         "Leave org (anyone) and Disband org (the admin), under Settings > Org, or /ruin leave and /ruin disband.",
         "The org admin can hand the admin over to another player: Settings > Org > Transfer admin. They accept, and the org follows them.",
-        "With RUIN Pathfinder: quest routes come from RUIN Quest Data, a new addon that ships with the suite, so zone and dungeon routes work with no other quest addon.",
+        "With RUIN Pathfinder: quest routes come from Pathfinder's own quest data, so zone and dungeon routes work with no other quest addon.",
         "With RUIN Pathfinder: quests that share targets are done in one step, and routes walk less: a search over the whole order, and real distances between neighbouring zones.",
     } },
     { "0.6.0", {

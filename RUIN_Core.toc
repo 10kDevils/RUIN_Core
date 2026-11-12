@@ -5,7 +5,7 @@
 ## Version: 0.6.1
 ## SavedVariables: RUIN_DB
 ## OptionalDeps: RuinousForeverPlanner
-## IconTexture: Interface\AddOns\RUIN_Core\Media\EmblemIcon
+## IconTexture: Interface\AddOns\RUIN_Core\Media\BadgeGuild
 ## AddonCompartmentFunc: RUIN_OnAddonCompartmentClick
 ## X-Category: Guild
 ## Category: RUIN Gaming Companion App

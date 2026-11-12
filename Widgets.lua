@@ -6,14 +6,16 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
--- The RUIN look (from the RUIN Companion brief): dark navy panels with thin
--- steel-blue edges, teal for focus and selection, gold for the RUIN mark.
+-- The RUIN look: deep navy surfaces in three steps (window, panel, raised),
+-- quiet steel edges, gold for the RUIN mark and headings, and each page's
+-- own color for whatever is selected, hovered or switched on.
 W.PALETTE = {
-    bg      = { 0.027, 0.043, 0.075 },   -- window body
-    panel   = { 0.047, 0.071, 0.114 },   -- cards and rows
-    panelHi = { 0.075, 0.110, 0.169 },   -- buttons, raised rows
-    border  = { 0.165, 0.267, 0.400 },   -- steel-blue edges
-    glow    = { 0.329, 0.718, 0.851 },   -- teal: selected tab, hover, links
+    bg      = { 0.027, 0.039, 0.063 },   -- window body
+    panel   = { 0.047, 0.067, 0.102 },   -- cards and rows
+    panelHi = { 0.082, 0.114, 0.165 },   -- buttons, raised rows
+    border  = { 0.149, 0.212, 0.306 },   -- steel edges
+    line    = { 0.098, 0.141, 0.204 },   -- hairlines and dividers inside panels
+    glow    = { 0.329, 0.718, 0.851 },   -- teal: links and RUIN's own focus color
     gold    = { 0.902, 0.722, 0.384 },   -- the RUIN mark and headline accents
     text    = { 0.925, 0.941, 0.965 },
     sub     = { 0.584, 0.651, 0.749 },
@@ -76,33 +78,42 @@ local function mix(a, b, t)
 end
 W.Mix = mix
 
--- Gold accents make the controls easy to pick out on navy: buttons and
--- toggles wear a gold edge (bright gold on hover, a gold fill when picked),
--- section titles are gold, and the open sub-tab is underlined in gold. Each
--- page keeps its addon's color for its banner, cards and section rules.
+-- Controls are quiet until you touch them: a raised navy button with a
+-- steel edge, which takes the page's color on hover and fills with it when
+-- picked. Check marks, the open tab's underline and focus rings use the same
+-- color, so each page reads in its own hue. Gold stays RUIN's: the mark,
+-- section titles, and the accent wherever there is no page (dialogs, menus).
 local GOLD = P.gold
-local GOLD_EDGE = mix(P.border, P.gold, 0.78)
-local GOLD_TEXT = mix(P.text, P.gold, 0.22)
+local WHITE = { 1, 1, 1 }
+local BTN_EDGE = mix(P.border, P.text, 0.14)         -- a resting control's edge
+local BTN_TEXT = mix(P.text, P.sub, 0.10)
+-- kept for modules that still ask for them: a resting control's edge and a picked fill
+local GOLD_EDGE = BTN_EDGE
 local GOLD_FILL = mix(P.panelHi, P.gold, 0.26)
-W.GOLD_EDGE, W.GOLD_FILL = GOLD_EDGE, GOLD_FILL
+W.GOLD_EDGE, W.GOLD_FILL, W.BTN_EDGE = GOLD_EDGE, GOLD_FILL, BTN_EDGE
 
-W.CORE_SCHEME = { accent = P.glow, edge = P.border, panel = P.panel, panelHi = P.panelHi, bg = P.bg,
-                  mark = P.gold, core = true }
+W.CORE_SCHEME = { accent = P.gold, edge = P.border, panel = P.panel, panelHi = P.panelHi, bg = P.bg,
+                  mark = P.gold, color = P.gold, core = true }
 local schemes = {}
 
+-- A page's colors from its theme. Core pages (Guild, Settings) keep the
+-- plain navy panels and take only the accent; a module's page is also
+-- tinted, faintly, in its color.
 function W.SchemeFor(theme)
-    if not theme or theme.core or not theme.color then return W.CORE_SCHEME end
+    if not theme or not theme.color then return W.CORE_SCHEME end
     local s = schemes[theme]
     if s then return s end
     local c = theme.color
+    local core = theme.core and true or false
     s = {
         color   = c,
-        accent  = mix(c, { 1, 1, 1 }, 0.15),     -- a touch lighter so it reads on navy
-        edge    = mix(P.border, c, 0.55),
-        panel   = mix(P.panel, c, 0.07),
-        panelHi = mix(P.panelHi, c, 0.14),
-        bg      = mix(P.bg, c, 0.04),
+        accent  = mix(c, WHITE, 0.24),           -- lighter, so lines and marks read on navy
+        edge    = mix(P.border, c, core and 0.16 or 0.40),
+        panel   = core and P.panel or mix(P.panel, c, 0.055),
+        panelHi = core and P.panelHi or mix(P.panelHi, c, 0.11),
+        bg      = core and P.bg or mix(P.bg, c, 0.03),
         mark    = c,
+        core    = core,
     }
     schemes[theme] = s
     return s
@@ -198,42 +209,77 @@ function W.Header(parent, text)
     fs:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
     local rule = parent:CreateTexture(nil, "ARTWORK")
     local a = W.SchemeOf(parent).accent
-    rule:SetColorTexture(a[1], a[2], a[3], 0.85)
-    rule:SetSize(40, 2)
+    rule:SetColorTexture(a[1], a[2], a[3], 0.9)
+    rule:SetSize(28, 2)
     rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
     fs.rule = rule
     return fs
 end
 
--- Navy button with a steel edge that lights teal on hover. LockHighlight
--- marks a button as selected (used by list-of-buttons pickers).
+-- A faint light across the top half of a raised control.
+local function sheen(f, strength)
+    local t = f:CreateTexture(nil, "BACKGROUND", nil, -6)
+    t:SetPoint("TOPLEFT", 1, -1)
+    t:SetPoint("TOPRIGHT", -1, -1)
+    t:SetHeight(10)
+    t:SetColorTexture(1, 1, 1, 1)
+    local a = strength or 0.055
+    local ok = CreateColor and t.SetGradient and pcall(t.SetGradient, t, "VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, a))
+    if not ok then t:SetColorTexture(1, 1, 1, a * 0.4) end
+    return t
+end
+W.Sheen = sheen
+
+-- Raised navy button with a steel edge; the page's color on hover, and a fill
+-- of it when picked. LockHighlight marks a button as selected (pickers made
+-- of buttons). b.flat = true makes it a menu row: no edge, a fill on hover.
 local function paintButton(b)
     if not b.skinBg then return end
+    local sc = W.SchemeOf(b)
+    local ac = sc.accent
     local link = b.linkColor      -- a button that opens another addon wears that addon's color
     if link and b:IsEnabled() then
         if b.locked or b.hover then
-            W.Skin(b, mix(P.panelHi, link, 0.42), 1, mix(link, { 1, 1, 1 }, 0.25))
+            W.Skin(b, mix(P.panelHi, link, 0.40), 1, mix(link, WHITE, 0.30))
             b.label:SetTextColor(1, 1, 1)
         else
-            W.Skin(b, mix(P.panelHi, link, 0.26), 1, link)
-            local t = mix(link, { 1, 1, 1 }, 0.6)
+            W.Skin(b, mix(P.panelHi, link, 0.22), 1, mix(P.border, link, 0.80))
+            local t = mix(link, WHITE, 0.66)
             b.label:SetTextColor(t[1], t[2], t[3])
         end
         return
     end
+    if b.flat then
+        if not b:IsEnabled() then
+            W.Skin(b, "panel", 0, "panel"); W.SetBorder(b, "panel", 0)
+            b.label:SetTextColor(0.45, 0.50, 0.58)
+        elseif b.locked then
+            W.Skin(b, mix(sc.panelHi, ac, 0.30), 1, ac); W.SetBorder(b, ac, 0)
+            b.label:SetTextColor(1, 1, 1)
+        elseif b.hover then
+            W.Skin(b, mix(sc.panelHi, ac, 0.16), 1, ac); W.SetBorder(b, ac, 0)
+            b.label:SetTextColor(1, 1, 1)
+        else
+            W.Skin(b, "panel", 0, "panel"); W.SetBorder(b, "panel", 0)
+            b.label:SetTextColor(BTN_TEXT[1], BTN_TEXT[2], BTN_TEXT[3])
+        end
+        if b.pickBar then b.pickBar:SetShown(b.locked and b:IsEnabled() and true or false) end
+        return
+    end
     if not b:IsEnabled() then
-        W.Skin(b, "panel", 0.85, "border")
-        b.label:SetTextColor(0.45, 0.50, 0.58)
+        W.Skin(b, "panel", 0.80, "line")
+        b.label:SetTextColor(0.42, 0.47, 0.55)
     elseif b.locked then
-        W.Skin(b, GOLD_FILL, 1, GOLD)
+        W.Skin(b, mix(sc.panelHi, ac, 0.32), 1, ac)
         b.label:SetTextColor(1, 1, 1)
     elseif b.hover then
-        W.Skin(b, mix(P.panelHi, GOLD, 0.12), 1, GOLD)
+        W.Skin(b, mix(sc.panelHi, ac, 0.15), 1, mix(P.border, ac, 0.85))
         b.label:SetTextColor(1, 1, 1)
     else
-        W.Skin(b, "panelHi", 1, GOLD_EDGE)
-        b.label:SetTextColor(GOLD_TEXT[1], GOLD_TEXT[2], GOLD_TEXT[3])
+        W.Skin(b, "panelHi", 1, BTN_EDGE)
+        b.label:SetTextColor(BTN_TEXT[1], BTN_TEXT[2], BTN_TEXT[3])
     end
+    if b.sheen then b.sheen:SetShown(b:IsEnabled() and true or false) end
 end
 W.PaintButton = paintButton
 
@@ -247,9 +293,11 @@ function W.Button(parent, text, width, onClick)
     b:SetFontString(b.label)
     b:SetPushedTextOffset(1, -1)
     W.Skin(b, "panelHi", 1, "border")
+    b.sheen = sheen(b)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.08)
+    local hc = W.SchemeOf(b).accent
+    hl:SetColorTexture(hc[1], hc[2], hc[3], 0.06)
     b.hl = hl
     b:SetText(text or "")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -276,30 +324,64 @@ function W.Button(parent, text, width, onClick)
     return b
 end
 
+-- A menu row: W.Button without its edge, a bar on the left when it's the
+-- current choice. Used by the lists under dropdowns and the context menu.
+function W.MenuRow(parent, width)
+    local it = W.Button(parent, "", width)
+    it:SetHeight(20)
+    it.flat = true
+    it.sheen:Hide(); it.sheen = nil
+    it.label:SetJustifyH("LEFT")
+    it.label:SetPoint("LEFT", 8, 0)
+    local ac = W.SchemeOf(it).accent
+    it.pickBar = it:CreateTexture(nil, "OVERLAY")
+    it.pickBar:SetColorTexture(ac[1], ac[2], ac[3], 1)
+    it.pickBar:SetWidth(2)
+    it.pickBar:SetPoint("TOPLEFT", 0, 0)
+    it.pickBar:SetPoint("BOTTOMLEFT", 0, 0)
+    it.pickBar:Hide()
+    paintButton(it)
+    return it
+end
+
 -- Check box with its own label (the label is clickable too); call
--- :Refresh() to sync from getter. A navy box that fills with the page color.
+-- :Refresh() to sync from getter. A navy box that fills with the page's
+-- color and shows a check when it's on.
+local MEDIA = "Interface\\AddOns\\RUIN_Core\\Media\\"
 function W.Check(parent, label, getter, setter)
     local c = CreateFrame("CheckButton", nil, parent)
     c:SetSize(24, 24)
     c.box = CreateFrame("Frame", nil, c)
     c.box:SetSize(16, 16)
     c.box:SetPoint("LEFT", 3, 0)
-    W.Skin(c.box, "bg", 1, GOLD_EDGE)
+    W.Skin(c.box, "bg", 1, BTN_EDGE)
+    local ac = W.SchemeOf(c).accent
+    c.fill = c.box:CreateTexture(nil, "ARTWORK")
+    c.fill:SetPoint("TOPLEFT", 1, -1)
+    c.fill:SetPoint("BOTTOMRIGHT", -1, 1)
+    c.fill:SetColorTexture(ac[1], ac[2], ac[3], 1)
     c.mark = c.box:CreateTexture(nil, "OVERLAY")
-    c.mark:SetPoint("TOPLEFT", 3, -3)
-    c.mark:SetPoint("BOTTOMRIGHT", -3, 3)
-    c.mark:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
+    c.mark:SetPoint("TOPLEFT", 1, -1)
+    c.mark:SetPoint("BOTTOMRIGHT", -1, 1)
+    c.mark:SetTexture(MEDIA .. "Check")
+    c.mark:SetVertexColor(P.bg[1], P.bg[2], P.bg[3], 1)
     c.label = W.Label(c, label)          -- a child, so it hides with the box
-    c.label:SetPoint("LEFT", c, "RIGHT", -1, 0)
-    if c.SetHitRectInsets then c:SetHitRectInsets(0, -((c.label:GetStringWidth() or 60) + 6), 0, 0) end
-    local function sync() c.mark:SetShown(c:GetChecked() and true or false) end
+    c.label:SetPoint("LEFT", c, "RIGHT", 0, 0)
+    if c.SetHitRectInsets then c:SetHitRectInsets(0, -((c.label:GetStringWidth() or 60) + 8), 0, 0) end
+    local function sync()
+        local on = c:GetChecked() and true or false
+        c.mark:SetShown(on)
+        c.fill:SetShown(on)
+        W.SetBorder(c.box, (on or c.hover) and ac or BTN_EDGE)
+    end
     c:SetScript("OnClick", function(self)
         sync()
         setter(self:GetChecked() and true or false)
     end)
     -- c.tip = "One line saying what it does" shows on hover.
     c:SetScript("OnEnter", function(self)
-        W.SetBorder(self.box, GOLD)
+        self.hover = true
+        W.SetBorder(self.box, ac)
         if self.tip and GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(self.tip, 1, 1, 1, true)
@@ -307,7 +389,8 @@ function W.Check(parent, label, getter, setter)
         end
     end)
     c:SetScript("OnLeave", function(self)
-        W.SetBorder(self.box, GOLD_EDGE)
+        self.hover = false
+        sync()
         if self.tip and GameTooltip then GameTooltip:Hide() end
     end)
     c.Refresh = function(self) self:SetChecked(getter() and true or false); sync() end
@@ -370,13 +453,12 @@ end
 function W.MarkChoice(b, hint)
     b.label:SetPoint("RIGHT", -16, 0)
     local ac = W.SchemeOf(b).accent
-    for i, angle in ipairs({ -45, 45 }) do      -- a small down chevron
-        local t = b:CreateTexture(nil, "OVERLAY")
-        t:SetColorTexture(ac[1], ac[2], ac[3], 0.9)
-        t:SetSize(5, 2)
-        t:SetPoint("RIGHT", b, "RIGHT", i == 1 and -10 or -7, 0)
-        t:SetRotation(math.rad(angle))
-    end
+    local chev = b:CreateTexture(nil, "OVERLAY")       -- a small down chevron
+    chev:SetTexture(MEDIA .. "Chevron")
+    chev:SetSize(12, 12)
+    chev:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+    chev:SetVertexColor(ac[1], ac[2], ac[3], 0.95)
+    b.chevron = chev
     b:HookScript("OnEnter", function(self)
         if not GameTooltip then return end
         -- to the left of the button, beside the list that opens under it
@@ -407,7 +489,8 @@ end
 local tipRow     -- the list row whose tooltip is showing
 local function rowEnter(r)
     local ac = W.SchemeOf(r).accent
-    r.zebra:SetColorTexture(ac[1], ac[2], ac[3], 0.14)
+    r.zebra:SetColorTexture(ac[1], ac[2], ac[3], 0.13)
+    if r.hoverBar then r.hoverBar:Show() end
     tipRow = r
     if (r.link or r.tip) and GameTooltip then
         GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
@@ -421,6 +504,7 @@ local function rowLeave(r)
     if tipRow == r then tipRow = nil end
     local c = W.SchemeOf(r).panelHi
     r.zebra:SetColorTexture(c[1], c[2], c[3], r.zebraAlpha or 0)
+    if r.hoverBar then r.hoverBar:Hide() end
     if (r.link or r.tip) and GameTooltip then GameTooltip:Hide() end
 end
 
@@ -436,10 +520,63 @@ if ns.Subscribe then
     end)
 end
 
+-- The game's scroll bar, slimmed down: no arrow buttons, a thin track and a
+-- thumb in the page's color whose length follows how much there is to
+-- scroll. Safe to call more than once, and on a frame with no bar.
+local function styleScrollBar(sf)
+    local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
+    local ac = W.SchemeOf(sf).accent
+    sf.ruinBarColor = ac
+    if type(bar) ~= "table" or bar.ruinStyled then return end
+    bar.ruinStyled = true
+    for _, key in ipairs({ "ScrollUpButton", "ScrollDownButton" }) do
+        local btn = bar[key]
+        if type(btn) == "table" then
+            if btn.SetAlpha then btn:SetAlpha(0) end
+            if btn.EnableMouse then btn:EnableMouse(false) end
+        end
+    end
+    if bar.ClearAllPoints and bar.SetPoint then
+        bar:ClearAllPoints()
+        bar:SetPoint("TOPLEFT", sf, "TOPRIGHT", 9, -1)
+        bar:SetPoint("BOTTOMLEFT", sf, "BOTTOMRIGHT", 9, 1)
+    end
+    if bar.SetWidth then bar:SetWidth(7) end
+    if bar.CreateTexture then
+        local track = bar:CreateTexture(nil, "BACKGROUND")
+        track:SetAllPoints()
+        track:SetColorTexture(P.panelHi[1], P.panelHi[2], P.panelHi[3], 0.55)
+        bar.ruinTrack = track
+    end
+    local thumb = bar.ThumbTexture or (bar.GetThumbTexture and bar:GetThumbTexture())
+    if type(thumb) == "table" and thumb.SetColorTexture then
+        thumb:SetColorTexture(ac[1], ac[2], ac[3], 0.70)
+        if thumb.SetTexCoord then thumb:SetTexCoord(0, 1, 0, 1) end
+        thumb:SetSize(7, 40)
+        local function fit(self)
+            local view = self:GetHeight() or 0
+            local range = (self.GetVerticalScrollRange and self:GetVerticalScrollRange()) or 0
+            if view <= 0 then return end
+            thumb:SetHeight(math.max(24, math.min(view, view * view / (view + math.max(0, range)))))
+        end
+        if sf.HookScript then
+            sf:HookScript("OnScrollRangeChanged", fit)
+            sf:HookScript("OnSizeChanged", fit)
+        end
+        fit(sf)
+    end
+    sf.ruinSlimBar = true
+end
+function W.StyleScrollBar(sf)
+    if type(sf) == "table" then pcall(styleScrollBar, sf) end
+    return sf
+end
+
 -- Show a scroll frame's scroll bar only when there is something to scroll.
 -- Call after the content changes; it also rechecks when the frame is shown
 -- or resized.
 function W.FitScrollBar(sf)
+    W.StyleScrollBar(sf)
     local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
     local child = sf.GetScrollChild and sf:GetScrollChild()
     if type(bar) ~= "table" or type(child) ~= "table" then return end
@@ -457,7 +594,6 @@ end
 -- Scrolling that's easy to follow: the mouse wheel glides instead of
 -- jumping, a faint weave on the content moves with it (so you can see it
 -- move), and soft fades at the top and bottom edges say there's more.
-local MEDIA = "Interface\\AddOns\\RUIN_Core\\Media\\"
 function W.SmoothScroll(sf, step)
     if not sf or sf.smoothScroll then return sf end
     sf.smoothScroll = true
@@ -533,6 +669,7 @@ function W.List(parent, rowHeight, setupRow, updateRow)
     local child = CreateFrame("Frame", nil, sf)
     child:SetSize(10, 10)
     sf:SetScrollChild(child)
+    W.StyleScrollBar(sf)
     local list = { frame = sf, rows = {}, items = {}, theme = W.currentTheme }
     local empty = W.Label(child, "", "GameFontDisable")
     empty:SetPoint("TOPLEFT", 6, -8)
@@ -550,16 +687,24 @@ function W.List(parent, rowHeight, setupRow, updateRow)
             if not row then
                 row = CreateFrame("Frame", nil, child)
                 row:SetHeight(rowHeight)
-                -- Navy zebra rows (tinted on module pages); the page color on hover.
+                -- Quiet zebra rows (tinted on module pages); under the mouse a row
+                -- takes the page's color, with a bar of it on the left.
                 row.zebra = row:CreateTexture(nil, "BACKGROUND")
                 row.zebra:SetAllPoints()
+                local hc = W.SchemeOf(row).accent
+                row.hoverBar = row:CreateTexture(nil, "BORDER")
+                row.hoverBar:SetColorTexture(hc[1], hc[2], hc[3], 1)
+                row.hoverBar:SetWidth(2)
+                row.hoverBar:SetPoint("TOPLEFT", 0, 0)
+                row.hoverBar:SetPoint("BOTTOMLEFT", 0, 0)
+                row.hoverBar:Hide()
                 row:EnableMouse(true)
                 row:SetScript("OnEnter", rowEnter)
                 row:SetScript("OnLeave", rowLeave)
                 setupRow(row)
                 self.rows[i] = row
             end
-            row.zebraAlpha = (i % 2 == 0) and 0.85 or 0.35
+            row.zebraAlpha = (i % 2 == 0) and 0.62 or 0.24
             local zc = W.SchemeOf(row).panelHi
             row.zebra:SetColorTexture(zc[1], zc[2], zc[3], row.zebraAlpha)
             row.link, row.tip = nil, nil
@@ -595,28 +740,29 @@ function W.SubTabs(parent, names, onSelect)
     bar:SetPoint("TOPLEFT", 0, 0)
     bar:SetPoint("TOPRIGHT", 0, 0)
     bar:SetHeight(24)
+    -- flat tabs standing on a hairline: the open one is bright and underlined
+    -- in the page's color, the rest are quiet until the mouse is on them
     local base = bar:CreateTexture(nil, "BACKGROUND")
-    local edge = W.SchemeOf(bar).edge
-    base:SetColorTexture(edge[1], edge[2], edge[3], 0.8)
+    base:SetColorTexture(P.line[1], P.line[2], P.line[3], 1)
     base:SetHeight(1)
     base:SetPoint("BOTTOMLEFT", 0, -3)
     base:SetPoint("BOTTOMRIGHT", 0, -3)
+    local ac = W.SchemeOf(bar).accent
 
     local obj = { bar = bar, buttons = {}, pages = {}, names = names }
     local function paint(i)
         local b = obj.buttons[i]
         local on = obj.selected == i
         if on then
-            W.Skin(b, mix(P.panelHi, GOLD, 0.14), 1, GOLD)
-            b.text:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+            b.text:SetTextColor(1, 1, 1)
         elseif b.hover then
-            W.Skin(b, "panelHi", 0.9, GOLD_EDGE)
             b.text:SetTextColor(rgb("text"))
         else
-            W.Skin(b, "panel", 0.9, "border")
             b.text:SetTextColor(rgb("sub"))
         end
-        b.line:SetShown(on)
+        b.wash:SetShown(on)
+        b.line:SetShown((on or b.hover) and true or false)
+        b.line:SetColorTexture(ac[1], ac[2], ac[3], on and 1 or 0.40)
     end
     function obj:Select(i)
         if not self.buttons[i] then return end
@@ -643,17 +789,28 @@ function W.SubTabs(parent, names, onSelect)
     for i, name in ipairs(names) do
         local b = CreateFrame("Button", nil, bar)
         b:SetHeight(24)
-        W.Skin(b, "panel", 0.9, "border")
+        -- a wash of the page's color rising from the underline, on the open tab
+        b.wash = b:CreateTexture(nil, "BACKGROUND")
+        b.wash:SetPoint("TOPLEFT", 0, -2)
+        b.wash:SetPoint("BOTTOMRIGHT", 0, -3)
+        b.wash:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
+        if CreateColor and b.wash.SetGradient then
+            b.wash:SetColorTexture(1, 1, 1, 1)
+            if not pcall(b.wash.SetGradient, b.wash, "VERTICAL", CreateColor(ac[1], ac[2], ac[3], 0.20), CreateColor(ac[1], ac[2], ac[3], 0)) then
+                b.wash:SetColorTexture(ac[1], ac[2], ac[3], 0.10)
+            end
+        end
+        b.wash:Hide()
         b.line = b:CreateTexture(nil, "ARTWORK")
-        b.line:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
+        b.line:SetColorTexture(ac[1], ac[2], ac[3], 1)
         b.line:SetHeight(2)
-        b.line:SetPoint("BOTTOMLEFT", 1, 1)
-        b.line:SetPoint("BOTTOMRIGHT", -1, 1)
+        b.line:SetPoint("BOTTOMLEFT", 0, -3)
+        b.line:SetPoint("BOTTOMRIGHT", 0, -3)
         b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         b.text:SetPoint("CENTER", 0, 1)
         b.text:SetText(name)
         b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28))
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0) else b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 2, 0) else b:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
         b:SetScript("OnEnter", function(self) self.hover = true; paint(i) end)
         b:SetScript("OnLeave", function(self) self.hover = false; paint(i) end)
         b:SetScript("OnClick", function() obj:Select(i) end)
@@ -678,7 +835,7 @@ function W.SubTabs(parent, names, onSelect)
         for j, btn in ipairs(self.buttons) do
             if not self.hidden[j] then
                 btn:ClearAllPoints()
-                if last then btn:SetPoint("LEFT", last, "RIGHT", 4, 0) else btn:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
+                if last then btn:SetPoint("LEFT", last, "RIGHT", 2, 0) else btn:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
                 last = btn
             end
         end
@@ -695,13 +852,13 @@ end
 function W.Card(parent)
     local f = CreateFrame("Frame", nil, parent)
     local t = W.ThemeOf(f) or W.currentTheme
-    W.Skin(f, "panel", 0.92, "border")
+    W.Skin(f, "panel", 0.94, "border")
     if t and t.color then
-        local c = t.color
+        local c = W.SchemeFor(t).accent
         local accent = f:CreateTexture(nil, "ARTWORK")
-        accent:SetColorTexture(c[1], c[2], c[3], 0.9)
-        accent:SetSize(48, 2)
-        accent:SetPoint("TOPLEFT", 1, -1)
+        accent:SetColorTexture(c[1], c[2], c[3], 0.95)
+        accent:SetSize(40, 2)
+        accent:SetPoint("TOPLEFT", 0, 0)
         f.accent = accent
     end
     f.edges = f.skinEdges
@@ -736,9 +893,7 @@ function W.ContextMenu(entries)
     for i, e in ipairs(entries) do
         local it = m.items[i]
         if not it then
-            it = W.Button(m, "", 170)
-            it:SetHeight(20)
-            it.label:SetJustifyH("LEFT")
+            it = W.MenuRow(m, 170)
             m.items[i] = it
         end
         it:ClearAllPoints()
@@ -820,9 +975,7 @@ function W.AttachMenu(b, spec)
             local v = all[menu.offset + i]
             local it = b.items[i]
             if not it then
-                it = W.Button(menu, "", width - 8)
-                it:SetHeight(20)
-                it.label:SetJustifyH("LEFT")
+                it = W.MenuRow(menu, width - 8)
                 b.items[i] = it
             end
             it:ClearAllPoints()
@@ -1069,10 +1222,10 @@ function W.HudFrame(name, themeKey, store, key, point)
     f.SetBackdropColor = function(self, r, g, b, a) self.skinBg:SetColorTexture(r, g, b, a or 0.9) end
     -- A thin band in the module color along the top edge.
     local band = f:CreateTexture(nil, "ARTWORK")
-    band:SetColorTexture(c[1], c[2], c[3], 0.85)
+    band:SetColorTexture(c[1], c[2], c[3], 0.9)
     band:SetHeight(2)
-    band:SetPoint("TOPLEFT", 1, -1)
-    band:SetPoint("TOPRIGHT", -1, -1)
+    band:SetPoint("TOPLEFT", 0, 0)
+    band:SetPoint("TOPRIGHT", 0, 0)
     f.band = band
     f.themeColor = c
     f:SetClampedToScreen(true)
@@ -1130,6 +1283,25 @@ function W.HudFrame(name, themeKey, store, key, point)
     end
     f:SetScale(hudScale())
     hudFrames[#hudFrames + 1] = f
+    return f
+end
+
+-- A module's own window (an editor, a prompt) in that module's colors: the
+-- controls built on it afterwards pick up its accent, and it wears a thin
+-- band of the color along the top. Call it before adding the controls.
+--   W.Themed(frame, "Pathfinder")
+function W.Themed(f, themeKey)
+    local theme = ns.ThemeFor and ns.ThemeFor(themeKey) or nil
+    if not (f and theme) then return f end
+    f.ruinTheme, f.ruinThemeFound = theme, nil
+    if not f.band and f.CreateTexture then
+        local c = W.SchemeFor(theme).accent
+        f.band = f:CreateTexture(nil, "ARTWORK")
+        f.band:SetColorTexture(c[1], c[2], c[3], 0.9)
+        f.band:SetHeight(2)
+        f.band:SetPoint("TOPLEFT", 0, 0)
+        f.band:SetPoint("TOPRIGHT", 0, 0)
+    end
     return f
 end
 

@@ -27,8 +27,16 @@ function UI.Widgets_() return guild, settings end
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
 
+-- Dialogs: the window's navy with a steel edge and RUIN's gold along the top.
 local function styleBox(f)
     Wd.Skin(f, "bg", 0.97, "border")
+    if not f.topLine then
+        f.topLine = f:CreateTexture(nil, "ARTWORK")
+        f.topLine:SetColorTexture(P.gold[1], P.gold[2], P.gold[3], 0.9)
+        f.topLine:SetHeight(2)
+        f.topLine:SetPoint("TOPLEFT", 0, 0)
+        f.topLine:SetPoint("TOPRIGHT", 0, 0)
+    end
 end
 
 local function sound(kit)
@@ -39,7 +47,8 @@ end
 local function closeButton(parent, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(22, 22)
-    Wd.Skin(b, "panel", 0.9, "border")
+    Wd.Skin(b, "panel", 0, "panel")
+    Wd.SetBorder(b, "border", 0)
     local bars = {}
     for i, angle in ipairs({ 45, -45 }) do
         local t = b:CreateTexture(nil, "OVERLAY")
@@ -50,11 +59,12 @@ local function closeButton(parent, onClick)
         bars[i] = t
     end
     b:SetScript("OnEnter", function(self)
-        Wd.SetBorder(self, "glow")
+        Wd.Skin(self, { 0.62, 0.20, 0.18 }, 0.85, { 0.85, 0.35, 0.30 })
         for _, t in ipairs(bars) do t:SetColorTexture(1, 1, 1, 1) end
     end)
     b:SetScript("OnLeave", function(self)
-        Wd.SetBorder(self, "border")
+        Wd.Skin(self, "panel", 0, "panel")
+        Wd.SetBorder(self, "border", 0)
         for _, t in ipairs(bars) do t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1) end
     end)
     b:SetScript("OnClick", onClick)
@@ -115,6 +125,7 @@ local function getDialog()
     eb:SetMaxLetters(0)
     eb:SetScript("OnEscapePressed", function() d:Hide() end)
     sf:SetScrollChild(eb)
+    Wd.StyleScrollBar(sf)
     sf:EnableMouse(true)
     sf:SetScript("OnMouseDown", function() eb:SetFocus() end)
     d.edit = eb
@@ -994,6 +1005,7 @@ local function buildFeedback(page)
     eb:SetMaxLetters(FB.MAX)
     eb:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     sf:SetScrollChild(eb)
+    Wd.StyleScrollBar(sf)
     sf:EnableMouse(true)
     sf:SetScript("OnMouseDown", function() eb:SetFocus() end)
     box:EnableMouse(true)
@@ -1429,24 +1441,24 @@ local function sortedTabs()
     return sorted
 end
 
--- Each tab wears its page's colors: RUIN's teal for Guild and Options, the
--- addon's own color for module pages (a thin strip shows it even unselected).
+-- The tabs are a flat row standing on a hairline. Each carries its page's
+-- glyph in that page's color; the open one is bright, underlined in the
+-- color and washed with it, the rest stay quiet until the mouse is on them.
 local function paintTab(t)
     local b = t.button
     if not b then return end
     local on = selectedTab ~= nil and tabs[selectedTab] == t
     if on then
-        Wd.Skin(b, "panelHi", 1, "glow")
         b.text:SetTextColor(1, 1, 1)
     elseif b.hover then
-        Wd.Skin(b, "panelHi", 0.95, "border")
         b.text:SetTextColor(P.text[1], P.text[2], P.text[3])
     else
-        Wd.Skin(b, "panel", 0.92, "border")
         b.text:SetTextColor(P.sub[1], P.sub[2], P.sub[3])
     end
-    b.line:SetShown(on)
-    b.strip:SetShown(not on)
+    b.wash:SetShown(on)
+    b.line:SetShown(on or b.hover and true or false)
+    b.line:SetAlpha(on and 1 or 0.45)
+    b.icon:SetAlpha((on or b.hover) and 1 or 0.72)
 end
 
 -- The content area takes the selected page's edge color and tint.
@@ -1501,26 +1513,36 @@ function UI:LayoutTabs()
             local b = CreateFrame("Button", nil, tabStrip)
             b.ruinTheme = theme
             b:SetHeight(TAB_H)
+            local ac = Wd.SchemeFor(theme).accent
             b.icon = b:CreateTexture(nil, "ARTWORK")
-            b.icon:SetSize(14, 14)
+            b.icon:SetSize(15, 15)
             b.icon:SetPoint("LEFT", 7, 0)
-            b.icon:SetTexture(theme.icon)
-            pcall(b.icon.SetMask, b.icon, ROUND_MASK)
+            if theme.glyph then
+                -- RUIN's own glyph, in the page's color
+                b.icon:SetTexture(theme.glyph)
+                b.icon:SetVertexColor(ac[1], ac[2], ac[3], 1)
+            else
+                b.icon:SetTexture(theme.tabIcon or theme.icon)
+                if not (type(theme.tabIcon or theme.icon) == "string" and (theme.tabIcon or theme.icon):find("RUIN_Core", 1, true)) then
+                    pcall(b.icon.SetMask, b.icon, ROUND_MASK)
+                end
+            end
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             b.text:SetPoint("LEFT", b.icon, "RIGHT", 5, 0)
             b.text:SetText(tabLabel(t))
-            local ac = Wd.SchemeFor(theme).accent
+            b.wash = b:CreateTexture(nil, "BACKGROUND")
+            b.wash:SetAllPoints()
+            b.wash:SetColorTexture(1, 1, 1, 1)
+            if not (CreateColor and b.wash.SetGradient and pcall(b.wash.SetGradient, b.wash, "VERTICAL",
+                CreateColor(ac[1], ac[2], ac[3], 0.22), CreateColor(ac[1], ac[2], ac[3], 0.02))) then
+                b.wash:SetColorTexture(ac[1], ac[2], ac[3], 0.12)
+            end
+            b.wash:Hide()
             b.line = b:CreateTexture(nil, "OVERLAY")
             b.line:SetColorTexture(ac[1], ac[2], ac[3], 1)
             b.line:SetHeight(2)
-            b.line:SetPoint("BOTTOMLEFT", 1, 1)
-            b.line:SetPoint("BOTTOMRIGHT", -1, 1)
-            local tc = theme.color or P.glow
-            b.strip = b:CreateTexture(nil, "OVERLAY")
-            b.strip:SetColorTexture(tc[1], tc[2], tc[3], 0.55)
-            b.strip:SetHeight(1)
-            b.strip:SetPoint("BOTTOMLEFT", 6, 1)
-            b.strip:SetPoint("BOTTOMRIGHT", -6, 1)
+            b.line:SetPoint("BOTTOMLEFT", 0, 0)
+            b.line:SetPoint("BOTTOMRIGHT", 0, 0)
             b:SetWidth(math.max(60, (b.text:GetStringWidth() or 50) + 36))
             b:SetScript("OnClick", function() UI:SelectTab(i) end)
             b:SetScript("OnEnter", function(self) self.hover = true; paintTab(t) end)
@@ -1542,7 +1564,7 @@ function UI:LayoutTabs()
         paintTab(e.t)
     end
     local rows = row + 1
-    tabStrip:SetHeight(rows * (TAB_H + TAB_GAP))
+    tabStrip:SetHeight(rows * (TAB_H + TAB_GAP) - TAB_GAP)
     content:ClearAllPoints()
     content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + rows * (TAB_H + TAB_GAP) + 2))
     content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
@@ -1666,17 +1688,29 @@ function UI:CreateMain()
 
     local close = closeButton(bar, function() main:Hide() end)
     close:SetPoint("RIGHT", -10, 0)
-    main.state = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    main.state:SetPoint("RIGHT", close, "LEFT", -12, 0)
-    main.stateDot = bar:CreateTexture(nil, "OVERLAY")
+    -- the connection state, in a quiet pill
+    local pill = CreateFrame("Frame", nil, bar)
+    pill:SetHeight(22)
+    Wd.Skin(pill, "bg", 0.55, "line")
+    main.statePill = pill
+    main.state = pill:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    main.state:SetPoint("RIGHT", close, "LEFT", -20, 0)
+    main.stateDot = pill:CreateTexture(nil, "OVERLAY")
     main.stateDot:SetSize(7, 7)
     main.stateDot:SetRotation(math.pi / 4)
-    main.stateDot:SetPoint("RIGHT", main.state, "LEFT", -6, 0)
+    main.stateDot:SetPoint("RIGHT", main.state, "LEFT", -7, 0)
+    pill:SetPoint("LEFT", main.stateDot, "LEFT", -9, 0)
+    pill:SetPoint("RIGHT", main.state, "RIGHT", 10, 0)
 
     tabStrip = CreateFrame("Frame", nil, main)
     tabStrip:SetPoint("TOPLEFT", main, "TOPLEFT", 12, -(TITLE_H + 8))
     tabStrip:SetPoint("RIGHT", main, "RIGHT", -12, 0)
     tabStrip:SetHeight(TAB_H)
+    local tabBase = tabStrip:CreateTexture(nil, "BACKGROUND")       -- the hairline the tabs stand on
+    tabBase:SetColorTexture(P.line[1], P.line[2], P.line[3], 1)
+    tabBase:SetHeight(1)
+    tabBase:SetPoint("BOTTOMLEFT", 0, 0)
+    tabBase:SetPoint("BOTTOMRIGHT", 0, 0)
     content = CreateFrame("Frame", nil, main)
     content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + TAB_H + TAB_GAP + 2))
     content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
