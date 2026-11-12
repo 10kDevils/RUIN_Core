@@ -66,6 +66,8 @@ Admin changes (adding or removing a guild, choosing a new key) are announced to 
 | `/ruin key create <org>` | Create an org key (you become admin) |
 | `/ruin key addguild <guild>, <rank>[, <tag>]` | Admin: add a guild |
 | `/ruin key removeguild <guild>` | Admin: remove a guild (new officer channel; with a random key, a new org channel too) |
+| `/ruin leave` | Leave the org: this account drops the key and leaves its channels, and won't take the key back from guild officers until you import it again (also Settings > Org > Leave org). The admin hands the admin over or disbands instead |
+| `/ruin disband` | Admin: end the org for everyone (type the org's name to confirm). Members online drop the key at once; anyone offline hears it from the first guildmate who did (also Settings > Org > Disband org) |
 | `/ruin key transfer <name>` | Admin: hand the org admin over to another player (online, with RUIN, in an org guild); it changes hands when they accept. Also Settings > Org > Transfer admin |
 | `/ruin key newkey [key phrase]` | Admin: a new key phrase, or without one the Choose new key box (empty for a random key) |
 | `/ruin bridge on\|off` | Allow or stop relaying for guildmates without RUIN |

@@ -8,6 +8,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.6.1 — 2026-11-11
 
+- **Leave org** (Settings > Org, or /ruin leave): anyone but the admin can leave. RUIN drops the org key on the account and leaves the org's channels, and your guild's officers no longer hand it back on their own; importing the key or phrase again (or accepting an offered key) brings you back.
+- **Disband org** (Settings > Org, or /ruin disband; the admin only, typing the org's name to confirm): every member's RUIN drops the key. Members online get it at once on the org and officer channels; anyone offline hears it from the first guildmate who did, and officers stop sharing that key.
 - The org admin can hand the admin over: Settings > Org > Transfer admin (or /ruin key transfer <name>). The other player must be online, with RUIN, in one of the org's guilds, and accept. Then their character is the admin, the old admin's characters no longer are, and the new key reaches officers at once and members through them. A key from anyone else naming a new admin is still ignored, and the admin's own account never loses the admin to a key from outside.
 - RUIN no longer watches the game's quest data requests for its "too fast" report: the objective tracker makes them constantly, and the hook ran on every one, in combat too.
 - With Ruinous Forever Planner: its stat estimate shows once on an item tooltip. It could be added a second time below RUIN Exchange's and Codex's lines.

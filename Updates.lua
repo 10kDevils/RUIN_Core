@@ -21,6 +21,7 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
     { "0.6.1", {
+        "Leave org (anyone) and Disband org (the admin), under Settings > Org, or /ruin leave and /ruin disband.",
         "The org admin can hand the admin over to another player: Settings > Org > Transfer admin. They accept, and the org follows them.",
         "With RUIN Pathfinder: quest routes come from RUIN Quest Data, a new addon that ships with the suite, so zone and dungeon routes work with no other quest addon.",
         "With RUIN Pathfinder: quests that share targets are done in one step, and routes walk less: a search over the whole order, and real distances between neighbouring zones.",

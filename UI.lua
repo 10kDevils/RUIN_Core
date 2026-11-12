@@ -289,6 +289,36 @@ function UI:PromptNewKey()
 end
 UI.PromptRotate = UI.PromptNewKey
 
+-- Anyone: leave the org (this account drops the key and won't take it back
+-- from guild officers until you import it again).
+function UI:PromptLeaveOrg()
+    local k = ns.Org:Get()
+    if not k then return ns:Print("You're not in an org.") end
+    if ns.Org:IsAdmin() then
+        return ns:Print("You're the org admin: hand the admin over first (Settings > Org > Transfer admin), or disband the org (/ruin disband).")
+    end
+    UI:ShowConfirm("Leave the org", ("Leave %s?\n\nRUIN drops the org key on every character of this account and leaves the org's channels. Your guild's officers won't hand it back on their own: to return, import the key or the key phrase again.")
+        :format(ns.Escape(k.org)), function()
+        local ok, res = ns.Org:Leave()
+        ns:Print(ok and ("You left " .. res .. ". Import a key to join again.") or res)
+        UI:Refresh()
+    end)
+end
+
+-- The admin: disband the org for everyone.
+function UI:PromptDisbandOrg()
+    local k = ns.Org:Get()
+    if not k then return ns:Print("You're not in an org.") end
+    if not ns.Org:IsAdmin() then return ns:Print("Only the org admin can disband the org. To leave it yourself: /ruin leave.") end
+    UI:ShowText("Disband the org", ("This ends %s for everyone: every member's RUIN drops the org key and leaves its channels, and nobody can undo it (a new org needs a new key).\nType the org's name to confirm."):format(k.org),
+        "", function(text)
+            if ns.Trim(text or "") ~= k.org then return ns:Print("The name didn't match; the org stays.") end
+            local ok, res = ns.Org:Disband()
+            ns:Print(ok and ("Disbanded " .. res .. ". Members online drop the key now; the rest when they next meet one who did.") or res)
+            UI:Refresh()
+        end, true)
+end
+
 -- The admin hands the org admin over to another player (they must accept).
 function UI:PromptTransferAdmin()
     if not ns.Org:IsAdmin() then return ns:Print("Only the org admin can hand the admin over.") end
@@ -1003,6 +1033,10 @@ local function buildSettingsPanel(p)
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
     settings.transfer = Wd.Button(keyCard, "Transfer admin", 120, function() UI:PromptTransferAdmin() end)
     settings.transfer.tip = "Hand the org admin over to another player; they must accept"
+    settings.leave = Wd.Button(keyCard, "Leave org", 100, function() UI:PromptLeaveOrg() end)
+    settings.leave.tip = "Leave the org: this account drops the org key"
+    settings.disband = Wd.Button(keyCard, "Disband org", 110, function() UI:PromptDisbandOrg() end)
+    settings.disband.tip = "End the org for everyone"
     settings.blockWords = Wd.Button(keyCard, "Block words", 110, function()
         local k = ns.Org:Get()
         UI:ShowText("Org block words", "Lines with these words are hidden from RUIN chat for every member. Separate them with commas.",
@@ -1185,9 +1219,10 @@ refreshSettings = function()
     if k and admin then row1[#row1 + 1] = settings.export end
     if k and (admin or (k.oc ~= nil and ns.Org:AmOfficer())) then row1[#row1 + 1] = settings.send end
     if not k then row1[#row1 + 1] = settings.create end
-    if k and admin then row1[#row1 + 1] = settings.transfer end
+    if k and admin then row1[#row1 + 1] = settings.transfer; row1[#row1 + 1] = settings.disband end
+    if k and not admin then row1[#row1 + 1] = settings.leave end
     local row2 = admin and { settings.addGuild, settings.rotate, settings.links, settings.blockWords } or {}
-    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
         local prev

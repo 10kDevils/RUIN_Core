@@ -324,6 +324,7 @@ local HELP = {
     "/ruin key removeguild <guild>  |  /ruin key newkey [key phrase]  (org admin)",
     "/ruin key links - edit the org's community links  (org admin)",
     "/ruin key transfer <name> - hand the org admin over to them  (org admin)",
+    "/ruin leave - leave the org  |  /ruin disband - end the org for everyone  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
     "/ruin couch - toggle couch mode (larger window)",
@@ -400,11 +401,15 @@ local function handleKey(rest)
         ns:Print(ok and ("Asked " .. arg .. " to take over the org admin. It changes hands when they accept.") or err)
     elseif sub == "links" then
         ns.UI:PromptLinks()
+    elseif sub == "leave" then
+        ns.UI:PromptLeaveOrg()
+    elseif sub == "disband" then
+        ns.UI:PromptDisbandOrg()
     elseif sub == "forget" then
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, forget")
+        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, leave, disband, forget")
     end
 end
 
@@ -446,6 +451,10 @@ SlashCmdList.RUIN = function(input)
         ns:PrintStatus()
     elseif cmd == "versions" then
         ns.Presence:PrintVersions()
+    elseif cmd == "leave" then
+        ns.UI:PromptLeaveOrg()
+    elseif cmd == "disband" then
+        ns.UI:PromptDisbandOrg()
     elseif cmd == "key" then
         handleKey(rest)
     elseif cmd == "bridge" then

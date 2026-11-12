@@ -260,9 +260,21 @@ function Org:Apply(k, source)
     end
 
     ns.db.orgKey = k
+    if source == "import" and type(ns.db.leftOrgs) == "table" then ns.db.leftOrgs[k.org] = nil end
+    if source == "import" and type(ns.db.disbanded) == "table" then ns.db.disbanded[k.org] = nil end
     ns:Fire("KEY_CHANGED", source)
     return true
 end
+
+-- Orgs you left, or that were disbanded: their key isn't taken back on its
+-- own (an officer of your guild shares it automatically otherwise); only
+-- importing it again (a key, a phrase, an offered key you accept) does.
+local function refused(org)
+    if type(org) ~= "string" then return false end
+    return (type(ns.db.leftOrgs) == "table" and ns.db.leftOrgs[org] ~= nil)
+        or (type(ns.db.disbanded) == "table" and ns.db.disbanded[org] ~= nil)
+end
+Org.Refused = refused
 
 function Org:Forget()
     if ns.db then ns.db.orgKey = nil end
@@ -405,6 +417,77 @@ function Org:ChooseNewKey(phrase)
 end
 
 function Org:Rotate() return Org:ChooseNewKey(Org:Phrase()) end
+
+---------------------------------------------------------------------------
+-- Leaving the org (anyone) and disbanding it (the admin)
+---------------------------------------------------------------------------
+-- Leave: this account drops the key, and won't take it back from your
+-- guild's officers until you import it again yourself.
+function Org:Leave()
+    local k = Org:Get()
+    if not k then return false, "You're not in an org." end
+    if Org:IsAdmin() then
+        return false, "You're the org admin: hand the admin over first (Transfer admin), or disband the org."
+    end
+    ns.db.leftOrgs = type(ns.db.leftOrgs) == "table" and ns.db.leftOrgs or {}
+    ns.db.leftOrgs[k.org] = ns.Now()
+    Org:Forget()
+    return true, k.org
+end
+
+-- Disband: every member's RUIN drops the key. Members online get it at once
+-- (org and officer channels); anyone offline hears it later from a member
+-- who did (see relayDisband), and their guild's officers stop sharing it.
+local function markDisbanded(k)
+    ns.db.disbanded = type(ns.db.disbanded) == "table" and ns.db.disbanded or {}
+    ns.db.disbanded[k.org] = { admin = k.admin, an = ns.DeepCopy(k.an or {}), t = ns.Now() }
+end
+
+function Org:Disband()
+    local k, err = editableKey()
+    if not k then return false, err end
+    local note = { org = k.org, admin = k.admin }
+    ns.Comms:Send("DISBAND", note, "ORG", nil, ns.Comms.PRIORITY.ALERT)
+    if k.oc then ns.Comms:Send("DISBAND", note, "OFFICERS", nil, ns.Comms.PRIORITY.ALERT) end
+    markDisbanded(k)
+    if type(ns.db.adminOf) == "table" then ns.db.adminOf[k.org] = nil end
+    -- leave the channels after the message has gone out
+    local org = k.org
+    C_Timer.After(3, function()
+        local cur = Org:Get()
+        if cur and cur.org == org then Org:Forget() end
+    end)
+    return true, org
+end
+
+local relayed = {}       -- name -> time: tell each straggler once in a while
+local function relayDisband(org, name)
+    if type(name) ~= "string" or name == "" then return end
+    local n = ns.NormalizeName(name)
+    if relayed[n] and GetTime() < relayed[n] then return end
+    relayed[n] = GetTime() + 300
+    local rec = ns.db.disbanded and ns.db.disbanded[org]
+    if not rec then return end
+    ns.Comms:Send("DISBAND", { org = org, admin = rec.admin, relay = 1 }, "PEER", name, ns.Comms.PRIORITY.BULK)
+end
+Org.RelayDisband = relayDisband
+
+ns.Comms:Register("DISBAND", function(d, sender, scope)
+    local k = Org:Get()
+    if not (k and type(d) == "table" and d.org == k.org and d.admin == k.admin) then return end
+    local fromAdmin = Org:IsAdminName(sender, k)
+    if not fromAdmin then
+        -- passed on: from an officer, or someone in your own guild
+        if not (d.relay and scope == "PEER") then return end
+        local entry = ns.roster[ns.NormalizeName(sender)]
+        if not (ns.Presence:IsOfficerName(sender) or entry) then return end
+    end
+    if Org:IsAdmin() and not fromAdmin then return end      -- the admin's own org only ends by its own hand
+    markDisbanded(k)
+    ns:Print(("The %s org was disbanded by its admin%s. RUIN dropped the org key; import a new one to join another org.")
+        :format(k.org, fromAdmin and (" (" .. ns.ShortName(sender) .. ")") or ""))
+    Org:Forget()
+end)
 
 ---------------------------------------------------------------------------
 -- Handing the org admin over to someone else
@@ -724,6 +807,9 @@ end
 
 -- Called by Presence whenever a guildmate's HELLO arrives.
 function Org:OnPeerKeyState(peer)
+    if type(peer.org) == "string" and peer.org ~= "" and ns.db and type(ns.db.disbanded) == "table" and ns.db.disbanded[peer.org] then
+        relayDisband(peer.org, peer.name)
+    end
     local k = Org:Get()
     if not k or not Org:MyGuildInOrg() or not Org:AmOfficer() then return end
     if peer.org and peer.org ~= "" and peer.org ~= k.org then return end
@@ -743,6 +829,11 @@ end)
 
 ns.Comms:Register("KEY", function(d, sender, scope)
     if scope ~= "GUILD" or not validKey(d.k) then return end
+    if refused(d.k.org) then
+        -- tell an officer still sharing a disbanded org's key
+        if ns.db.disbanded and ns.db.disbanded[d.k.org] then relayDisband(d.k.org, sender) end
+        return
+    end
     local cur = Org:Get()
     if cur and cur.org == d.k.org and d.k.rev <= cur.rev then
         guildShareSuppressedUntil = GetTime() + 30   -- someone else already shared
@@ -891,6 +982,7 @@ ns.Comms:Register("PKEY", function(d, sender, scope)
     if scope ~= "ORG" then return end
     lastKeyAnswerSeen = GetTime()
     if not joining or not validKey(d.k) then return end
+    if type(ns.db.disbanded) == "table" and ns.db.disbanded[d.k.org] and d.k.admin == ns.db.disbanded[d.k.org].admin then return end
     if d.k.c.n ~= joining.n or d.k.c.p ~= joining.p then return end
     local k = memberCopy(d.k)
     local ok, why = Org:Apply(k, "import")
