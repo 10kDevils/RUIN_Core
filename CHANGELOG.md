@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.6.1 — 2026-11-11
 
+- With Ruinous Forever Planner: its stat estimate shows once on an item tooltip. It could be added a second time below RUIN Exchange's and Codex's lines.
 - RUIN no longer names any other quest addon: the Quests page and the What's new notes talk about the quest database, and the toc no longer lists one as an optional dependency.
 
 ## 0.6.0 — 2026-11-11

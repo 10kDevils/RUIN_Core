@@ -579,7 +579,38 @@ function Planner:AddPage()
     end
 end
 
+-- The planner adds its stat estimate to item tooltips, and skips a tooltip
+-- it has done only while the line count is unchanged. Other addons (RUIN
+-- Exchange and Codex among them) add lines after it, so a later hook of
+-- its own added the whole block a second time. One block per tooltip: when
+-- the tooltip already shows it, the planner's call is skipped.
+local PLANNER_HEADER = "Ruinous Forever Planner - stat estimate"
+local function showsPlannerBlock(tip)
+    local name = type(tip) == "table" and tip.GetName and tip:GetName()
+    local n = type(tip) == "table" and tip.NumLines and tip:NumLines()
+    if type(name) ~= "string" or type(n) ~= "number" or (issecretvalue and issecretvalue(n)) then return false end
+    for i = 1, n do
+        local fs = _G[name .. "TextLeft" .. i]
+        local t = fs and fs.GetText and fs:GetText()
+        if type(t) == "string" and not (issecretvalue and issecretvalue(t)) and t == PLANNER_HEADER then return true end
+    end
+    return false
+end
+Planner.ShowsPlannerBlock = showsPlannerBlock
+function Planner:GuardTooltips()
+    local P = rawget(_G, "RuinousForeverPlanner")
+    if type(P) ~= "table" or type(P.AppendItemRating) ~= "function" or P.ruinGuarded then return end
+    local append = P.AppendItemRating
+    P.AppendItemRating = function(tip, ...)
+        if showsPlannerBlock(tip) then return end
+        return append(tip, ...)
+    end
+    P.ruinGuarded = true
+end
+Planner:GuardTooltips()
+
 ns:Subscribe("LOGIN", function()
+    Planner:GuardTooltips()
     C_Timer.After(1, function() Planner:AddPage() end)
     C_Timer.NewTicker(300, function() Planner:Share(false) end)
 end)
