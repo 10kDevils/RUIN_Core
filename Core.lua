@@ -138,6 +138,14 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 ---------------------------------------------------------------------------
+-- What you let RUIN share about you (Settings > Display > What RUIN shares
+-- about you): "zone", "recipes", "prices", "loot", "quests", "atlas". On
+-- unless turned off.
+function ns:Shares(kind)
+    local sh = ns.db and ns.db.settings and ns.db.settings.share
+    return not (type(sh) == "table" and sh[kind] == false)
+end
+
 -- Internal callbacks (KEY_CHANGED, PEERS_CHANGED, ROSTER_UPDATED, ...)
 ---------------------------------------------------------------------------
 local callbacks = {}
@@ -324,6 +332,7 @@ local HELP = {
     "/ruin key removeguild <guild>  |  /ruin key newkey [key phrase]  (org admin)",
     "/ruin key links - edit the org's community links  (org admin)",
     "/ruin key transfer <name> - hand the org admin over to them  (org admin)",
+    "/ruin key lockout <name>[, name] - new officer channel without them  (org admin)",
     "/ruin leave - leave the org  |  /ruin disband - end the org for everyone  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
@@ -395,6 +404,12 @@ local function handleKey(rest)
         else
             ns.UI:PromptNewKey()
         end
+    elseif sub == "lockout" then
+        if arg == "" then return ns.UI:PromptLockOut() end
+        local names = {}
+        for n in arg:gmatch("[^,]+") do n = ns.Trim(n); if n ~= "" then names[#names + 1] = n end end
+        local ok, err = Org:RotateOfficerChannel(names)
+        ns:Print(ok and ("New officer channel made without " .. table.concat(names, ", ") .. ".") or err)
     elseif sub == "transfer" then
         if arg == "" then return ns.UI:PromptTransferAdmin() end
         local ok, err = Org:OfferAdmin(arg)
@@ -409,7 +424,7 @@ local function handleKey(rest)
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, leave, disband, forget")
+        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, lockout <names>, leave, disband, forget")
     end
 end
 

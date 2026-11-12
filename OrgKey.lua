@@ -139,6 +139,7 @@ local function validKey(k)
     if k.ph ~= nil and type(k.ph) ~= "string" then return false end
     if k.bw ~= nil and type(k.bw) ~= "table" then return false end
     if k.xt ~= nil and (type(k.xt) ~= "table" or type(k.xt.f) ~= "string" or type(k.xt.t) ~= "string") then return false end
+    if k.ocr ~= nil and type(k.ocr) ~= "number" then return false end
     return true
 end
 Org.ValidKey = validKey
@@ -240,8 +241,8 @@ function Org:Apply(k, source)
                 if source ~= "admin" and not newAdmin and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
             end
             if k.rev == cur.rev then
-                if k.oc and not cur.oc then
-                    cur.oc = k.oc
+                if k.oc and not cur.oc and (accountIsAdmin(cur) or Org:AmOfficer()) then
+                    cur.oc, cur.ocr, cur.ph = k.oc, k.ocr, k.ph or cur.ph
                     ns:Fire("KEY_CHANGED", source)
                     return true
                 end
@@ -250,6 +251,9 @@ function Org:Apply(k, source)
         end
     end
 
+    -- A key without the officer channel (the member copy): an officer keeps
+    -- theirs while it's still the current one (same generation).
+    if not k.oc and cur and cur.oc and cur.org == k.org and (k.ocr or 0) == (cur.ocr or 0) then k.oc = cur.oc end
     -- Only officers of their own guild (or the admin) keep the officer channel.
     if k.oc and not accountIsAdmin(k) then
         local g = ns.guildName and k.guilds[ns.guildName]
@@ -331,12 +335,45 @@ end
 -- at once (the member copy on the org channel): members used to wait for an
 -- officer of their own guild to pass it on, which could take a while or,
 -- with no officer online, never happen.
-local function publishEdit(k, oldOfficerChannel)
+--
+-- When the officer channel itself changes, the new one is never sent on the
+-- old one: whoever still listens there (an officer since demoted, a removed
+-- guild) would hear it. The old channel gets the key without it; the new one
+-- goes by whisper to the officers RUIN can vouch for (your guild's roster,
+-- other guilds' officers seen lately), minus anyone locked out, and each
+-- guild's officers pass it to their own officer-rank guildmates (OKEY).
+local function deliverOfficerChannel(k, exclude, removedGuild)
+    exclude = exclude or {}
+    local sent = 0
+    for _, o in ipairs(ns.Presence:KnownOfficers()) do
+        local n = ns.NormalizeName(o.name)
+        local guildOk = not o.guild or (k.guilds[o.guild] and o.guild ~= removedGuild)
+        if guildOk and not exclude[n] and n ~= ns.playerNorm and (o.online or o.roster) then
+            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "PEER", o.name, ns.Comms.PRIORITY.ALERT)
+            sent = sent + 1
+        end
+    end
+    return sent
+end
+
+local function publishEdit(k, oldOfficerChannel, exclude, removedGuild)
     if oldOfficerChannel then
-        ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
+        if k.oc and k.oc.n ~= oldOfficerChannel then
+            ns.Comms:Send("ORGKEY", { k = memberCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
+            deliverOfficerChannel(k, exclude, removedGuild)
+        else
+            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
+        end
     end
     ns.Comms:Send("MKEY", { k = memberCopy(k) }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
     ns:Fire("KEY_CHANGED", "edit")
+end
+
+-- A new officer channel: the generation number moves on, so a key without
+-- the officer channel tells an officer theirs is out of date.
+local function newOfficerChannel(k)
+    k.oc = newChannel()
+    k.ocr = (tonumber(k.ocr) or 0) + 1
 end
 
 function Org:AddGuild(name, rank, tag)
@@ -398,8 +435,8 @@ function Org:RemoveGuild(name)
     -- With a key phrase the org channel stays the phrase's (the admin
     -- chooses a new phrase to lock them out of it).
     if not k.ph then k.c = newChannel() end
-    k.oc = newChannel()
-    publishEdit(k, oldOC)
+    newOfficerChannel(k)
+    publishEdit(k, oldOC, nil, name)
     return true
 end
 
@@ -415,13 +452,34 @@ function Org:ChooseNewKey(phrase)
         if not ph then return false, err end
     end
     local oldOC = k.oc and k.oc.n
-    k.c, k.oc, k.ph = ph and Org.PhraseChannel(ph) or newChannel(), newChannel(), ph
+    k.c, k.ph = ph and Org.PhraseChannel(ph) or newChannel(), ph
+    newOfficerChannel(k)
     k.rev = nextRev(k)
     publishEdit(k, oldOC)
     return true
 end
 
 function Org:Rotate() return Org:ChooseNewKey(Org:Phrase()) end
+
+-- Lock someone out of the officer channel (an officer demoted, kicked or
+-- gone): a new officer channel, delivered to every other officer RUIN can
+-- vouch for. `names` are the characters to leave out.
+function Org:RotateOfficerChannel(names)
+    local k, err = editableKey()
+    if not k then return false, err end
+    local exclude = {}
+    for _, n in ipairs(type(names) == "table" and names or {}) do
+        if type(n) == "string" and ns.Trim(n) ~= "" then
+            exclude[ns.NormalizeName(ns.Trim(n))] = true
+            ns.Presence:ForgetOfficer(ns.Trim(n))
+        end
+    end
+    local oldOC = k.oc and k.oc.n
+    newOfficerChannel(k)
+    k.rev = nextRev(k)
+    publishEdit(k, oldOC, exclude)
+    return true
+end
 
 ---------------------------------------------------------------------------
 -- Leaving the org (anyone) and disbanding it (the admin)
@@ -492,6 +550,82 @@ ns.Comms:Register("DISBAND", function(d, sender, scope)
     ns:Print(("The %s org was disbanded by its admin%s. RUIN dropped the org key; import a new one to join another org.")
         :format(k.org, fromAdmin and (" (" .. ns.ShortName(sender) .. ")") or ""))
     Org:Forget()
+end)
+
+---------------------------------------------------------------------------
+-- Officers who stop being officers
+-- An officer's RUIN watches its own guild's roster. When someone who was at
+-- officer rank is demoted, or leaves or is removed from the guild, it tells
+-- the admin (on the officer channel), and the admin is asked to lock them out
+-- of the officer channel (Org:RotateOfficerChannel).
+---------------------------------------------------------------------------
+local lostQueue, lostPrompted, lostTimer = {}, {}, false
+local function promptLost()
+    lostTimer = false
+    local names, label = {}, {}
+    for n, e in pairs(lostQueue) do
+        if not lostPrompted[n] then
+            lostPrompted[n] = true
+            names[#names + 1] = e.name
+            label[#label + 1] = ns.ShortName(e.name) .. (e.guild and (" (" .. e.guild .. ")") or "")
+        end
+    end
+    lostQueue = {}
+    if #names == 0 or not Org:IsAdmin() then return end
+    table.sort(label)
+    ns.UI:ShowConfirm("Lock out of the officer channel?",
+        ("%s %s no longer an officer.\n\nThey still know the officer channel's password. Make a new officer channel and give it to every other officer?")
+            :format(table.concat(label, ", "), #names == 1 and "is" or "are"),
+        function()
+            local ok, err = Org:RotateOfficerChannel(names)
+            ns:Print(ok and "New officer channel made; the other officers get it now." or err)
+        end)
+end
+local function noteLost(name, guild)
+    local n = ns.NormalizeName(name)
+    if lostPrompted[n] then return end
+    lostQueue[n] = { name = name, guild = guild }
+    if not lostTimer then
+        lostTimer = true
+        C_Timer.After(8, promptLost)
+    end
+end
+Org.NoteLostOfficer = noteLost
+
+ns:Subscribe("ROSTER_UPDATED", function()
+    local k = Org:Get()
+    if not (k and ns.guildName and k.guilds[ns.guildName] and (Org:AmOfficer() or Org:IsAdmin())) then return end
+    local roster = ns.roster or {}
+    local count, now = 0, {}
+    for norm, e in pairs(roster) do
+        count = count + 1
+        if Org:IsOfficerRank(e.rank) then now[norm] = e.name end
+    end
+    if count == 0 then return end
+    ns.db.guildOfficers = type(ns.db.guildOfficers) == "table" and ns.db.guildOfficers or {}
+    local key = k.org .. "/" .. ns.guildName
+    local before = ns.db.guildOfficers[key]
+    -- a roster much smaller than last time is a partial one: wait for the full one
+    if type(before) == "table" and (before._n or 0) > 0 and count < (before._n or 0) * 0.8 then return end
+    if type(before) == "table" then
+        for norm, name in pairs(before) do
+            if norm ~= "_n" and not now[norm] and norm ~= ns.playerNorm then
+                if Org:IsAdmin() then noteLost(name, ns.guildName)
+                elseif k.oc then
+                    ns.Comms:Send("OCLOST", { n = name, g = ns.guildName }, "OFFICERS", nil, ns.Comms.PRIORITY.ALERT)
+                end
+            end
+        end
+    end
+    now._n = count
+    ns.db.guildOfficers[key] = now
+end)
+
+ns.Comms:Register("OCLOST", function(d, sender, scope)
+    if scope ~= "OFFICERS" or type(d.n) ~= "string" or not Org:IsAdmin() then return end
+    local k = Org:Get()
+    if not (k and type(d.g) == "string" and k.guilds[d.g]) then return end
+    noteLost(d.n:sub(1, 48), d.g)
 end)
 
 ---------------------------------------------------------------------------
@@ -645,7 +779,9 @@ end
 local function acceptOrgKey(d, sender, source)
     if not validKey(d.k) then return end
     local cur = Org:Get()
-    if not cur or cur.org ~= d.k.org or d.k.rev <= cur.rev then return end
+    if not cur or cur.org ~= d.k.org or d.k.rev < cur.rev then return end
+    -- the same rev again only to hand an officer the new officer channel
+    if d.k.rev == cur.rev and not (d.k.oc and not cur.oc) then return end
     if not ns.guildName or not d.k.guilds[ns.guildName] then
         if not Org:IsAdmin() then
             ns:Print("The org key was updated, but your guild is no longer listed in it.")
@@ -708,7 +844,6 @@ ns.Comms:Register("MKEY", function(d, sender, scope)
     if not senderIsAdmin(sender, d, scope) then return end
     local cur = Org:Get()
     if not cur or cur.org ~= d.k.org or d.k.rev <= cur.rev then return end
-    if not d.k.oc and cur.oc then d.k.oc = cur.oc end
     acceptOrgKey(d, sender, "admin")
 end)
 
@@ -901,7 +1036,11 @@ function Org:SendFullKey(target)
     end
     target = ns.Trim(target or "")
     if target == "" then return false, "No target." end
-    ns.Comms:Send("FULLKEY", { k = k }, "PEER", target, ns.Comms.PRIORITY.BULK)
+    -- only the admin hands out the officer channel and key phrase this way
+    -- (to a new guild's leader); an officer's offer is the member key, and
+    -- their guild's officers pass the officer channel on once they're in
+    local send = Org:IsAdmin() and k or memberCopy(k)
+    ns.Comms:Send("FULLKEY", { k = send }, "PEER", target, ns.Comms.PRIORITY.BULK)
     return true
 end
 

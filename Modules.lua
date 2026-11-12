@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 13              -- modules check this to know which API they can use
+API.apiLevel = 14              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -276,6 +276,8 @@ function API:SameName(a, b)
 end
 -- A timestamp from another player, or nil if it's not one (or in the future).
 function API:SaneTime(t) return ns.SaneTime(t) end
+-- Does the player let RUIN share this about them? ("recipes", "prices", "loot", "quests", "atlas", "zone")
+function API:Shares(kind) return ns:Shares(kind) end
 -- A guildmate's rank index from the guild roster (0 = guild master), or nil.
 function API:GuildRankOf(name)
     local e = name and ns.roster and ns.roster[ns.NormalizeName(name)]

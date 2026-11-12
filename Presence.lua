@@ -47,7 +47,7 @@ function Presence:SendOrgHello(request)
     lastOrgHello = GetTime()
     ns.Comms:Send("OHELLO", {
         g = ns.playerGUID, v = ns.VERSION, p = ns.PROTOCOL,
-        gu = ns.guildName, c = myClass(), l = UnitLevel("player"), z = myZone(),
+        gu = ns.guildName, c = myClass(), l = UnitLevel("player"), z = ns:Shares("zone") and myZone() or nil,
         al = Presence:AltToken(), bt = ns.Watch and ns.Watch.MyTagHash and ns.Watch:MyTagHash() or nil,
         kr = ns.Org:Rev(), o = ns.Org:AmOfficer() and 1 or 0,
         rq = request and 1 or nil,
@@ -244,6 +244,32 @@ function Presence:NoteOfficer(name, guild, via, t)
     e.n, e.t = ns.ShortName(name):sub(1, 48), math.max(e.t or 0, t)
     if type(guild) == "string" and guild ~= "" then e.gu = guild:sub(1, 48) end
     if via == "channel" or not e.via then e.via = via end
+end
+
+-- Drop a name from the verified officers (an ex-officer the admin locked out).
+function Presence:ForgetOfficer(name)
+    if type(name) ~= "string" then return end
+    officerStore()[ns.NormalizeName(name)] = nil
+end
+
+-- Every officer RUIN can vouch for: guildmates at officer rank (by the game's
+-- roster) and other guilds' officers seen on the officer channel lately.
+-- { { name, guild, online } }
+function Presence:KnownOfficers()
+    local out, seen = {}, {}
+    for norm, e in pairs(ns.roster or {}) do
+        if ns.Org:IsOfficerRank(e.rank) and norm ~= ns.playerNorm then
+            out[#out + 1] = { name = e.name, guild = ns.guildName, online = e.online and true or false, roster = true }
+            seen[norm] = true
+        end
+    end
+    local now = serverNow()
+    for norm, e in pairs(officerStore()) do
+        if not seen[norm] and e.via == "channel" and now - (e.t or 0) <= OFFICER_KEEP then
+            out[#out + 1] = { name = e.n, guild = e.gu, online = Presence:OrgPeerByName(e.n) ~= nil }
+        end
+    end
+    return out
 end
 
 -- name -> { n, gu, t, via } for a verified officer of another guild, or nil.

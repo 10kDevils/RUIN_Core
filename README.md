@@ -68,6 +68,7 @@ Admin changes (adding or removing a guild, choosing a new key) are announced to 
 | `/ruin key removeguild <guild>` | Admin: remove a guild (new officer channel; with a random key, a new org channel too) |
 | `/ruin leave` | Leave the org: this account drops the key and leaves its channels, and won't take the key back from guild officers until you import it again (also Settings > Org > Leave org). The admin hands the admin over or disbands instead |
 | `/ruin disband` | Admin: end the org for everyone (type the org's name to confirm). Members online drop the key at once; anyone offline hears it from the first guildmate who did (also Settings > Org > Disband org) |
+| `/ruin key lockout <name>` | Admin: a new officer channel without the named characters (demoted officers, people who left) |
 | `/ruin key transfer <name>` | Admin: hand the org admin over to another player (online, with RUIN, in an org guild); it changes hands when they accept. Also Settings > Org > Transfer admin |
 | `/ruin key newkey [key phrase]` | Admin: a new key phrase, or without one the Choose new key box (empty for a random key) |
 | `/ruin bridge on\|off` | Allow or stop relaying for guildmates without RUIN |
@@ -102,7 +103,10 @@ For every addon message the game vouches for exactly one thing: the name of the 
 ## Known limits
 
 - Addons cannot do real encryption. Anyone with a channel's password and a modified client can read RUIN traffic on it. Choosing a new key locks out people who left; keep truly sensitive officer talk in Discord.
-- Officers are trusted: anyone holding the officer channel's password (including a demoted officer until the admin chooses a new key) counts as an officer to other guilds. An officer can pass on a key with other channels in it (never a new admin); the admin's next edit always lands above it. Choose a new key after removing an officer.
+- Officers are trusted: anyone holding the officer channel's password counts as an officer to other guilds. When an officer is demoted or leaves, their guild's officers' RUIN notices it in the roster and asks the admin to lock them out (or the admin uses Settings > Org > Lock out officer, `/ruin key lockout <name>`): a new officer channel goes by whisper to the officers RUIN can vouch for, never over the old channel, so whoever still listens there doesn't hear it. An officer can pass on a key with other channels in it (never a new admin); the admin's next edit always lands above it.
+- Only the admin's key offer carries the officer channel and the key phrase; an officer's offer is the member key.
+- What others share is checked before it counts: auction and vendor prices from others never replace what you saw yourself lately and a price far off a recent one is ignored; quest-place sightings count once per player; dungeon drop and kill reports are de-duplicated and budgeted per player, and catch-up totals can't make a count jump; a craft counts as confirmed only when its crafter logged it and its customer confirmed it.
+- What RUIN shares about you can be switched off piece by piece: Settings > Display > What RUIN shares about you (zone, recipes, prices, loot, quest log, quest places).
 - Joining by key phrase takes the member key from whoever answers first on the phrase's channel. Someone who knows the phrase can answer with a forged key; give phrases only to people you trust and change them when people leave.
 - Keys from before 0.4.5 don't list the admin by name until the admin logs in with 0.4.5 (RUIN adds the name then). Until that happens, a key on the officer channel that keeps the admin and names its sender as the admin is accepted.
 - Members verify other guilds' officers through their own guild's officers. In a guild where no officer runs RUIN, members won't apply other guilds' sanctions or bounties until one does.

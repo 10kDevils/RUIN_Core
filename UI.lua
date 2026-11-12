@@ -290,6 +290,23 @@ function UI:PromptNewKey()
 end
 UI.PromptRotate = UI.PromptNewKey
 
+-- The admin: lock characters out of the officer channel (new officer channel
+-- for everyone else).
+function UI:PromptLockOut()
+    if not ns.Org:IsAdmin() then return ns:Print("Only the org admin can lock someone out of the officer channel.") end
+    UI:ShowText("Lock out of the officer channel", "The characters to lock out (one per line or comma separated): demoted officers, people who left. A new officer channel goes by whisper to every other officer RUIN knows; offline officers get it from an officer of their guild.",
+        "", function(text)
+            local names = {}
+            for n in tostring(text or ""):gmatch("[^,\n]+") do
+                n = ns.Trim(n)
+                if n ~= "" then names[#names + 1] = n end
+            end
+            if #names == 0 then return end
+            local ok, err = ns.Org:RotateOfficerChannel(names)
+            ns:Print(ok and ("New officer channel made without " .. table.concat(names, ", ") .. ".") or err)
+        end, true)
+end
+
 -- Anyone: leave the org (this account drops the key and won't take it back
 -- from guild officers until you import it again).
 function UI:PromptLeaveOrg()
@@ -1034,6 +1051,8 @@ local function buildSettingsPanel(p)
     settings.links = Wd.Button(keyCard, "Community links", 140, function() UI:PromptLinks() end)
     settings.transfer = Wd.Button(keyCard, "Transfer admin", 120, function() UI:PromptTransferAdmin() end)
     settings.transfer.tip = "Hand the org admin over to another player; they must accept"
+    settings.lockout = Wd.Button(keyCard, "Lock out officer", 130, function() UI:PromptLockOut() end)
+    settings.lockout.tip = "A new officer channel without the characters you name (demoted officers, people who left)"
     settings.leave = Wd.Button(keyCard, "Leave org", 100, function() UI:PromptLeaveOrg() end)
     settings.leave.tip = "Leave the org: this account drops the org key"
     settings.disband = Wd.Button(keyCard, "Disband org", 110, function() UI:PromptDisbandOrg() end)
@@ -1131,10 +1150,42 @@ local function buildSettingsPanel(p)
     settings.checks[3]:SetPoint("TOPLEFT", settings.checks[1], "TOPLEFT", 330, 0)
     settings.checks[4]:SetPoint("TOPLEFT", settings.checks[3], "BOTTOMLEFT", 0, -2)
 
+    -- What RUIN shares about you with the org. Each is on unless you turn it
+    -- off; each addon checks it before sending (RUIN_API:Shares(kind)).
+    local priv = Wd.Card(dispPage)
+    priv:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
+    priv:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
+    priv:SetHeight(100)
+    local ph = Wd.Header(priv, "What RUIN shares about you")
+    ph:SetPoint("TOPLEFT", 10, -8)
+    local function share(kind) return function() return ns:Shares(kind) end end
+    local function setShare(kind) return function(v)
+        ns.db.settings.share = type(ns.db.settings.share) == "table" and ns.db.settings.share or {}
+        ns.db.settings.share[kind] = v and true or false
+        ns:Fire("SETTINGS_CHANGED")
+    end end
+    local PRIV = {
+        { "zone", "My zone (online list)", "Your zone in the org's online list. Off: other guilds see you online without a zone." },
+        { "recipes", "Recipes I know (Exchange)", "The recipes you know, so members can ask you to craft." },
+        { "prices", "Auction and vendor prices I see (Exchange)", "Prices you see at the auction house and merchants, so everyone's prices stay current." },
+        { "loot", "My loot and boss kills (Codex)", "Drops and kills inside dungeons, for the Journal's drop counts." },
+        { "quests", "My quest log (Pathfinder)", "Your quests, so party members see what you share and Pathfinder can plan together." },
+        { "atlas", "Where I pick up and hand in quests (Pathfinder)", "Quest givers and hand-in places as you do them, to fill the quest map." },
+    }
+    settings.privacy = {}
+    for i, e in ipairs(PRIV) do
+        local c = Wd.Check(priv, e[2], share(e[1]), setShare(e[1]))
+        c.tip = e[3]
+        if i == 1 then c:SetPoint("TOPLEFT", 8, -28)
+        elseif i == 4 then c:SetPoint("TOPLEFT", settings.privacy[1], "TOPLEFT", 330, 0)
+        else c:SetPoint("TOPLEFT", settings.privacy[i - 1], "BOTTOMLEFT", 0, -2) end
+        settings.privacy[i] = c
+    end
+
     -- Tab order: pick a tab, then move it left or right. Saved for you in
     -- RUIN Core; Options always stays last.
     local order = Wd.Card(dispPage)
-    order:SetPoint("TOPLEFT", disp, "BOTTOMLEFT", 0, -10)
+    order:SetPoint("TOPLEFT", priv, "BOTTOMLEFT", 0, -10)
     order:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
     order:SetHeight(64)
     local oh = Wd.Header(order, "Tab order")
@@ -1222,8 +1273,8 @@ refreshSettings = function()
     if not k then row1[#row1 + 1] = settings.create end
     if k and admin then row1[#row1 + 1] = settings.transfer; row1[#row1 + 1] = settings.disband end
     if k and not admin then row1[#row1 + 1] = settings.leave end
-    local row2 = admin and { settings.addGuild, settings.rotate, settings.links, settings.blockWords } or {}
-    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
+    local row2 = admin and { settings.addGuild, settings.rotate, settings.lockout, settings.links, settings.blockWords } or {}
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.lockout, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
         local prev
