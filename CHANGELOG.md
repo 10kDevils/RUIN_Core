@@ -8,6 +8,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.6.1 — 2026-11-11
 
+- Community links are read however you write them: `Discord = url`, `Discord: url`, `Discord - url`, or just the address (the name then comes from the site). Before, only `Name = url` counted, so other lines were dropped and the links were cleared; now nothing changes when no line has an address, RUIN says how many links it saved and which lines it skipped, and the card redraws at once.
+- Guild Overview: the "RUIN unites us" text is gone; the links card takes the room down to the Overlord card, which lines up with the bottom of the online list.
 - **Security: officer channel.** A new officer channel is never sent over the old one any more (anyone still listening there, like a demoted officer or a removed guild, used to hear the new password): the old channel gets the key without it, and the new one goes by whisper to the officers RUIN can vouch for, who pass it to their guild's officers. **Lock out officer** (Settings > Org, or /ruin key lockout <name>): a new officer channel without the characters you name. When an officer is demoted or leaves the guild, their guild's officers' RUIN notices it and the admin is asked to lock them out.
 - **Security:** only the admin's key offer carries the officer channel and key phrase; an officer offering the key sends the member key.
 - **Privacy: What RUIN shares about you** (Settings > Display): switch off your zone in the online list, your recipes, the prices you see, your dungeon loot and kills, your quest log, or your quest places. Each addon checks before it sends.

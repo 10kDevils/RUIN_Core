@@ -730,15 +730,39 @@ function Org:GetLinks()
 end
 
 -- "Discord = https://discord.gg/..." one per line.
+-- One link per line, written however people write them: "Discord = url",
+-- "Discord: url", "Discord - url", "Discord url", or just the address (the
+-- name then comes from the site). Returns the list and the lines it couldn't read.
+local SITE_NAMES = { discord = "Discord", twitch = "Twitch", youtube = "YouTube", youtu = "YouTube", twitter = "Twitter",
+                     x = "X", reddit = "Reddit", patreon = "Patreon", kick = "Kick", tiktok = "TikTok", instagram = "Instagram" }
+local function siteName(url)
+    local host = url:gsub("^%a+://", ""):gsub("^www%.", ""):match("^([^/%.]+)")
+    if not host or host == "" then return "Link" end
+    return SITE_NAMES[host:lower()] or (host:sub(1, 1):upper() .. host:sub(2))
+end
 function Org.ParseLinks(text)
-    local list = {}
+    local list, bad = {}, {}
     for line in tostring(text or ""):gmatch("[^\r\n]+") do
-        local label, url = line:match("^%s*(.-)%s*=%s*(%S+)%s*$")
-        if label and label ~= "" and url and #list < MAX_LINKS then
-            list[#list + 1] = { label = label, url = url }
+        line = ns.Trim(line)
+        if line ~= "" then
+            local label, url = line:match("^(.-)%s*=%s*(%S+)$")
+            if not url then
+                -- the address: the first word that looks like one
+                local before, u = line:match("^(.-)(%a+://%S+)$")
+                if not u then before, u = line:match("^(.-)(www%.%S+)$") end
+                if not u then before, u = line:match("^(.-)(%S+%.%a%a+/?%S*)$") end
+                if u then label, url = before, u end
+            end
+            if url then
+                label = ns.Trim((label or ""):gsub("[%s:=|%-]+$", ""))
+                if label == "" then label = siteName(url) end
+                if #list < MAX_LINKS then list[#list + 1] = { label = label, url = url } end
+            else
+                bad[#bad + 1] = line
+            end
         end
     end
-    return list
+    return list, bad
 end
 
 function Org.LinksText()

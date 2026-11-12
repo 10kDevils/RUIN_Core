@@ -364,8 +364,16 @@ function UI:PromptLinks()
     end
     UI:ShowText("RUIN community links", "One link per line as  Name = address  (up to 8). Example:\nDiscord = https://discord.gg/yourcode     Keep donation links (Patreon) on the website: Blizzard's add-on rules forbid them in game.",
         ns.Org.LinksText(), function(text)
-            local ok, err = ns.Org:SetLinks(ns.Org.ParseLinks(text))
-            ns:Print(ok and "Community links updated for the whole org." or err)
+            local list, bad = ns.Org.ParseLinks(text)
+            if #list == 0 and #bad > 0 then
+                return ns:Print("Couldn't find an address on any line, so the links weren't changed. Write each as  Name = https://...")
+            end
+            local ok, err = ns.Org:SetLinks(list)
+            if not ok then return ns:Print(err) end
+            ns:Print(#list == 0 and "Community links cleared for the whole org."
+                or ("Community links updated for the whole org (%d)."):format(#list))
+            if #bad > 0 then ns:Print("Skipped (no address found): " .. table.concat(bad, " / ")) end
+            UI:Refresh()
         end)
 end
 
@@ -723,8 +731,7 @@ buildGuildOverview = function(p)
 
     local links = Wd.Card(p)
     links:SetPoint("TOPLEFT", motd, "BOTTOMLEFT", 0, -10)
-    links:SetPoint("RIGHT", p, "RIGHT", 0, 0)
-    links:SetHeight(196)
+    links:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 88)     -- down to the Overlord card (78 tall, 10 apart)
     local lh = Wd.Header(links, "RUIN community links")
     lh:SetPoint("TOPLEFT", 10, -8)
     guild.editLinks = Wd.Button(links, "Edit", 56, function() UI:PromptLinks() end)
@@ -759,6 +766,8 @@ buildGuildOverview = function(p)
     guild.linksEmpty:SetPoint("RIGHT", links, "RIGHT", -12, 0)
 
     -- Overlord Forever: one short line of state; the button sits on the header line.
+    -- Overlord at the bottom of the right column (level with the online
+    -- list); the links card takes the room between it and the message
     local ov = Wd.Card(p)
     ov:SetPoint("TOPLEFT", links, "BOTTOMLEFT", 0, -10)
     ov:SetPoint("RIGHT", p, "RIGHT", 0, 0)
@@ -773,12 +782,6 @@ buildGuildOverview = function(p)
     guild.ovText:SetJustifyV("TOP")
     if guild.ovText.SetSpacing then guild.ovText:SetSpacing(2) end
 
-    local unites = p:CreateFontString(nil, "OVERLAY")
-    unites:SetFontObject(GameFontNormal)
-    unites:SetFont(TITLE_FONT, 16, "")
-    unites:SetTextColor(P.gold[1], P.gold[2], P.gold[3])
-    unites:SetText("RUIN unites us")
-    unites:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 2)
 
     p:SetScript("OnShow", function() UI:Refresh() end)
     UI:Refresh()
