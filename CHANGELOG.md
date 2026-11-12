@@ -6,8 +6,9 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
-## 0.6.1 — 2026-11-11
+## 0.7.0 — 2026-11-12
 
+- The What's new letter scrolls when the notes are long, so they never run under its footer and the Got it button; 0.7.0's letter sums up everything since 0.6.0.
 - **A redesign of the whole suite's interface**, for a cleaner, more modern and easier-to-read look. Layouts are where they were; what changed is how everything is drawn.
   - **Tabs.** The pages along the top are a flat row on a hairline, no boxes: each has its own icon in its page's color, and the open one is bright, underlined in that color and washed with it. The tabs inside a page (Overview, Census, Roster...) work the same way.
   - **Icons.** RUIN has its own icon set: a magnifying glass for Finder, a rally flag for Muster, a compass for Pathfinder, an open book for Codex, a merchant's scales for Exchange, a gear for Settings and a checklist for the Planner, with the RUIN emblem for Guild. Each also comes as a badge (the icon on a dark tile edged in the page's color) for page headers and the game's AddOns list.

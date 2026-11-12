@@ -2,7 +2,7 @@
 ## Title: |cffe6b862RUIN|r Gaming Companion App
 ## Notes: RUIN Gaming Companion App (RUIN Core): the RUIN window, guild page and community links, org-wide guild and officer chat, and the modules' shared connection.
 ## Author: RUIN
-## Version: 0.6.1
+## Version: 0.7.0
 ## SavedVariables: RUIN_DB
 ## OptionalDeps: RuinousForeverPlanner
 ## IconTexture: Interface\AddOns\RUIN_Core\Media\BadgeGuild

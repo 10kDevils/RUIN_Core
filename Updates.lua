@@ -20,14 +20,19 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
-    { "0.6.1", {
-        "A new look for the whole suite: flat tabs with RUIN's own icons, a drawing for each page's header, quieter buttons that take the page's color when you use them, check marks, slim scroll bars and cleaner menus.",
+    { "0.7.0", {
+        "A new look for the whole suite: flat tabs with RUIN's own icons, a drawing in each page's header, buttons that take the page's color when you use them, real check marks, slim scroll bars and cleaner menus.",
         "Security: a new officer channel goes only to officers RUIN can vouch for, and the admin can lock a demoted officer out (Settings > Org > Lock out officer). Shared prices, quest places, drop counts and crafts are checked before they count.",
-        "Privacy: Settings > Display > What RUIN shares about you, to switch off each thing RUIN shares.",
-        "Leave org (anyone) and Disband org (the admin), under Settings > Org, or /ruin leave and /ruin disband.",
-        "The org admin can hand the admin over to another player: Settings > Org > Transfer admin. They accept, and the org follows them.",
-        "With RUIN Pathfinder: quest routes come from Pathfinder's own quest data, so zone and dungeon routes work with no other quest addon.",
-        "With RUIN Pathfinder: quests that share targets are done in one step, and routes walk less: a search over the whole order, and real distances between neighbouring zones.",
+        "Privacy: Settings > Display > What RUIN shares about you, to switch off each thing RUIN shares (your zone, recipes, prices, loot, quest log, quest places).",
+        "The org admin can hand the admin over to another player (Settings > Org > Transfer admin). Anyone can Leave org, and the admin can Disband it (/ruin leave, /ruin disband).",
+        "Community links are read however you write them, and changes reach every member online at once.",
+        "With RUIN Pathfinder: the quest database is built in now, so zone and dungeon routes work with nothing else installed. If you still have a RUIN_QuestData folder, you can delete it.",
+        "With RUIN Pathfinder: a new route planner walks less (quests that share targets are done in one step), and \"Quests in your log\" in the Guide plans the best order for every quest you have.",
+        "With RUIN Pathfinder: reminders when you walk past a quest giver on your route, or into a quest's targets without the quest, in a small alert window with Mark on map.",
+        "With RUIN Pathfinder: the Waypoint Editor holds everything about the waypoint: what it shows, its position, when it hides, and when it moves to the screen edge (10% from each side to start). Its card shows at the edge too.",
+        "With RUIN Pathfinder: the atlas learns where RUIN members really pick up and hand in quests on WoW Forever. Tabs are now Quests, Guide, Routes, Record, Options, and the original key bindings are back.",
+        "With RUIN Codex: Auto spec reads your talent points, so the upgrade line weighs the right spec. A one-hander is compared with your best off hand against a two-hander, and spell math shows on macros too.",
+        "With RUIN Exchange: prices keep the lowest buyout, the tooltip's advice is colored (vendor green, AH gold, craft or disenchant red), and the Working Overtime talent counts in skill-up costs (Leveling page).",
     } },
     { "0.6.0", {
         "With RUIN Pathfinder: the step gets the game's waypoint, a pin in the world over the spot with the distance under it.",
@@ -128,10 +133,12 @@ end
 -- The What's new letter
 ---------------------------------------------------------------------------
 local letter
+local LETTER_W = 560
+local BODY_W = LETTER_W - 56
 local function getLetter()
     if letter then return letter end
     local f = CreateFrame("Frame", "RUIN_WhatsNew", UIParent)
-    f:SetSize(520, 340)
+    f:SetSize(LETTER_W, 340)
     f:SetPoint("CENTER", 0, 60)
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
@@ -145,16 +152,27 @@ local function getLetter()
     f.emblem:SetPoint("TOP", 0, -12)
     f.title = Wd.Label(f, "", "GameFontNormalLarge")
     f.title:SetPoint("TOP", f.emblem, "BOTTOM", 0, -6)
-    f.body = Wd.Label(f, "", "GameFontHighlight")
-    f.body:SetPoint("TOPLEFT", 20, -86)
-    f.body:SetPoint("RIGHT", f, "RIGHT", -20, 0)
+    -- the notes scroll between the title and the footer, however long they are
+    local sf = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 20, -86)
+    sf:SetPoint("BOTTOMRIGHT", -30, 50)
+    local child = CreateFrame("Frame", nil, sf)
+    child:SetSize(BODY_W, 10)
+    sf:SetScrollChild(child)
+    if Wd.SmoothScroll then Wd.SmoothScroll(sf, 48) end
+    f.scroll, f.child = sf, child
+    f.body = Wd.Label(child, "", "GameFontHighlight")
+    f.body:SetPoint("TOPLEFT", 0, 0)
+    f.body:SetWidth(BODY_W)
     f.body:SetJustifyH("LEFT")
     f.body:SetJustifyV("TOP")
     if f.body.SetSpacing then f.body:SetSpacing(4) end
-    f.foot = Wd.Label(f, "", "GameFontHighlightSmall")
-    f.foot:SetPoint("BOTTOMLEFT", 20, 22)
     f.ok = Wd.Button(f, "Got it", 96, function() f:Hide() end)
     f.ok:SetPoint("BOTTOMRIGHT", -16, 14)
+    f.foot = Wd.Label(f, "", "GameFontHighlightSmall")
+    f.foot:SetPoint("LEFT", f, "BOTTOMLEFT", 20, 26)
+    f.foot:SetPoint("RIGHT", f.ok, "LEFT", -12, 0)
+    f.foot:SetWordWrap(false)
     if UISpecialFrames then tinsert(UISpecialFrames, "RUIN_WhatsNew") end
     f:Hide()
     letter = f
@@ -174,7 +192,11 @@ function Updates:ShowLetter(since)
     local f = getLetter()
     f.title:SetText(C.gold .. "What's new in RUIN|r")
     f.body:SetText(table.concat(lines, "\n"))
-    f:SetHeight(math.max(220, math.min(560, (f.body:GetStringHeight() or 200) + 150)))
+    local textH = f.body:GetStringHeight() or 200
+    f.child:SetHeight(math.max(10, textH + 4))
+    f:SetHeight(math.max(220, math.min(560, textH + 150)))
+    f.scroll:SetVerticalScroll(0)
+    if Wd.FitScrollBar then Wd.FitScrollBar(f.scroll) end
     f.foot:SetText(GREY .. "Shown once per update. Settings > Options > What's new, or /ruin news, shows it again.|r")
     f:Show()
 end
