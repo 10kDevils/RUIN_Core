@@ -8,6 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.6.1 — 2026-11-11
 
+- Org key edits (community links, guilds, block words, admin hand-over) reach every member online at once: the admin also sends the member copy on the org channel. Before, members waited for an officer of their own guild to pass the change on, which took up to half a minute, or never happened with no such officer online, so the Guild page's community links card didn't change.
 - **Leave org** (Settings > Org, or /ruin leave): anyone but the admin can leave. RUIN drops the org key on the account and leaves the org's channels, and your guild's officers no longer hand it back on their own; importing the key or phrase again (or accepting an offered key) brings you back.
 - **Disband org** (Settings > Org, or /ruin disband; the admin only, typing the org's name to confirm): every member's RUIN drops the key. Members online get it at once on the org and officer channels; anyone offline hears it from the first guildmate who did, and officers stop sharing that key.
 - The org admin can hand the admin over: Settings > Org > Transfer admin (or /ruin key transfer <name>). The other player must be online, with RUIN, in one of the org's guilds, and accept. Then their character is the admin, the old admin's characters no longer are, and the new key reaches officers at once and members through them. A key from anyone else naming a new admin is still ignored, and the admin's own account never loses the admin to a key from outside.

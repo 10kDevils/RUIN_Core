@@ -327,10 +327,15 @@ end
 
 -- After an admin edit, announce the new key to every guild's officers on the
 -- officer channel they are on *now* (it may be about to change), then switch.
+-- An edit reaches officers in full (officer channel) and every member online
+-- at once (the member copy on the org channel): members used to wait for an
+-- officer of their own guild to pass it on, which could take a while or,
+-- with no officer online, never happen.
 local function publishEdit(k, oldOfficerChannel)
     if oldOfficerChannel then
         ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
     end
+    ns.Comms:Send("MKEY", { k = memberCopy(k) }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
     ns:Fire("KEY_CHANGED", "edit")
 end
 
@@ -693,6 +698,18 @@ ns.Comms:Register("ORGKEY", function(d, sender, scope)
     else
         ns:Debug("ignored an org key from " .. tostring(sender) .. " (not the admin or an officer)")
     end
+end)
+
+-- The member copy of an edit, from the admin on the org channel. It has no
+-- officer channel: an officer keeps theirs (a new one comes in full on the
+-- officer channel).
+ns.Comms:Register("MKEY", function(d, sender, scope)
+    if scope ~= "ORG" or type(d.k) ~= "table" or not validKey(d.k) then return end
+    if not senderIsAdmin(sender, d, scope) then return end
+    local cur = Org:Get()
+    if not cur or cur.org ~= d.k.org or d.k.rev <= cur.rev then return end
+    if not d.k.oc and cur.oc then d.k.oc = cur.oc end
+    acceptOrgKey(d, sender, "admin")
 end)
 
 -- Keys made before admin names: the admin's characters add themselves the

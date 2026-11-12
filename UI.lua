@@ -22,6 +22,7 @@ local tabs = {}         -- { title, label, order, builder, module, button, panel
 local main, content, dialog, tabStrip
 local selectedTab
 local guild, settings = {}, {}   -- page widgets
+function UI.Widgets_() return guild, settings end
 
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local TITLE_FONT = "Fonts\\MORPHEUS.TTF"
