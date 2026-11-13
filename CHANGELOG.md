@@ -6,10 +6,6 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
-## 0.7.3 — 2026-11-13
-
-- Map pins on a square minimap (Pathfinder's new option, or another addon's) reach its corners and sit on its square edge when the spot is off the map, instead of stopping at a circle inside it.
-
 ## 0.7.2 — 2026-11-13
 
 - **Security review.** What changed, and why:
@@ -27,6 +23,7 @@ Versioning: the third number counts the meaningful changes made since the second
 ## 0.7.1 — 2026-11-12
 
 - Small windows (Pathfinder's tracker and alerts, the party strip and other HUD panels) match the new look: a deeper navy with a soft light along the top, and their band in the page's color. For module authors: `W.CloseButton(parent, onClick, size)` (the window's close x, red under the mouse) and `W.HudHeader(frame, title)` (a glyph, a title and a hairline at the top of a small window).
+- Map pins on a square minimap (Pathfinder's new option, or another addon's) reach its corners and sit on its square edge when the spot is off the map, instead of stopping at a circle inside it.
 
 ## 0.7.0 — 2026-11-12
 

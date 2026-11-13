@@ -26,6 +26,14 @@ Updates.NOTES = {
         "Privacy: RUIN no longer sends anything derived from your BattleTag.",
         "RUIN older than the org's minimum version can't connect, and says how to update (CurseForge or GitHub).",
     } },
+    { "0.7.1", {
+        "With RUIN Finder: \"Which one\" is a dropdown that follows the activity (every dungeon, raid or questing zone, PvP, Rares, Professions, Social), and the new activity Rares sits below Questing.",
+        "With RUIN Finder: the Spec box starts on Auto (your spec from your talents, from Codex when it's installed), lists professions for Professions and the tone for Social.",
+        "With RUIN Finder: set your group's size and it stops taking join requests once full (tick Allow Queue to keep taking them); everyone asking to join shows on your listing card with Invite and Decline.",
+        "With RUIN Finder: place the guild tag around your target frame (Finder > Where); it starts on the right side.",
+        "With RUIN Pathfinder: the minimap can be square, in the game's own look or Pathfinder's modern one, and the tracker can dock to it (Options > Minimap): it grows up, down or sideways away from the map.",
+        "With RUIN Pathfinder: Mark on map opens the world map on the quest's giver, the alert window and tracker match the new look, and the edge arrow sits right on the edge of the waypoint.",
+    } },
     { "0.7.0", {
         "A new look for the whole suite: flat tabs with RUIN's own icons, a drawing in each page's header, buttons that take the page's color when you use them, real check marks, slim scroll bars and cleaner menus.",
         "Security: a new officer channel goes only to officers RUIN can vouch for, and the admin can lock a demoted officer out (Settings > Org > Lock out officer). Shared prices, quest places, drop counts and crafts are checked before they count.",

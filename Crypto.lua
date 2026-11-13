@@ -30,7 +30,36 @@ do
         local f = (loadstring or load)([[return function(p, q) return (math.floor(p) ~ math.floor(q)) & 0xFFFFFFFF end,
                                 function(p, q) return (math.floor(p) & math.floor(q)) & 0xFFFFFFFF end,
                                 function(p) return (~math.floor(p)) & 0xFFFFFFFF end]])
-        bxor, band, bnot = f()
+        if f then
+            bxor, band, bnot = f()
+        else
+            -- plain Lua 5.1 with no bit library: byte tables
+            local X, A = {}, {}
+            for p = 0, 255 do
+                for q = 0, 255 do
+                    local x, a, bitv, pp, qq = 0, 0, 1, p, q
+                    for _ = 1, 8 do
+                        local pb, qb = pp % 2, qq % 2
+                        if pb ~= qb then x = x + bitv end
+                        if pb == 1 and qb == 1 then a = a + bitv end
+                        pp, qq, bitv = (pp - pb) / 2, (qq - qb) / 2, bitv * 2
+                    end
+                    X[p * 256 + q], A[p * 256 + q] = x, a
+                end
+            end
+            local function op(T, p, q)
+                local r, m = 0, 1
+                for _ = 1, 4 do
+                    local pb, qb = p % 256, q % 256
+                    r = r + T[pb * 256 + qb] * m
+                    p, q, m = (p - pb) / 256, (q - qb) / 256, m * 256
+                end
+                return r
+            end
+            bxor = function(p, q) return op(X, p % TWO32, q % TWO32) end
+            band = function(p, q) return op(A, p % TWO32, q % TWO32) end
+            bnot = function(p) return TWO32 - 1 - p % TWO32 end
+        end
     end
 end
 
