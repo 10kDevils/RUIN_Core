@@ -6,6 +6,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.7.3 — 2026-11-13
+
+- **New-version notices in the app.** Each release build now carries a notice (version, date, highlights) signed with the RUIN release key; `Release.lua` has the matching public key. When RUIN sees someone on an older version (0.7.3 or newer), it hands them the newest notice it knows: one RUIN per guild answers its guildmates, officers and the admin answer the rest of the org. Their RUIN says in chat and in a window (once per version) that a new version is out, with the highlights and "update through CurseForge or GitHub", and passes the notice on, so the news spreads without anyone meeting a player on the new version. Notices are signed, so anyone can pass one on and nobody can fake one.
+- **Lock-out notices come from the app, not from players.** RUIN below the org's minimum version is told by RUIN itself (an addon message from its guild's roster sender, once a day), which shows the update window. No character whispers anyone any more. (RUIN before 0.7.3 can't hear it; it still gets no keys and sees newer versions in its own hellos.)
+- The release build signs the notice when the repository secret `RUIN_RELEASE_SEED` is set (`tools/release/notice.py`; `--keygen` makes a new key pair). Hand-built copies carry no notice and only pass on what they hear.
+
 ## 0.7.2 — 2026-11-13
 
 - **Security review.** What changed, and why:

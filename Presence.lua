@@ -58,7 +58,8 @@ end
 ---------------------------------------------------------------------------
 -- Version notice
 ---------------------------------------------------------------------------
-local function noteVersion(v, name)
+local function noteVersion(v, name, scope)
+    if ns.Release then ns.Release.OnPeer(v, name, scope) end
     if type(v) ~= "string" or ns.CompareVersions(v, ns.VERSION) <= 0 then return end
     if newestNotified and ns.CompareVersions(v, newestNotified) <= 0 then return end
     newestNotified = v
@@ -85,7 +86,7 @@ ns.Comms:Register("HELLO", function(d, sender, scope)
     p.dr = tonumber(d.dr) or 0
     guildPeers[d.g] = p
 
-    noteVersion(d.v, sender)
+    noteVersion(d.v, sender, "GUILD")
     if ns.OrgSecure and not ns.OrgSecure.VersionOk(d.v) then
         ns.Org:OnOldPeer(p)
     else
@@ -129,7 +130,7 @@ ns.Comms:Register("OHELLO", function(d, sender, scope)
     p.kr, p.o = tonumber(d.kr) or 0, d.o
     orgPeers[d.g] = p
 
-    noteVersion(d.v, sender)
+    noteVersion(d.v, sender, "ORG")
     ns.Org:OnOrgPeer(p)
     if d.rq == 1 and ns.Org.OnHelloRequest then ns.Org:OnHelloRequest() end
 

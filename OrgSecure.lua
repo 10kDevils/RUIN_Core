@@ -502,8 +502,11 @@ end
 ns:Subscribe("KEY_CHANGED", function() C_Timer.After(2, checkMyVersion) end)
 ns:Subscribe("LOGIN", function() C_Timer.After(12, checkMyVersion) end)
 
--- RUIN too old to show its own notice: the guild's roster sender (one per
--- guild) whispers it in plain chat, once a day per player.
+-- RUIN below the org's minimum version: the guild's roster sender (one per
+-- guild) has RUIN tell it, app to app, once a day per player: it can't
+-- connect until it updates, and where the newest version is. (RUIN before
+-- 0.7.3 doesn't understand this; it still hears from its own hellos that a
+-- newer version is about, and gets no keys.)
 local toldOld = {}
 function Org:OnOldPeer(peer)
     if not (peer and peer.name and ns.Presence:IsRosterSender()) then return end
@@ -514,13 +517,25 @@ function Org:OnOldPeer(peer)
     if (ns.db.toldOld[n] or 0) > now() - 86400 or toldOld[n] then return end
     toldOld[n] = true
     ns.db.toldOld[n] = now()
+    local latest = ns.Release and ns.Release.Latest()
     C_Timer.After(3 + math.random() * 5, function()
-        if SendChatMessage then
-            SendChatMessage(("[RUIN] Your RUIN (%s) is too old to connect to the %s org. Update to at least %s; the newest version is an easy update on CurseForge or GitHub.")
-                :format(tostring(peer.v or "old"), k.org, k.mv or ns.MIN_SUPPORTED), "WHISPER", nil, peer.name)
-        end
+        ns.Comms:Send("OLDVER", { org = k.org, mv = k.mv or ns.MIN_SUPPORTED, n = latest }, "PEER", peer.name, ns.Comms.PRIORITY.NORMAL)
     end)
 end
+
+-- Told (app to app) that this RUIN is below an org's minimum version.
+ns.Comms:Register("OLDVER", function(d, sender)
+    if type(d) ~= "table" or type(d.mv) ~= "string" or type(d.org) ~= "string" then return end
+    local k = Org:Get()
+    if k and k.org ~= d.org then return end
+    if ns.CompareVersions(ns.VERSION, d.mv) >= 0 then return end
+    if ns.Release and type(d.n) == "table" then ns.Release.Take(d.n) end
+    if promptedOld == d.mv then return end
+    promptedOld = d.mv
+    local text = ("Your RUIN is version %s. The %s org needs at least version %s, so you won't be able to connect to the org until you update.\n\nThe newest version is an easy update through CurseForge or GitHub."):format(ns.VERSION, d.org, d.mv)
+    ns:Print(("You can't connect to the %s org until you update RUIN to at least %s (you have %s). Update through CurseForge or GitHub."):format(d.org, d.mv, ns.VERSION))
+    if ns.UI and ns.UI.ShowNotice then ns.UI:ShowNotice("Update RUIN to connect", text) end
+end)
 
 ---------------------------------------------------------------------------
 -- The admin's recovery code: the signing seed in letters and digits.
