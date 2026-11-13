@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.7.4 — 2026-11-13
+
+- **People: the search box searches what the view groups by.** By class finds classes ("paladin"), By zone finds zones ("stormwind"), By level takes a level ("60") or a range ("40-49"), By profession finds professions. The hint in the box says which, and changing the view clears it. (The Roster tab searches names.)
+
 ## 0.7.3 — 2026-11-13
 
 - **New-version prompts.** When RUIN hears (from anyone's hello) that a newer version is out, it says so in chat and, once per version, in a window: update through CurseForge or GitHub.

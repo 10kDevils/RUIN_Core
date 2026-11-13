@@ -258,15 +258,29 @@ local function classLabel(class)
 end
 
 -- mode: "class" | "zone" | "level" | "profession"; returns rows: headers { header, count } and people.
+-- The search box searches what the view groups by: a class ("paladin"), a
+-- zone ("stormwind"), a level ("60", or a range like "40-49"), a profession.
+-- (The Roster tab searches names.)
 function People:Grouped(mode, query, onlineOnly)
-    local groups, q = {}, (query or ""):lower()
+    local groups, q = {}, ns.Trim(query or ""):lower()
+    local lo, hi = q:match("^(%d+)%s*%-%s*(%d+)$")
+    lo, hi = tonumber(lo), tonumber(hi)
+    if not lo and q:match("^%d+$") then lo = tonumber(q); hi = lo end
     local function add(key, m)
+        if q ~= "" then
+            if mode == "level" and lo then
+                local lv = tonumber(m.level) or 0
+                if lv < math.min(lo, hi) or lv > math.max(lo, hi) then return end
+            elseif not tostring(key):lower():find(q, 1, true) then
+                return
+            end
+        end
         local g = groups[key] or { header = key, people = {} }
         g.people[#g.people + 1] = m
         groups[key] = g
     end
     for _, m in ipairs(ns.OrgRoster:Members()) do
-        if (not onlineOnly or m.online) and (q == "" or m.name:lower():find(q, 1, true) or (m.guild or ""):lower():find(q, 1, true)) then
+        if not onlineOnly or m.online then
             if mode == "zone" then
                 add((m.zone and m.zone ~= "") and m.zone or "Unknown", m)
             elseif mode == "level" then
@@ -362,9 +376,12 @@ end
 
 function ns.GuildUI.BuildPeople(page)
     ui.page = page
-    ui.modeBtn = Wd.Dropdown(page, 150, MODES, function() return ui.mode end, function(v) ui.mode = v; ui.sel = nil; People:Refresh() end, "View: ")
+    ui.modeBtn = Wd.Dropdown(page, 150, MODES, function() return ui.mode end, function(v)
+        if v ~= ui.mode then ui.query = ""; if ui.search then ui.search:SetText("") end end
+        ui.mode = v; ui.sel = nil; People:Refresh()
+    end, "View: ")
     ui.modeBtn:SetPoint("TOPLEFT", 0, 0)
-    ui.search = Wd.EditBox(page, 150, function(t) ui.query = t or ""; People:Refresh() end, "Search name or guild")
+    ui.search = Wd.EditBox(page, 170, function(t) ui.query = t or ""; People:Refresh() end, "Search classes")
     ui.search:SetPoint("LEFT", ui.modeBtn, "RIGHT", 8, 0)
     ui.search:SetScript("OnTextChanged", function(self, user) if user then ui.query = self:GetText() or ""; People:Refresh() end end)
     ui.daysBtn = Wd.Dropdown(page, 140, { 7, 14, 30 }, function() return ui.days end, function(v) ui.days = v; People:Refresh() end, "Offline ")
@@ -487,6 +504,10 @@ function People:Refresh()
     ui.rows = rows()
     ui.daysBtn:SetShown(ui.mode == "Inactive")
     ui.search:SetShown(ui.mode:find("^By") ~= nil)
+    local hint = ({ ["By class"] = "Search classes", ["By zone"] = "Search zones", ["By level"] = "Level: 60 or 40-49",
+                    ["By profession"] = "Search professions" })[ui.mode]
+    if hint and ui.search.SetPlaceholder then ui.search:SetPlaceholder(hint)
+    elseif hint and ui.search.placeholder then ui.search.placeholder:SetText(hint) end
     ui.online:SetShown(ui.mode:find("^By") ~= nil)
     ui.modeBtn:Refresh(); ui.daysBtn:Refresh(); ui.online:Refresh()
     local n = 0
