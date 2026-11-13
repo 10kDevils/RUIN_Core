@@ -1086,7 +1086,7 @@ local function buildSettingsPanel(p)
     settings.blockWords.tip = "Words hidden from RUIN chat for the whole org"
     settings.recovery = Wd.Button(keyCard, "Recovery code", 120, function() UI:PromptRecovery() end)
     settings.recovery.tip = "The admin's recovery code: keeps you the org admin on a new PC or after a reinstall"
-    settings.minVersion = Wd.Dropdown(keyCard, 220, function() return ns.Org:MinVersionChoices() end,
+    settings.minVersion = Wd.Dropdown(keyCard, 200, function() return ns.Org:MinVersionChoices() end,
         function() return ns.Org:MinVersion() end, function(v)
             local function set()
                 local ok, err = ns.Org:SetMinVersion(v)
@@ -1315,7 +1315,6 @@ refreshSettings = function()
     -- the admin's own character on a PC without the signing seed can recover it
     if k and not admin and k.pk and ns.playerGUID and k.admin == ns.playerGUID then row1[#row1 + 1] = settings.recovery end
     local row2 = admin and { settings.addGuild, settings.rotate, settings.lockout, settings.links, settings.blockWords } or {}
-    local row3 = (admin and k and k.pk) and { settings.recovery, settings.minVersion } or {}
     local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.lockout, settings.addGuild, settings.rotate, settings.links, settings.blockWords, settings.recovery, settings.minVersion }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
@@ -1332,9 +1331,18 @@ refreshSettings = function()
     settings.adminLabel:SetPoint("TOPLEFT", settings.keyCard, "TOPLEFT", 12, -136)
     settings.adminLabel:SetShown(#row2 > 0)
     place(row2, -130, 82)
-    place(row3, -162, 82)
-    if settings.minVersion:IsShown() then settings.minVersion:Refresh() end
-    settings.keyCard:SetHeight(#row3 > 0 and 196 or (#row2 > 0 and 164 or 132))
+    -- the admin's recovery code and the org minimum version, in the card's top right
+    if admin and k and k.pk then
+        settings.minVersion:ClearAllPoints()
+        settings.minVersion:SetPoint("TOPRIGHT", settings.keyCard, "TOPRIGHT", -10, -32)
+        settings.minVersion:SetWidth(200)
+        settings.minVersion:Show()
+        settings.minVersion:Refresh()
+        settings.recovery:ClearAllPoints()
+        settings.recovery:SetPoint("TOPRIGHT", settings.minVersion, "BOTTOMLEFT", 196, -6)
+        settings.recovery:Show()
+    end
+    settings.keyCard:SetHeight(#row2 > 0 and 164 or 132)
     -- your guild's settings (only with RUIN Muster installed, and in a guild)
     local muster = RUIN_API and RUIN_API.GetModule and RUIN_API:GetModule("Muster")
     local showGS = ns.guildName ~= nil and muster ~= nil

@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.7.3 — 2026-11-13
+
+- Map pins on a square minimap (Pathfinder's new option, or another addon's) reach its corners and sit on its square edge when the spot is off the map, instead of stopping at a circle inside it.
+
 ## 0.7.2 — 2026-11-13
 
 - **Security review.** What changed, and why:

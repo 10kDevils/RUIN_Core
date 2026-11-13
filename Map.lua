@@ -415,10 +415,23 @@ drawMinimap = function()
             up = -east * sf + north * cf
         end
         local px, py = right / radius * half, up / radius * half
-        local edge = dist > radius
-        if edge then
-            local k = (half - 6) / math.sqrt(px * px + py * py)
-            px, py = px * k, py * k
+        -- a square minimap (Pathfinder's option, or another addon's) keeps
+        -- pins out to its corners; a round one to its circle
+        local square = GetMinimapShape and GetMinimapShape() == "SQUARE"
+        local edge
+        if square then
+            local m = math.max(math.abs(px), math.abs(py))
+            edge = m > half
+            if edge then
+                local k = (half - 6) / m
+                px, py = px * k, py * k
+            end
+        else
+            edge = dist > radius
+            if edge then
+                local k = (half - 6) / math.sqrt(px * px + py * py)
+                px, py = px * k, py * k
+            end
         end
         used = used + 1
         local f = miniPins[used]
