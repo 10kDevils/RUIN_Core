@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.7.4", {
+        "People: the search box searches what the view groups by: classes, zones, levels (60, or a range like 40-49) or professions. The Roster searches names.",
+    } },
     { "0.7.3", {
         "RUIN tells you when a new version is out (in chat, and once in a window): update through CurseForge or GitHub.",
         "RUIN below the org's minimum version hears it from RUIN itself, with the update window; nobody whispers anyone.",
