@@ -1211,12 +1211,78 @@ local function hudScale()
     return (ns.db and ns.db.settings and ns.db.settings.couchMode) and 1.15 or 1
 end
 
+-- A flat close button: a quiet x that turns red under the mouse. size is
+-- the square's side (22 in the main window, 18 on small windows).
+function W.CloseButton(parent, onClick, size)
+    size = size or 22
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(size, size)
+    W.Skin(b, "panel", 0, "panel")
+    W.SetBorder(b, "border", 0)
+    local bars = {}
+    for i, angle in ipairs({ 45, -45 }) do
+        local t = b:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1)
+        t:SetSize(math.floor(size * 0.55 + 0.5), 2)
+        t:SetPoint("CENTER")
+        t:SetRotation(math.rad(angle))
+        bars[i] = t
+    end
+    b.bars = bars
+    b:SetScript("OnEnter", function(self)
+        W.Skin(self, { 0.62, 0.20, 0.18 }, 0.85, { 0.85, 0.35, 0.30 })
+        for _, t in ipairs(bars) do t:SetColorTexture(1, 1, 1, 1) end
+        if type(self.tip) == "string" and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(self.tip, 1, 1, 1, true); GameTooltip:Show()
+        end
+    end)
+    b:SetScript("OnLeave", function(self)
+        W.Skin(self, "panel", 0, "panel")
+        W.SetBorder(self, "border", 0)
+        for _, t in ipairs(bars) do t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1) end
+        if type(self.tip) == "string" and GameTooltip then GameTooltip:Hide() end
+    end)
+    if onClick then b:SetScript("OnClick", onClick) end
+    return b
+end
+
+-- The head of a small window (an alert, a HUD panel): the module's glyph in
+-- its color, a title in small capitals, and a hairline under them. Returns
+-- the height it takes, so the content can start below it.
+function W.HudHeader(f, title)
+    local theme = W.ThemeOf(f)
+    local ac = W.SchemeOf(f).accent
+    local x = 12
+    if theme and theme.glyph then
+        local g = f:CreateTexture(nil, "ARTWORK")
+        g:SetTexture(theme.glyph)
+        g:SetVertexColor(ac[1], ac[2], ac[3], 1)
+        g:SetSize(14, 14)
+        g:SetPoint("TOPLEFT", 11, -10)
+        f.headGlyph = g
+        x = 31
+    end
+    local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    t:SetText((title or ""):upper())
+    t:SetTextColor(ac[1], ac[2], ac[3], 1)
+    t:SetPoint("TOPLEFT", x, -12)
+    f.headTitle = t
+    local line = f:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(P.line[1], P.line[2], P.line[3], 1)
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT", 1, -32)
+    line:SetPoint("TOPRIGHT", -1, -32)
+    f.headLine = line
+    return 33
+end
+
 function W.HudFrame(name, themeKey, store, key, point)
     local theme = ns.ThemeFor and ns.ThemeFor(themeKey) or nil
-    local c = theme and theme.color or W.PALETTE.glow
+    local c = theme and W.SchemeFor(theme).accent or W.PALETTE.glow
     local f = CreateFrame("Frame", name, UIParent)
     f.ruinTheme = theme
-    W.Skin(f, "bg", 0.90, "border")
+    W.Skin(f, "bg", 0.94, "border")
+    f.sheen = W.Sheen(f, 0.04)
     -- Modules written for Blizzard backdrops can still tint the frame.
     f.SetBackdropBorderColor = function(self, r, g, b, a) W.SetBorder(self, { r, g, b }, a) end
     f.SetBackdropColor = function(self, r, g, b, a) self.skinBg:SetColorTexture(r, g, b, a or 0.9) end

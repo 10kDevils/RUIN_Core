@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.7.1 — 2026-11-12
+
+- Small windows (Pathfinder's tracker and alerts, the party strip and other HUD panels) match the new look: a deeper navy with a soft light along the top, and their band in the page's color. For module authors: `W.CloseButton(parent, onClick, size)` (the window's close x, red under the mouse) and `W.HudHeader(frame, title)` (a glyph, a title and a hairline at the top of a small window).
+
 ## 0.7.0 — 2026-11-12
 
 - The What's new letter scrolls when the notes are long, so they never run under its footer and the Got it button; 0.7.0's letter sums up everything since 0.6.0.

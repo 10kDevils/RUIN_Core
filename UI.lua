@@ -44,32 +44,7 @@ local function sound(kit)
 end
 
 -- A small X drawn from two bars, for close buttons.
-local function closeButton(parent, onClick)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(22, 22)
-    Wd.Skin(b, "panel", 0, "panel")
-    Wd.SetBorder(b, "border", 0)
-    local bars = {}
-    for i, angle in ipairs({ 45, -45 }) do
-        local t = b:CreateTexture(nil, "OVERLAY")
-        t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1)
-        t:SetSize(12, 2)
-        t:SetPoint("CENTER")
-        t:SetRotation(math.rad(angle))
-        bars[i] = t
-    end
-    b:SetScript("OnEnter", function(self)
-        Wd.Skin(self, { 0.62, 0.20, 0.18 }, 0.85, { 0.85, 0.35, 0.30 })
-        for _, t in ipairs(bars) do t:SetColorTexture(1, 1, 1, 1) end
-    end)
-    b:SetScript("OnLeave", function(self)
-        Wd.Skin(self, "panel", 0, "panel")
-        Wd.SetBorder(self, "border", 0)
-        for _, t in ipairs(bars) do t:SetColorTexture(P.sub[1], P.sub[2], P.sub[3], 1) end
-    end)
-    b:SetScript("OnClick", onClick)
-    return b
-end
+local function closeButton(parent, onClick) return Wd.CloseButton(parent, onClick, 22) end
 
 -- The RUIN mark: the winged emblem, then the wordmark.
 local function drawMark(parent, size)
