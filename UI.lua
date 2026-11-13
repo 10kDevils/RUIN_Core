@@ -163,6 +163,7 @@ local function getConfirm()
     yes:SetPoint("BOTTOMRIGHT", d, "BOTTOM", -6, 16)
     local no = Wd.Button(d, DECLINE or "Decline", 120, function() d:Hide() end)
     no:SetPoint("BOTTOMLEFT", d, "BOTTOM", 6, 16)
+    d.yes, d.no = yes, no
     tinsert(UISpecialFrames, "RUIN_ConfirmDialog")
     confirm = d
     UI:ApplyScale()
@@ -174,7 +175,34 @@ function UI:ShowConfirm(title, text, onAccept)
     d.title:SetText(title)
     d.text:SetText(text)
     d.onAccept = onAccept
+    d.yes:SetText(ACCEPT or "Accept")
+    d.yes:ClearAllPoints(); d.yes:SetPoint("BOTTOMRIGHT", d, "BOTTOM", -6, 16)
+    d.no:Show()
+    d:SetHeight(math.max(170, 42 + math.ceil(d.text:GetStringHeight() or 60) + 70))
     d:Show()
+end
+
+-- A notice with one button (OK).
+function UI:ShowNotice(title, text)
+    UI:ShowConfirm(title, text, nil)
+    local d = getConfirm()
+    d.no:Hide()
+    d.yes:SetText(OKAY or "OK")
+    d.yes:ClearAllPoints(); d.yes:SetPoint("BOTTOM", d, "BOTTOM", 0, 16)
+end
+
+-- The admin's recovery code: shown to the admin, typed in on another PC.
+function UI:PromptRecovery()
+    local code = ns.Org:RecoveryCode()
+    if code then
+        UI:ShowText("Admin recovery code", "Your org admin signing code. Keep it somewhere safe and private (never on stream or in chat): typed in under Settings > Org > Recovery code on another PC or after a reinstall, it makes that account the org admin again. Anyone who has it can run your org.",
+            code, nil, true)
+        return
+    end
+    UI:ShowText("Recover the org admin", "Type the org admin's recovery code (RUIN-XXXX-...). It makes this account the org admin again.", "", function(text)
+        local ok, err = ns.Org:Recover(text)
+        ns:Print(ok and "Recovered: this account is the org admin." or err)
+    end)
 end
 
 ---------------------------------------------------------------------------
@@ -1056,6 +1084,24 @@ local function buildSettingsPanel(p)
             end)
     end)
     settings.blockWords.tip = "Words hidden from RUIN chat for the whole org"
+    settings.recovery = Wd.Button(keyCard, "Recovery code", 120, function() UI:PromptRecovery() end)
+    settings.recovery.tip = "The admin's recovery code: keeps you the org admin on a new PC or after a reinstall"
+    settings.minVersion = Wd.Dropdown(keyCard, 220, function() return ns.Org:MinVersionChoices() end,
+        function() return ns.Org:MinVersion() end, function(v)
+            local function set()
+                local ok, err = ns.Org:SetMinVersion(v)
+                ns:Print(ok and ("The org now needs RUIN %s or newer%s."):format(v,
+                    ns.CompareVersions(v, ns.CRYPTO_VERSION) >= 0 and "; org traffic is encrypted" or "") or err)
+                refreshSettings()
+            end
+            if ns.CompareVersions(v, ns.Org:MinVersion()) > 0 then
+                UI:ShowConfirm("Raise the minimum version", ("Members with a RUIN older than %s can't connect to the org until they update (they're told how).%s\n\nRaise it?")
+                    :format(v, ns.CompareVersions(v, ns.CRYPTO_VERSION) >= 0 and "\n\nFrom this version on, org traffic is encrypted: only members of the org's guilds can read it, even with the key phrase." or ""), set)
+            else
+                set()
+            end
+        end, "Minimum version: ")
+    settings.minVersion.tipTitle = "The oldest RUIN that can connect to the org. From " .. ns.CRYPTO_VERSION .. " on, org traffic is encrypted."
     settings.keyCard = keyCard
     -- The key phrase lets anyone join, so it stays hidden (someone may be streaming)
     -- until you ask to see it, and hides again after 20 seconds or when you leave the page.
@@ -1246,7 +1292,9 @@ refreshSettings = function()
     else
         lines[#lines + 1] = RED .. "You are not in a guild.|r"
     end
-    lines[#lines + 1] = ("Org channel: %s     Officer channel: %s"):format(channelDot("ORG"), channelDot("OFFICERS"))
+    lines[#lines + 1] = ("Org channel: %s     Officer channel: %s%s"):format(channelDot("ORG"), channelDot("OFFICERS"),
+        k and ("     Encryption: " .. (ns.Org:Encrypted() and (ns.Org:DataKey() and (GREEN .. "on|r") or (YELLOW .. "waiting for the data key|r"))
+            or (GREY .. "off (minimum version " .. ns.Escape(ns.Org:MinVersion()) .. ")|r"))) or "")
     local bridge = ns.Presence:BridgeGUID()
     lines[#lines + 1] = "Guild bridge: " .. (bridge and (bridge == ns.playerGUID and "you"
         or ns.ShortName(ns.Presence:NameForGUID(bridge) or "?")) or GREY .. "none|r")
@@ -1264,8 +1312,11 @@ refreshSettings = function()
     if not k then row1[#row1 + 1] = settings.create end
     if k and admin then row1[#row1 + 1] = settings.transfer; row1[#row1 + 1] = settings.disband end
     if k and not admin then row1[#row1 + 1] = settings.leave end
+    -- the admin's own character on a PC without the signing seed can recover it
+    if k and not admin and k.pk and ns.playerGUID and k.admin == ns.playerGUID then row1[#row1 + 1] = settings.recovery end
     local row2 = admin and { settings.addGuild, settings.rotate, settings.lockout, settings.links, settings.blockWords } or {}
-    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.lockout, settings.addGuild, settings.rotate, settings.links, settings.blockWords }
+    local row3 = (admin and k and k.pk) and { settings.recovery, settings.minVersion } or {}
+    local all = { settings.import, settings.export, settings.send, settings.create, settings.transfer, settings.leave, settings.disband, settings.lockout, settings.addGuild, settings.rotate, settings.links, settings.blockWords, settings.recovery, settings.minVersion }
     for _, b in ipairs(all) do b:Hide() end
     local function place(list, y, x0)
         local prev
@@ -1281,7 +1332,9 @@ refreshSettings = function()
     settings.adminLabel:SetPoint("TOPLEFT", settings.keyCard, "TOPLEFT", 12, -136)
     settings.adminLabel:SetShown(#row2 > 0)
     place(row2, -130, 82)
-    settings.keyCard:SetHeight(#row2 > 0 and 164 or 132)
+    place(row3, -162, 82)
+    if settings.minVersion:IsShown() then settings.minVersion:Refresh() end
+    settings.keyCard:SetHeight(#row3 > 0 and 196 or (#row2 > 0 and 164 or 132))
     -- your guild's settings (only with RUIN Muster installed, and in a guild)
     local muster = RUIN_API and RUIN_API.GetModule and RUIN_API:GetModule("Muster")
     local showGS = ns.guildName ~= nil and muster ~= nil

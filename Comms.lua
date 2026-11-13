@@ -24,6 +24,18 @@ local PARTIALS_PER_SENDER, PARTIALS_MAX = 8, 400
 Comms.PRIORITY = { ALERT = 1, NORMAL = 2, BULK = 3 }
 -- The only message kinds accepted over party or instance chat.
 Comms.PARTY_KINDS = { PARTYPLAN = true, PARTYPLANQ = true }
+-- Encryption (once the org's minimum version encrypts, see OrgSecure.lua):
+-- everything on the org and officer channels and in whispers is sealed with
+-- the org's data key, except these, which bootstrap a member who doesn't
+-- have the data key yet (each is checked on its own: signed, or matched
+-- against the signed org key).
+Comms.PLAIN = {
+    ORG = { KEYREQ = true, PKEY = true, MKEY = true, DISBAND = true, ADMINHI = true, DKREQ = true },
+    OFFICERS = { DISBAND = true, ORGKEY = true, ADMINHI = true },
+    PEER = { FULLKEY = true, DISBAND = true, DKEY = true, ORGKEY = true, VREQ = true, VANS = true, UPDASK = true },
+}
+local SEALED = { ORG = true, OFFICERS = true, PEER = true }
+local C = ns.Crypto
 
 local handlers = {}                       -- kind -> { fn, ... }
 local queues = { {}, {}, {} }             -- by priority
@@ -52,12 +64,45 @@ local function nextId()
     return sessionTag .. counter
 end
 
+-- The key a scope's messages are sealed with (data key generation r, or the current one).
+local function scopeKey(scope, r)
+    local Org = ns.Org
+    if not Org then return nil end
+    local raw, cur
+    if r then raw, cur = Org:DataKeyFor(r), r else raw, cur = Org:DataKey() end
+    if not raw then return nil end
+    if scope == "ORG" then return C.HMAC(raw, "RUIN org"), cur end
+    if scope == "PEER" then return C.HMAC(raw, "RUIN peer"), cur end
+    if scope == "OFFICERS" then
+        local k = Org:Get()
+        if not (k and k.oc and type(k.oc.p) == "string") then return nil end
+        return C.HMAC(raw, "RUIN off|" .. k.oc.p), cur
+    end
+end
+-- What a sealed message is bound to: who sent it, and to whom (a whisper
+-- can't be passed on as someone else's, or to someone else).
+local function sealedFor(scope, from, to)
+    return scope .. "|" .. ns.NormalizeName(from or "") .. ">" .. ns.NormalizeName(to or "")
+end
+function Comms:Encrypting() return ns.Org ~= nil and ns.Org.Encrypted ~= nil and ns.Org:Encrypted() end
+
 -- scope: "GUILD" | "ORG" | "OFFICERS" | "PEER" (target = character name) | "PARTY" (your 5-player group)
 function Comms:Send(kind, data, scope, target, priority)
     local ok, payload = pcall(ns.Serialize, data)
     if not ok then
         ns:Debug("could not serialize " .. tostring(kind))
         return false
+    end
+    if SEALED[scope] and not Comms.PLAIN[scope][kind] and Comms:Encrypting() then
+        local key, r = scopeKey(scope)
+        if not key then
+            ns:Debug("no data key yet: not sending " .. tostring(kind))
+            return false
+        end
+        local to = scope == "PEER" and target or scope
+        local sealed = C.Seal(key, kind .. "\031" .. payload, sealedFor(scope, ns.playerName, to))
+        payload = tostring(r) .. ":" .. C.EncodeNul(sealed)
+        kind = "E"
     end
     local id = nextId()
     local header = #FRAME_VERSION + #kind + #id + 2 + 2 + 5   -- 5 separators, up to 2-digit part counts
@@ -270,8 +315,6 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
     local kind, id = f[2], f[3]
     -- party members can be strangers (a pick-up group): from them, only party kinds
     if scope == "PARTY" and not Comms.PARTY_KINDS[kind] then return end
-    -- The Watch hid this player from the RUIN network.
-    if ns.Watch and ns.Watch:AnyHidden() and kind:sub(1, 1) ~= "W" and ns.Watch:IsHidden(sender) then return end
     local idx, total, chunk = tonumber(f[4]), tonumber(f[5]), f[6]
     if not idx or not total or total < 1 or total > 99 or idx < 1 or idx > total then return end
 
@@ -300,6 +343,33 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
         if p.got < p.total then return end
         partials[key] = nil
         payload = table.concat(p.parts, "", 1, p.total)
+    end
+
+    if kind == "E" then
+        -- sealed: open it with the data key, bound to the sender (and to me, for a whisper)
+        if not SEALED[scope] then return end
+        local r, body = payload:match("^(%d+):(.*)$")
+        local key = r and scopeKey(scope, tonumber(r))
+        local sealed = key and C.DecodeNul(body)
+        if not sealed then return end
+        local to = scope == "PEER" and ns.playerName or scope
+        local plain = C.Open(key, sealed, sealedFor(scope, sender, to))
+        if not plain then return end
+        local sep = plain:find("\031", 1, true)
+        if not sep then return end
+        kind, payload = plain:sub(1, sep - 1), plain:sub(sep + 1)
+        -- only members of the org's guilds: a former member who kept an old
+        -- data key is no longer on their guild's roster
+        if ns.Org.VerifyMember and ns.Org:VerifyMember(sender) == false then return end
+    elseif SEALED[scope] and not Comms.PLAIN[scope][kind] and Comms:Encrypting() then
+        return      -- the org encrypts: plain messages are only the bootstrap ones
+    end
+    -- The Watch hid this player from the RUIN network.
+    if ns.Watch and ns.Watch:AnyHidden() and kind:sub(1, 1) ~= "W" and ns.Watch:IsHidden(sender) then return end
+    -- RUIN older than the org's minimum version: nothing but its hellos
+    if kind ~= "HELLO" and kind ~= "OHELLO" and ns.Presence and ns.Presence.VersionOfName and ns.OrgSecure then
+        local v = ns.Presence:VersionOfName(sender)
+        if v and not ns.OrgSecure.VersionOk(v) then return end
     end
 
     local data, err = ns.Deserialize(payload)

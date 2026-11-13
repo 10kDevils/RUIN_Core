@@ -6,6 +6,20 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.7.2 — 2026-11-13
+
+- **Security review.** What changed, and why:
+  - **Signed org keys.** The admin's account now holds a secret signing seed, and every org key carries the admin's public key and signature. Clients only take key changes the admin signed, whoever passes them on. Officers relay keys but can no longer alter them (before, a rogue officer could whisper other guilds a key with a changed Discord link, channels or guild list). Keys from before this version are signed the next time the admin logs in.
+  - **The admin is no longer recognized by character name alone.** The admin's client signs, a week at a time, that each of its characters is the admin's. Before, someone who later took a deleted or renamed admin character's name would have been the admin to everyone. Disbanding needs the admin's signature too.
+  - **Admin hand-over** names the new admin's public key, signed by the old admin, so every client can follow the chain.
+  - **Recovery code** (Settings > Org > Recovery code, /ruin key recover): the signing seed in letters and digits. Losing your saved variables (new PC, reinstall) no longer loses you the org; keep the code private.
+  - **Encrypted org traffic.** Everything on the org and officer channels and every RUIN whisper is sealed (ChaCha20 + HMAC-SHA256) with the org's **data key**. The data key never comes from the key phrase and never travels inside the org key: it goes only to members of the org's guilds, over their own guild chat (which the game delivers to that guild only), to officers with the key, and by whisper to members a guild roster vouches for. So a leaked key phrase lets someone onto the channel, but they read nothing and can't post. Messages are bound to who sent them (and, for whispers, to whom), so they can't be replayed as someone else's.
+  - **Former members are locked out.** The data key changes weekly, when officers see members leave a guild (at most every half hour), when a guild is removed, with every new key, and with /ruin key datakey. Messages from players who are no longer on any org guild's roster are dropped.
+  - **Org minimum version** (Settings > Org, admin; /ruin key minversion). It starts at 0.6.0, so nobody is locked out. Encryption starts once the admin raises it to 0.7.2. A RUIN below the minimum gets a window saying it can't connect until it updates (CurseForge or GitHub) and doesn't connect. Older RUINs that can't show that window get a whisper from their guild, are given no keys, and their messages are dropped. Everyone below the admin's version is told in chat that a newer version is available.
+  - **Privacy: the Watch no longer sends a hash of your BattleTag.** It was a short hash that a list of likely BattleTags could undo, which would have tied your characters to your Battle.net account. Sanctions now follow a random token for your account (per org) and character names.
+  - **Stronger random numbers** for channel passwords, keys and seeds: a SHA-256 pool stirred with the game's timers, instead of `math.random` alone.
+- New file `Crypto.lua`: SHA-256, HMAC-SHA256, ChaCha20, signatures on the Ed25519 curve (with a SHA-256-based hash), all in Lua 5.1, checked against independent reference values. `OrgSecure.lua`: the data key, attestations, minimum version and recovery code.
+
 ## 0.7.1 — 2026-11-12
 
 - Small windows (Pathfinder's tracker and alerts, the party strip and other HUD panels) match the new look: a deeper navy with a soft light along the top, and their band in the page's color. For module authors: `W.CloseButton(parent, onClick, size)` (the window's close x, red under the mouse) and `W.HudHeader(frame, title)` (a glyph, a title and a hairline at the top of a small window).

@@ -20,6 +20,12 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.7.2", {
+        "Security: the org key is signed by the admin, so nobody else can change it, and the admin can't be impersonated by taking a character's old name. Save your admin recovery code (Settings > Org).",
+        "Security: once the admin raises the org's minimum version (Settings > Org), org traffic is encrypted. Only members of the org's guilds can read it, even if the key phrase leaks, and people who leave a guild are locked out.",
+        "Privacy: RUIN no longer sends anything derived from your BattleTag.",
+        "RUIN older than the org's minimum version can't connect, and says how to update (CurseForge or GitHub).",
+    } },
     { "0.7.0", {
         "A new look for the whole suite: flat tabs with RUIN's own icons, a drawing in each page's header, buttons that take the page's color when you use them, real check marks, slim scroll bars and cleaner menus.",
         "Security: a new officer channel goes only to officers RUIN can vouch for, and the admin can lock a demoted officer out (Settings > Org > Lock out officer). Shared prices, quest places, drop counts and crafts are checked before they count.",

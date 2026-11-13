@@ -420,11 +420,25 @@ local function handleKey(rest)
         ns.UI:PromptLeaveOrg()
     elseif sub == "disband" then
         ns.UI:PromptDisbandOrg()
+    elseif sub == "recover" or sub == "recovery" then
+        if arg ~= "" then
+            local ok, err = Org:Recover(arg)
+            ns:Print(ok and "Recovered: this account is the org admin." or err)
+        else
+            ns.UI:PromptRecovery()
+        end
+    elseif sub == "minversion" then
+        if arg == "" then return ns:Print("The org needs RUIN " .. Org:MinVersion() .. " or newer. Choices: " .. table.concat(Org:MinVersionChoices(), ", ")) end
+        local ok, err = Org:SetMinVersion(arg)
+        ns:Print(ok and ("The org now needs RUIN " .. arg .. " or newer.") or err)
+    elseif sub == "datakey" then
+        local ok, err = Org:RotateDataKey()
+        ns:Print(ok and "New data key: anyone who left the org's guilds can no longer read org traffic." or err)
     elseif sub == "forget" then
         Org:Forget()
         ns:Print("Org key removed from this account.")
     else
-        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, lockout <names>, leave, disband, forget")
+        ns:Print("Key commands: import, join <phrase>, export, send [name], create, addguild, editguild, removeguild, newkey [phrase], links, transfer <name>, lockout <names>, recover [code], minversion [version], datakey, leave, disband, forget")
     end
 end
 

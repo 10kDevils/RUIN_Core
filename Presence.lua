@@ -38,6 +38,7 @@ function Presence:SendGuildHello(request)
         b = ns.db.settings.allowBridge and 1 or 0,
         o = ns.Org:AmOfficer() and 1 or 0,
         org = k and k.org or "", gs = ns.Guild and ns.Guild:SettingsStamp() or nil,
+        dr = select(2, ns.Org:DataKey()) or 0,
         rq = request and 1 or nil,
     }, "GUILD")
 end
@@ -48,7 +49,7 @@ function Presence:SendOrgHello(request)
     ns.Comms:Send("OHELLO", {
         g = ns.playerGUID, v = ns.VERSION, p = ns.PROTOCOL,
         gu = ns.guildName, c = myClass(), l = UnitLevel("player"), z = ns:Shares("zone") and myZone() or nil,
-        al = Presence:AltToken(), bt = ns.Watch and ns.Watch.MyTagHash and ns.Watch:MyTagHash() or nil,
+        al = Presence:AltToken(), bt = ns.OrgSecure and ns.OrgSecure.AccountToken() or nil,
         kr = ns.Org:Rev(), o = ns.Org:AmOfficer() and 1 or 0,
         rq = request and 1 or nil,
     }, "ORG")
@@ -81,10 +82,17 @@ ns.Comms:Register("HELLO", function(d, sender, scope)
     p.v, p.p = d.v, d.p
     p.kr = tonumber(d.kr) or 0
     p.ko, p.b, p.o, p.org = d.ko, d.b, d.o, d.org
+    p.dr = tonumber(d.dr) or 0
     guildPeers[d.g] = p
 
     noteVersion(d.v, sender)
-    ns.Org:OnPeerKeyState(p)
+    if ns.OrgSecure and not ns.OrgSecure.VersionOk(d.v) then
+        ns.Org:OnOldPeer(p)
+    else
+        ns.Org:OnPeerKeyState(p)
+        ns.Org:OnPeerDataKey(p)
+    end
+    if d.rq == 1 and ns.Org.OnHelloRequest then ns.Org:OnHelloRequest() end
     if ns.Guild then ns.Guild:OnPeerSettings(d.gs) end
 
     if d.rq == 1 and GetTime() - lastGuildHello > 15 then
@@ -123,6 +131,7 @@ ns.Comms:Register("OHELLO", function(d, sender, scope)
 
     noteVersion(d.v, sender)
     ns.Org:OnOrgPeer(p)
+    if d.rq == 1 and ns.Org.OnHelloRequest then ns.Org:OnHelloRequest() end
 
     if d.rq == 1 and GetTime() - lastOrgHello > 20 then
         C_Timer.After(1 + math.random() * 6, function()
@@ -184,6 +193,14 @@ function Presence:IsRosterSender() return ns.playerGUID ~= nil and Presence:Rost
 
 function Presence:IsBridge() return ns.playerGUID ~= nil and Presence:BridgeGUID() == ns.playerGUID end
 function Presence:IsOfficerBridge() return ns.playerGUID ~= nil and Presence:OfficerBridgeGUID() == ns.playerGUID end
+
+-- The RUIN version a player's last hello said (nil when none was heard).
+function Presence:VersionOfName(name)
+    local n = ns.NormalizeName(name)
+    for _, p in pairs(guildPeers) do if ns.NormalizeName(p.name) == n then return p.v end end
+    for _, p in pairs(orgPeers) do if ns.NormalizeName(p.name) == n then return p.v end end
+    return nil
+end
 
 function Presence:HasAddon(guid)
     return guid == ns.playerGUID or fresh(guildPeers[guid])

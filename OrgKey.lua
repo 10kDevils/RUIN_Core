@@ -17,6 +17,12 @@ local ADDON, ns = ...
 
 local Org = {}
 ns.Org = Org
+local C = ns.Crypto
+
+-- Versions: the oldest RUIN Core an org can be set to require, and the
+-- first that encrypts org traffic (see OrgSecure.lua).
+ns.MIN_SUPPORTED = "0.6.0"
+ns.CRYPTO_VERSION = "0.7.2"
 
 local KEY_HEADER = "RUIN1:"
 local MAX_REV = 2147483647        -- a sane revision: a huge one would freeze the key for good
@@ -34,12 +40,117 @@ local lastOfferPopup = -999
 function Org:Get() return ns.db and ns.db.orgKey end
 function Org:Rev() local k = Org:Get(); return k and k.rev or 0 end
 function Org:HasOfficerPart() local k = Org:Get(); return k ~= nil and k.oc ~= nil end
+---------------------------------------------------------------------------
+-- Signed keys. The admin's account holds a secret signing seed (account-wide
+-- RUIN_DB.adminSeeds); the key carries the matching public key (pk) and the
+-- admin's signature over everything in it but the officer channel and the
+-- key phrase (which members never get). Once a client has a signed key, it
+-- takes a change only when the signature checks out, whoever passes it on:
+-- officers relay keys but can't change them, and a character that takes a
+-- deleted admin character's name gets nothing from the name.
+---------------------------------------------------------------------------
+local UNSIGNED = { sig = true, oc = true, ph = true }
+local seedPk = {}         -- seed hex -> public key hex (working it out takes a moment)
+
+local function pkOf(seed)
+    local h = C.Hex(seed)
+    if not seedPk[h] then seedPk[h] = C.Hex(C.SignKeyPair(seed)) end
+    return seedPk[h]
+end
+Org.PkOf = pkOf
+
+local function signedPart(k)
+    local c = {}
+    for key, v in pairs(k) do if not UNSIGNED[key] then c[key] = ns.DeepCopy(v) end end
+    return ns.SanitizeTree(c)
+end
+local function keyMessage(k) return "RUINK1|" .. C.Canonical(signedPart(k)) end
+local function xferMessage(org, to, rev) return ("RUINX1|%s|%s|%d"):format(tostring(org), tostring(to), tonumber(rev) or 0) end
+Org.XferMessage = xferMessage
+
+-- Short check value of the officer channel, signed with the key (the channel
+-- itself only travels to officers).
+local function ochOf(oc)
+    if type(oc) ~= "table" or type(oc.n) ~= "string" or type(oc.p) ~= "string" then return nil end
+    return C.SHA256Hex("RUIN oc|" .. oc.n .. "|" .. oc.p):sub(1, 16)
+end
+Org.OchOf = ochOf
+
+local function seedStore()
+    if not ns.db then return {} end
+    ns.db.adminSeeds = type(ns.db.adminSeeds) == "table" and ns.db.adminSeeds or {}
+    return ns.db.adminSeeds
+end
+
+-- This account's signing seed for the key's admin, or nil.
+local function mySeed(k)
+    k = k or (ns.db and ns.db.orgKey)
+    if not (k and type(k.pk) == "string") then return nil end
+    local h = seedStore()[k.org]
+    local seed = type(h) == "string" and C.Unhex(h)
+    if seed and #seed == 32 and pkOf(seed) == k.pk then return seed end
+    return nil
+end
+Org.MySeed = mySeed
+
+local function signKey(k, seed)
+    seed = seed or mySeed(k)
+    if not seed then return false end
+    local spk = pkOf(seed)
+    k.spk = spk ~= k.pk and spk or nil       -- only the hand-over key names another signer
+    k.sig = nil
+    k.sig = ns.Base64Encode(C.Sign(seed, keyMessage(k)))
+    return true
+end
+Org.SignKey = signKey
+
+local function verifyXfer(org, x)
+    if type(x) ~= "table" or type(x.f) ~= "string" or type(x.t) ~= "string" or type(x.s) ~= "string" then return false end
+    local fpk, sig = C.Unhex(x.f), C.Unhex(x.s)
+    if not (fpk and sig) then return false end
+    return C.VerifyCached(fpk, xferMessage(org, x.t, x.r), sig)
+end
+
+-- Is k signed by its admin, and (trusted = the admin public key this client
+-- already knows) handed over from that admin? Returns ok, why.
+local function verifyKey(k, trusted)
+    if type(k.pk) ~= "string" or type(k.sig) ~= "string" then return false, "isn't signed by the org admin" end
+    local spkHex = k.spk or k.pk
+    local xc = type(k.xc) == "table" and k.xc or {}
+    local at, hops = trusted or k.pk, 0
+    while at ~= k.pk do
+        local nextHop
+        for _, x in ipairs(xc) do
+            if type(x) == "table" and x.f == at and verifyXfer(k.org, x) then nextHop = x; break end
+        end
+        if not nextHop then return false, "names an admin your org never handed over to" end
+        at, hops = nextHop.t, hops + 1
+        if hops > 6 then return false, "names an admin your org never handed over to" end
+    end
+    local signerOk = spkHex == k.pk
+    if not signerOk then
+        -- the hand-over key itself is signed by the admin handing over
+        for _, x in ipairs(xc) do
+            if type(x) == "table" and x.t == k.pk and x.f == spkHex and tonumber(x.r) == k.rev and verifyXfer(k.org, x) then signerOk = true end
+        end
+    end
+    if not signerOk then return false, "isn't signed by the org admin" end
+    local spk, sig = C.Unhex(spkHex), ns.Base64Decode(k.sig)
+    if not (spk and sig and C.VerifyCached(spk, keyMessage(k), sig)) then return false, "has a signature that doesn't check out" end
+    return true
+end
+Org.VerifyKey = verifyKey
+
+function Org:Signed() local k = Org:Get(); return k ~= nil and type(k.pk) == "string" end
+
 -- The org admin is the character that created the key, and every other
 -- character on the same WoW account: the first time the admin character
 -- logs in, RUIN notes in the account-wide RUIN_DB that this account holds the
 -- admin. A key imported on another account never carries that note.
 local function accountIsAdmin(k)
     if not (k and ns.db) then return false end
+    -- a signed key: the admin is whoever holds its signing seed
+    if type(k.pk) == "string" then return mySeed(k) ~= nil end
     if ns.playerGUID ~= nil and k.admin == ns.playerGUID then
         ns.db.adminOf = type(ns.db.adminOf) == "table" and ns.db.adminOf or {}
         ns.db.adminOf[k.org] = k.admin
@@ -59,7 +170,7 @@ function Org:AdminNames(k)
     return (k and type(k.an) == "table") and k.an or {}
 end
 
-function Org:IsAdminName(name, k)
+local function nameListed(name, k)
     if type(name) ~= "string" or name == "" then return false end
     local n = ns.NormalizeName(name)
     for _, a in ipairs(Org:AdminNames(k)) do
@@ -67,9 +178,25 @@ function Org:IsAdminName(name, k)
     end
     return false
 end
+Org.NameListed = nameListed
+
+-- With a signed key a listed name counts only while the admin vouches for it:
+-- the admin's client signs "this character is mine" for a week at a time
+-- (OrgSecure.lua), so whoever later takes a deleted or renamed admin
+-- character's name isn't the admin.
+function Org:IsAdminName(name, k)
+    if not nameListed(name, k) then return false end
+    k = k or Org:Get()
+    if k and type(k.pk) == "string" then
+        local n = ns.NormalizeName(name)
+        if ns.playerNorm and n == ns.playerNorm then return accountIsAdmin(k) end
+        return Org.Attested ~= nil and Org.Attested(n, k) or false
+    end
+    return true
+end
 
 local function addAdminName(k, name)
-    if not (k and name) or Org:IsAdminName(name, k) then return false end
+    if not (k and name) or nameListed(name, k) then return false end
     k.an = type(k.an) == "table" and k.an or {}
     table.insert(k.an, 1, name)
     while #k.an > MAX_ADMIN_NAMES do table.remove(k.an) end
@@ -89,6 +216,7 @@ end
 local function nextRev(k)
     return math.max(k.rev, revSeen) + 1
 end
+Org.NextRev = nextRev
 -- The admin character itself (rather than an alt on the same account).
 function Org:IsAdminCharacter() local k = Org:Get(); return k ~= nil and ns.playerGUID ~= nil and k.admin == ns.playerGUID end
 
@@ -140,6 +268,13 @@ local function validKey(k)
     if k.bw ~= nil and type(k.bw) ~= "table" then return false end
     if k.xt ~= nil and (type(k.xt) ~= "table" or type(k.xt.f) ~= "string" or type(k.xt.t) ~= "string") then return false end
     if k.ocr ~= nil and type(k.ocr) ~= "number" then return false end
+    for _, f in ipairs({ "pk", "spk", "sig", "dkh", "och", "mv", "av" }) do
+        if k[f] ~= nil and (type(k[f]) ~= "string" or #k[f] > 200) then return false end
+    end
+    if k.pk ~= nil and not (#k.pk == 64 and not k.pk:find("[^0-9a-f]")) then return false end
+    if k.spk ~= nil and not (#k.spk == 64 and not k.spk:find("[^0-9a-f]")) then return false end
+    if k.dkr ~= nil and (type(k.dkr) ~= "number" or k.dkr < 0 or k.dkr ~= math.floor(k.dkr)) then return false end
+    if k.xc ~= nil and (type(k.xc) ~= "table" or #k.xc > 6) then return false end
     return true
 end
 Org.ValidKey = validKey
@@ -217,6 +352,25 @@ function Org:Apply(k, source)
     k = ns.DeepCopy(k)
     local cur = Org:Get()
 
+    -- Signatures first: a client that knows the admin's public key takes only
+    -- keys that admin signed (or handed over); a first signed key is checked
+    -- against its own public key.
+    local signed = false
+    local sameOrg = cur and cur.org == k.org
+    if sameOrg and type(cur.pk) == "string" and source ~= "create" and source ~= "edit" then
+        local ok, why = verifyKey(k, cur.pk)
+        if not ok then return false, why end
+        signed = true
+    elseif type(k.pk) == "string" and source ~= "create" and source ~= "edit" then
+        -- the first signed key of an org you're in comes from its admin (or
+        -- your guild's officers), never from another guild's officer
+        if sameOrg and source == "officer" then return false, "a first signed key comes from the admin" end
+        local ok, why = verifyKey(k, nil)
+        if not ok then return false, why end
+        signed = true
+    end
+    if k.oc and k.och and ochOf(k.oc) ~= k.och then k.oc = nil end
+
     if cur then
         if cur.org ~= k.org and source ~= "import" then return false, "belongs to a different org" end
         if cur.org == k.org then
@@ -228,6 +382,7 @@ function Org:Apply(k, source)
                 -- one). The admin's own account loses it only by handing it
                 -- over itself (Org:TransferAdmin), never by a key from outside.
                 local newAdmin = cur.admin ~= nil and k.admin ~= cur.admin
+                if signed and type(cur.pk) == "string" then newAdmin = false end   -- the signature chain vouches for it
                 if newAdmin then
                     if accountIsAdmin(cur) then return false, "names a different org admin" end
                     local handedOver = type(k.xt) == "table" and k.xt.f == cur.admin and k.xt.t == k.admin
@@ -238,7 +393,7 @@ function Org:Apply(k, source)
                 if k.rev > cur.rev + REV_JUMP then return false, "jumps too far ahead" end
                 -- Who counts as the admin changes only when the admin says so
                 -- (or, for a key from before admin names, the first time).
-                if source ~= "admin" and not newAdmin and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
+                if not signed and source ~= "admin" and not newAdmin and type(cur.an) == "table" then k.an = ns.DeepCopy(cur.an) end
             end
             if k.rev == cur.rev then
                 if k.oc and not cur.oc and (accountIsAdmin(cur) or Org:AmOfficer()) then
@@ -253,7 +408,8 @@ function Org:Apply(k, source)
 
     -- A key without the officer channel (the member copy): an officer keeps
     -- theirs while it's still the current one (same generation).
-    if not k.oc and cur and cur.oc and cur.org == k.org and (k.ocr or 0) == (cur.ocr or 0) then k.oc = cur.oc end
+    if not k.oc and cur and cur.oc and cur.org == k.org and (k.ocr or 0) == (cur.ocr or 0)
+        and (not k.och or ochOf(cur.oc) == k.och) then k.oc = cur.oc end
     -- Only officers of their own guild (or the admin) keep the officer channel.
     if k.oc and not accountIsAdmin(k) then
         local g = ns.guildName and k.guilds[ns.guildName]
@@ -289,7 +445,7 @@ end
 -- Admin actions
 ---------------------------------------------------------------------------
 local function newChannel()
-    return { n = "ruin" .. ns.RandomToken(10), p = ns.RandomToken(12) }
+    return { n = "ruin" .. C.Token(10), p = C.Token(16) }
 end
 
 local function defaultTag(name)
@@ -315,8 +471,19 @@ function Org:Create(orgName, phrase)
         c = ph and Org.PhraseChannel(ph) or newChannel(), oc = newChannel(), ph = ph,
         an = { ns.playerName },
     }
+    -- the admin's signing seed (account-wide), the key's public key, and the
+    -- org's first data key
+    local seed = C.Random(32)
+    seedStore()[orgName] = C.Hex(seed)
+    k.pk = pkOf(seed)
+    k.och = ochOf(k.oc)
+    k.mv, k.av = ns.MIN_SUPPORTED, ns.VERSION
+    if Org.NewDataKey then Org.NewDataKey(k) end
+    signKey(k, seed)
     ns.db.orgKey = k
+    ns.db.recoveryShown = type(ns.db.recoveryShown) == "table" and ns.db.recoveryShown or {}
     ns:Fire("KEY_CHANGED", "create")
+    if Org.SendAttestation then Org:SendAttestation(true) end
     return true
 end
 
@@ -342,6 +509,16 @@ end
 -- goes by whisper to the officers RUIN can vouch for (your guild's roster,
 -- other guilds' officers seen lately), minus anyone locked out, and each
 -- guild's officers pass it to their own officer-rank guildmates (OKEY).
+local function officerMessage(k)
+    local m = { k = ns.DeepCopy(k) }
+    if Org.DataKeyHex then
+        local hex, r = Org:DataKeyHex()
+        if hex then m.dk = { r = r, k = hex } end
+    end
+    return m
+end
+Org.OfficerMessage = officerMessage
+
 local function deliverOfficerChannel(k, exclude, removedGuild)
     exclude = exclude or {}
     local sent = 0
@@ -349,7 +526,7 @@ local function deliverOfficerChannel(k, exclude, removedGuild)
         local n = ns.NormalizeName(o.name)
         local guildOk = not o.guild or (k.guilds[o.guild] and o.guild ~= removedGuild)
         if guildOk and not exclude[n] and n ~= ns.playerNorm and (o.online or o.roster) then
-            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "PEER", o.name, ns.Comms.PRIORITY.ALERT)
+            ns.Comms:Send("ORGKEY", officerMessage(k), "PEER", o.name, ns.Comms.PRIORITY.ALERT)
             sent = sent + 1
         end
     end
@@ -357,12 +534,14 @@ local function deliverOfficerChannel(k, exclude, removedGuild)
 end
 
 local function publishEdit(k, oldOfficerChannel, exclude, removedGuild)
+    k.och = ochOf(k.oc) or k.och
+    if mySeed(k) then signKey(k) end
     if oldOfficerChannel then
         if k.oc and k.oc.n ~= oldOfficerChannel then
             ns.Comms:Send("ORGKEY", { k = memberCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
             deliverOfficerChannel(k, exclude, removedGuild)
         else
-            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
+            ns.Comms:Send("ORGKEY", officerMessage(k), "OFFICERS", oldOfficerChannel, ns.Comms.PRIORITY.ALERT)
         end
     end
     ns.Comms:Send("MKEY", { k = memberCopy(k) }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
@@ -374,7 +553,9 @@ end
 local function newOfficerChannel(k)
     k.oc = newChannel()
     k.ocr = (tonumber(k.ocr) or 0) + 1
+    k.och = ochOf(k.oc)
 end
+Org.PublishEdit = function(k) publishEdit(k, k.oc and k.oc.n) end
 
 function Org:AddGuild(name, rank, tag)
     local k, err = editableKey()
@@ -436,6 +617,7 @@ function Org:RemoveGuild(name)
     -- chooses a new phrase to lock them out of it).
     if not k.ph then k.c = newChannel() end
     newOfficerChannel(k)
+    if Org.NewDataKey then Org.NewDataKey(k) end
     publishEdit(k, oldOC, nil, name)
     return true
 end
@@ -454,6 +636,7 @@ function Org:ChooseNewKey(phrase)
     local oldOC = k.oc and k.oc.n
     k.c, k.ph = ph and Org.PhraseChannel(ph) or newChannel(), ph
     newOfficerChannel(k)
+    if Org.NewDataKey then Org.NewDataKey(k) end
     k.rev = nextRev(k)
     publishEdit(k, oldOC)
     return true
@@ -476,6 +659,7 @@ function Org:RotateOfficerChannel(names)
     end
     local oldOC = k.oc and k.oc.n
     newOfficerChannel(k)
+    if Org.NewDataKey then Org.NewDataKey(k) end
     k.rev = nextRev(k)
     publishEdit(k, oldOC, exclude)
     return true
@@ -503,13 +687,15 @@ end
 -- who did (see relayDisband), and their guild's officers stop sharing it.
 local function markDisbanded(k)
     ns.db.disbanded = type(ns.db.disbanded) == "table" and ns.db.disbanded or {}
-    ns.db.disbanded[k.org] = { admin = k.admin, an = ns.DeepCopy(k.an or {}), t = ns.Now() }
+    ns.db.disbanded[k.org] = { admin = k.admin, an = ns.DeepCopy(k.an or {}), t = ns.Now(), pk = k.pk, s = k._dsig }
 end
 
 function Org:Disband()
     local k, err = editableKey()
     if not k then return false, err end
     local note = { org = k.org, admin = k.admin }
+    local seed = mySeed(k)
+    if seed then note.s = C.Hex(C.Sign(seed, "RUIND1|" .. k.org .. "|" .. k.pk)); k._dsig = note.s end
     ns.Comms:Send("DISBAND", note, "ORG", nil, ns.Comms.PRIORITY.ALERT)
     if k.oc then ns.Comms:Send("DISBAND", note, "OFFICERS", nil, ns.Comms.PRIORITY.ALERT) end
     markDisbanded(k)
@@ -531,7 +717,7 @@ local function relayDisband(org, name)
     relayed[n] = GetTime() + 300
     local rec = ns.db.disbanded and ns.db.disbanded[org]
     if not rec then return end
-    ns.Comms:Send("DISBAND", { org = org, admin = rec.admin, relay = 1 }, "PEER", name, ns.Comms.PRIORITY.BULK)
+    ns.Comms:Send("DISBAND", { org = org, admin = rec.admin, relay = 1, s = rec.s }, "PEER", name, ns.Comms.PRIORITY.BULK)
 end
 Org.RelayDisband = relayDisband
 
@@ -539,6 +725,17 @@ ns.Comms:Register("DISBAND", function(d, sender, scope)
     local k = Org:Get()
     if not (k and type(d) == "table" and d.org == k.org and d.admin == k.admin) then return end
     local fromAdmin = Org:IsAdminName(sender, k)
+    if type(k.pk) == "string" then
+        -- a signed org ends only with its admin's signature, whoever brings it
+        local sig = type(d.s) == "string" and C.Unhex(d.s)
+        if not (sig and C.VerifyCached(C.Unhex(k.pk), "RUIND1|" .. k.org .. "|" .. k.pk, sig)) then return end
+        if Org:IsAdmin() then return end
+        k._dsig = d.s
+        markDisbanded(k)
+        ns:Print(("The %s org was disbanded by its admin. RUIN dropped the org key; import a new one to join another org."):format(k.org))
+        Org:Forget()
+        return
+    end
     if not fromAdmin then
         -- passed on: from an officer, or someone in your own guild
         if not (d.relay and scope == "PEER") then return end
@@ -663,19 +860,33 @@ function Org:PendingAdminOffer()
 end
 
 -- Makes `name` (character GUID `guid`) the org admin. Called when they accept.
-function Org:TransferAdmin(name, guid)
+function Org:TransferAdmin(name, guid, newPk)
     local k, err = editableKey()
     if not k then return false, err end
     if type(guid) ~= "string" or not guid:find("^Player%-") then return false, "That answer didn't name a character." end
     if guid == k.admin then return false, "That character is already the org admin." end
+    local seed = mySeed(k)
+    if seed and not (type(newPk) == "string" and #newPk == 64 and not newPk:find("[^0-9a-f]")) then
+        return false, "they need a newer RUIN to take over a signed org"
+    end
     local oldOC = k.oc and k.oc.n
     k.xt = { f = k.admin, t = guid }
     k.admin = guid
     k.an = { name }
     k.rev = nextRev(k)
+    if seed then
+        -- the hand-over: signed by this admin, naming the new admin's public key
+        local x = { f = k.pk, t = newPk, r = k.rev }
+        x.s = C.Hex(C.Sign(seed, xferMessage(k.org, newPk, k.rev)))
+        k.xc = type(k.xc) == "table" and k.xc or {}
+        table.insert(k.xc, x)
+        while #k.xc > 5 do table.remove(k.xc, 1) end
+        k.pk = newPk
+        signKey(k, seed)
+    end
     if type(ns.db.adminOf) == "table" then ns.db.adminOf[k.org] = nil end
     -- the new admin first (they may not be on the officer channel yet), then every officer
-    ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "PEER", name, ns.Comms.PRIORITY.ALERT)
+    ns.Comms:Send("ORGKEY", officerMessage(k), "PEER", name, ns.Comms.PRIORITY.ALERT)
     publishEdit(k, oldOC)
     adminOffer = nil
     return true
@@ -695,7 +906,10 @@ ns.Comms:Register("ADMINOFFER", function(d, sender, scope)
         ("%s wants to hand the %s org admin over to you.\n\nYou would manage the org key: its guilds, key phrase, links and block words. %s would no longer be the admin.\n\nAccept?")
             :format(ns.ShortName(sender), k.org, ns.ShortName(sender)),
         function()
-            ns.Comms:Send("ADMINACCEPT", { org = k.org, g = ns.playerGUID }, "PEER", sender, ns.Comms.PRIORITY.ALERT)
+            -- a signing seed for this account; the old admin names its public key
+            local seed = C.Random(32)
+            seedStore()[k.org] = C.Hex(seed)
+            ns.Comms:Send("ADMINACCEPT", { org = k.org, g = ns.playerGUID, pk = pkOf(seed) }, "PEER", sender, ns.Comms.PRIORITY.ALERT)
             ns:Print("You accepted the org admin. The new key arrives in a moment.")
         end)
 end)
@@ -705,7 +919,7 @@ ns.Comms:Register("ADMINACCEPT", function(d, sender, scope)
     local k = Org:Get()
     if not (k and d.org == k.org and Org:IsAdmin()) then return end
     if not (adminOffer and GetTime() < adminOffer.untilT and adminOffer.name == ns.NormalizeName(sender)) then return end
-    local ok, err = Org:TransferAdmin(sender, d.g)
+    local ok, err = Org:TransferAdmin(sender, d.g, d.pk)
     ns:Print(ok and (ns.ShortName(sender) .. " is now the org admin. Everyone gets the new key from the officers.") or ("Didn't hand the admin over: " .. tostring(err)))
 end)
 
@@ -805,7 +1019,10 @@ local function acceptOrgKey(d, sender, source)
     local cur = Org:Get()
     if not cur or cur.org ~= d.k.org or d.k.rev < cur.rev then return end
     -- the same rev again only to hand an officer the new officer channel
-    if d.k.rev == cur.rev and not (d.k.oc and not cur.oc) then return end
+    if d.k.rev == cur.rev and not (d.k.oc and not cur.oc) then
+        if type(d.dk) == "table" and Org.SetDataKey then Org:SetDataKey(d.dk.r, d.dk.k) end
+        return
+    end
     if not ns.guildName or not d.k.guilds[ns.guildName] then
         if not Org:IsAdmin() then
             ns:Print("The org key was updated, but your guild is no longer listed in it.")
@@ -813,6 +1030,7 @@ local function acceptOrgKey(d, sender, source)
         end
     end
     local ok, why = Org:Apply(d.k, source)
+    if type(d.dk) == "table" and Org.SetDataKey then Org:SetDataKey(d.dk.r, d.dk.k) end
     if ok then
         ns:Print(("Org key updated to rev %d (from %s)."):format(d.k.rev, ns.ShortName(sender)))
     else
@@ -832,6 +1050,7 @@ end
 local function senderIsAdmin(sender, d, scope)
     local cur = Org:Get()
     if not cur then return false end
+    if type(cur.pk) == "string" then return Org:IsAdminName(sender, cur) end
     if type(cur.an) == "table" then return Org:IsAdminName(sender, cur) end
     -- A key from before admin names (RUIN 0.4.4 and older): the game may know
     -- the admin character's name from its GUID; if not, a key on the officer
@@ -849,6 +1068,13 @@ Org.SenderIsAdmin = function(sender) return senderIsAdmin(sender, {}, "PEER") en
 
 ns.Comms:Register("ORGKEY", function(d, sender, scope)
     if (scope ~= "OFFICERS" and scope ~= "PEER") or type(d.k) ~= "table" then return end
+    local cur = Org:Get()
+    if cur and type(cur.pk) == "string" and cur.org == d.k.org then
+        -- a signed org: the signature decides, whoever passes the key on
+        if type(d.k.rev) == "number" then Org:NoteRev(d.k.rev) end
+        acceptOrgKey(d, sender, "signed")
+        return
+    end
     if senderIsAdmin(sender, d, scope) then
         acceptOrgKey(d, sender, "admin")
     elseif ns.Presence:IsOfficerName(sender) then
@@ -865,8 +1091,13 @@ end)
 -- officer channel).
 ns.Comms:Register("MKEY", function(d, sender, scope)
     if scope ~= "ORG" or type(d.k) ~= "table" or not validKey(d.k) then return end
-    if not senderIsAdmin(sender, d, scope) then return end
     local cur = Org:Get()
+    if cur and type(cur.pk) == "string" and cur.org == d.k.org then
+        if d.k.rev <= cur.rev then return end
+        acceptOrgKey(d, sender, "signed")
+        return
+    end
+    if not senderIsAdmin(sender, d, scope) then return end
     if not cur or cur.org ~= d.k.org or d.k.rev <= cur.rev then return end
     acceptOrgKey(d, sender, "admin")
 end)
@@ -877,10 +1108,14 @@ end)
 ns:Subscribe("LOGIN", function()
     C_Timer.After(20, function()
         local k = Org:Get()
-        if not (k and Org:IsAdmin() and ns.playerName) or Org:IsAdminName(ns.playerName, k) then return end
+        if not (k and Org:IsAdmin() and ns.playerName) or nameListed(ns.playerName, k) then return end
         local oldOC = k.oc and k.oc.n
         addAdminName(k, ns.playerName)
         k.rev = nextRev(k)
+        if mySeed(k) then
+            publishEdit(k, oldOC)
+            return
+        end
         if oldOC then
             ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(k) }, "OFFICERS", oldOC, ns.Comms.PRIORITY.ALERT)
         end
@@ -902,7 +1137,7 @@ function Org:OnOrgPeer(peer)
     C_Timer.After(2 + math.random() * 8, function()
         local cur = Org:Get()
         if cur and peer.kr < cur.rev then
-            ns.Comms:Send("ORGKEY", { k = ns.DeepCopy(cur) }, "PEER", peer.name, ns.Comms.PRIORITY.BULK)
+            ns.Comms:Send("ORGKEY", officerMessage(cur), "PEER", peer.name, ns.Comms.PRIORITY.BULK)
         end
     end)
 end
@@ -923,6 +1158,8 @@ function Org:ApplyChannels()
     -- the admin stays connected on every character of the account, so the
     -- org can be run from an alt in another guild
     local admin = Org:IsAdmin()
+    -- RUIN older than the org's minimum version doesn't connect (OrgSecure)
+    if k and not admin and Org.TooOld and Org:TooOld() then k = nil end
     if k and (Org:MyGuildInOrg() or admin) then
         ns.Comms:SetChannel("ORG", k.c.n, k.c.p)
         if k.oc and (Org:AmOfficer() or admin) then
@@ -1044,6 +1281,7 @@ ns.Comms:Register("OKEY", function(d, sender, scope)
     if not Org:AmOfficer() then return end
     local entry = ns.roster[ns.NormalizeName(sender)]
     if not (entry and Org:IsOfficerRank(entry.rank)) then return end
+    if cur.och and ochOf(d.oc) ~= cur.och then return end
     cur.oc = ns.DeepCopy(d.oc)
     ns:Print("Received the officer channel from " .. ns.ShortName(sender) .. ".")
     ns:Fire("KEY_CHANGED", "officer-part")
@@ -1064,16 +1302,23 @@ function Org:SendFullKey(target)
     -- (to a new guild's leader); an officer's offer is the member key, and
     -- their guild's officers pass the officer channel on once they're in
     local send = Org:IsAdmin() and k or memberCopy(k)
-    ns.Comms:Send("FULLKEY", { k = send }, "PEER", target, ns.Comms.PRIORITY.BULK)
+    local m = { k = send }
+    -- the admin's offer to a new guild's leader carries the data key too
+    if Org:IsAdmin() and Org.DataKeyHex then
+        local hex, r = Org:DataKeyHex()
+        if hex then m.dk = { r = r, k = hex } end
+    end
+    ns.Comms:Send("FULLKEY", m, "PEER", target, ns.Comms.PRIORITY.ALERT)
     return true
 end
 
 -- The offer uses RUIN's own dialog, not Blizzard's StaticPopup system, so
 -- nothing RUIN does can taint popups Blizzard shows later.
 
-function Org:AcceptOffered(k)
+function Org:AcceptOffered(k, dk)
     if not validKey(k) then return end
     local ok, err = Org:Apply(k, "import")
+    if ok and type(dk) == "table" and Org.SetDataKey then Org:SetDataKey(dk.r, dk.k) end
     if not ok then
         ns:Print("Did not apply the key: " .. tostring(err) .. ".")
         return
@@ -1093,11 +1338,11 @@ ns.Comms:Register("FULLKEY", function(d, sender, scope)
     if cur and cur.org == d.k.org and d.k.rev <= cur.rev and (cur.oc or not d.k.oc) then return end
     if GetTime() - lastOfferPopup < 30 then return end
     lastOfferPopup = GetTime()
-    local offered = d.k
+    local offered, offeredDk = d.k, d.dk
     ns.UI:ShowConfirm("RUIN org key offered",
         ("%s is offering you the RUIN org key for \"%s\".\n\nAccept it? Your guild's members will receive it from you automatically.")
             :format(ns.ShortName(sender), offered.org),
-        function() Org:AcceptOffered(offered) end)
+        function() Org:AcceptOffered(offered, offeredDk) end)
 end)
 
 ---------------------------------------------------------------------------
@@ -1137,7 +1382,7 @@ function Org:JoinWithPhrase(text)
         end
         if ns.Comms:IsJoined("ORG") and GetTime() - asked >= 15 then
             asked = GetTime()
-            ns.Comms:Send("KEYREQ", { gu = ns.guildName }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
+            ns.Comms:Send("KEYREQ", { gu = ns.guildName, v = ns.VERSION }, "ORG", nil, ns.Comms.PRIORITY.ALERT)
         end
     end)
     ns:Fire("KEY_JOIN_CHANGED")
@@ -1149,6 +1394,8 @@ ns.Comms:Register("KEYREQ", function(d, sender, scope)
     if scope ~= "ORG" or joining then return end
     local k = Org:Get()
     if not (k and (Org:MyGuildInOrg() or Org:IsAdmin())) then return end
+    -- RUIN older than the org's minimum version gets no key
+    if ns.OrgSecure and not ns.OrgSecure.VersionOk(d.v) then return end
     C_Timer.After(1 + math.random() * 4, function()
         if GetTime() - lastKeyAnswerSeen < 10 then return end    -- someone else answered
         local cur = Org:Get()

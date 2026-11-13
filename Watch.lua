@@ -64,13 +64,10 @@ local function senderIsModerator(name)
 end
 Watch.SenderIsModerator = senderIsModerator
 
+-- The token that follows this account's characters for sanctions: random,
+-- per org (OrgSecure). Nothing about the Battle.net account leaves the game.
 function Watch:MyTagHash()
-    local k = ns.Org:Get()
-    if not (k and BNGetInfo) then return nil end
-    local ok, _, tag = pcall(BNGetInfo)
-    if not ok or type(tag) ~= "string" or tag == "" or (issecretvalue and issecretvalue(tag)) then return nil end
-    tag = tag:lower()
-    return ns.Hash(k.org .. "|" .. tag) .. ns.Hash(tag .. "|" .. k.org)
+    return ns.OrgSecure and ns.OrgSecure.AccountToken() or nil
 end
 
 local function tagOf(name)
