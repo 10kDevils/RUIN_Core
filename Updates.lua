@@ -20,6 +20,11 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.7.3", {
+        "RUIN tells you when a new version is out (in chat, and once in a window): update through CurseForge or GitHub.",
+        "RUIN below the org's minimum version hears it from RUIN itself, with the update window; nobody whispers anyone.",
+        "With RUIN Pathfinder: the minimap options work on WoW Forever: the round map no longer goes see-through, the square one stays square without the round border, and Pathfinder's square style has no dark layer over the map.",
+    } },
     { "0.7.2", {
         "Security: the org key is signed by the admin, so nobody else can change it, and the admin can't be impersonated by taking a character's old name. Save your admin recovery code (Settings > Org).",
         "Security: once the admin raises the org's minimum version (Settings > Org), org traffic is encrypted. Only members of the org's guilds can read it, even if the key phrase leaks, and people who leave a guild are locked out.",
