@@ -33,7 +33,6 @@ People.lua
 Recruit.lua
 Bank.lua
 Updates.lua
-ReleaseNotice.lua
 Release.lua
 Planner.lua
 PartyPlan.lua

@@ -59,12 +59,12 @@ end
 -- Version notice
 ---------------------------------------------------------------------------
 local function noteVersion(v, name, scope)
-    if ns.Release then ns.Release.OnPeer(v, name, scope) end
     if type(v) ~= "string" or ns.CompareVersions(v, ns.VERSION) <= 0 then return end
     if newestNotified and ns.CompareVersions(v, newestNotified) <= 0 then return end
     newestNotified = v
     ns:Print(("%s is running RUIN Core %s; you have %s. Update when you can."):format(
         ns.ShortName(name), v, ns.VERSION))
+    if ns.Release then ns.Release.Heard(v, name) end
 end
 
 ---------------------------------------------------------------------------

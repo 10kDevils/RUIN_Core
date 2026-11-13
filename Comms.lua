@@ -33,7 +33,7 @@ Comms.PLAIN = {
     ORG = { KEYREQ = true, PKEY = true, MKEY = true, DISBAND = true, ADMINHI = true, DKREQ = true },
     OFFICERS = { DISBAND = true, ORGKEY = true, ADMINHI = true },
     PEER = { FULLKEY = true, DISBAND = true, DKEY = true, ORGKEY = true, VREQ = true, VANS = true, UPDASK = true,
-             RELNOTE = true, OLDVER = true },
+             OLDVER = true },
 }
 local SEALED = { ORG = true, OFFICERS = true, PEER = true }
 local C = ns.Crypto

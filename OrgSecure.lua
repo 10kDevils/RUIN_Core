@@ -517,9 +517,8 @@ function Org:OnOldPeer(peer)
     if (ns.db.toldOld[n] or 0) > now() - 86400 or toldOld[n] then return end
     toldOld[n] = true
     ns.db.toldOld[n] = now()
-    local latest = ns.Release and ns.Release.Latest()
     C_Timer.After(3 + math.random() * 5, function()
-        ns.Comms:Send("OLDVER", { org = k.org, mv = k.mv or ns.MIN_SUPPORTED, n = latest }, "PEER", peer.name, ns.Comms.PRIORITY.NORMAL)
+        ns.Comms:Send("OLDVER", { org = k.org, mv = k.mv or ns.MIN_SUPPORTED, v = ns.VERSION }, "PEER", peer.name, ns.Comms.PRIORITY.NORMAL)
     end)
 end
 
@@ -529,7 +528,7 @@ ns.Comms:Register("OLDVER", function(d, sender)
     local k = Org:Get()
     if k and k.org ~= d.org then return end
     if ns.CompareVersions(ns.VERSION, d.mv) >= 0 then return end
-    if ns.Release and type(d.n) == "table" then ns.Release.Take(d.n) end
+    if ns.Release then ns.Release.Heard(d.v, sender) end
     if promptedOld == d.mv then return end
     promptedOld = d.mv
     local text = ("Your RUIN is version %s. The %s org needs at least version %s, so you won't be able to connect to the org until you update.\n\nThe newest version is an easy update through CurseForge or GitHub."):format(ns.VERSION, d.org, d.mv)
