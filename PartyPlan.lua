@@ -685,7 +685,7 @@ end
 
 function PP.Tooltip(owner, row)
     if not (GameTooltip and row) then return end
-    GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+    Wd.TipOwner(owner)
     local full = PP.FullName(row.short)
     GameTooltip:AddLine(("%s (%s) - %d of %d need it"):format(full, PP.Display(row.short), row.need, PP.size or 1), GOLD[1], GOLD[2], GOLD[3])
     local cur = PP.cur or {}

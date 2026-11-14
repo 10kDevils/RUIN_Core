@@ -312,7 +312,7 @@ local function actionButton(parent, text, width, what, onClick)
         if not GameTooltip or self:IsEnabled() then return end
         local why, _
         if self.what then _, why = G:CanOn(self.what, selected()) else why = selected() and "They are offline." or "Pick a member first." end
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        Wd.TipOwner(self)
         GameTooltip:AddLine(why or "Not available", 1, 0.6, 0.4)
         GameTooltip:Show()
     end)

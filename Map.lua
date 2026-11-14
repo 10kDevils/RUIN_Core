@@ -218,7 +218,7 @@ local function makePin(parent)
     f:SetScript("OnEnter", function(self)
         local p = self.pin
         if not p or not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.Widgets.TipOwner(self)
         local c = p.color or { 1, 0.82, 0 }
         GameTooltip:AddLine(p.title or "RUIN", c[1], c[2], c[3])
         if p.text and p.text ~= "" then GameTooltip:AddLine(p.text, 1, 1, 1, true) end
@@ -306,7 +306,16 @@ drawWorld = function()
     local shown = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
     local cw, ch = canvas:GetWidth() or 0, canvas:GetHeight() or 0
     if not shown or cw <= 0 then return end
-    local size = math.max(14, math.min(28, cw / 45))
+    -- pins keep their size on screen however far the map is zoomed: the
+    -- canvas can be thousands of units wide and scaled right down
+    local size = 24
+    local ces = canvas.GetEffectiveScale and canvas:GetEffectiveScale()
+    local wes = WorldMapFrame.GetEffectiveScale and WorldMapFrame:GetEffectiveScale()
+    if type(ces) == "number" and type(wes) == "number" and ces > 0 and wes > 0 then
+        size = 24 * wes / ces
+    else
+        size = math.max(14, math.min(28, cw / 45))
+    end
     local used, corners = 0, 0
     local view = WorldMapFrame.ScrollContainer
     if type(view) ~= "table" then view = canvas end
@@ -345,7 +354,7 @@ drawWorld = function()
         -- a zone mark seen from a continent or the world: smaller, and a way into the zone
         local zoneMark = p.corner and p.map ~= shown
         f.zoomTo = zoneMark and p.map or nil
-        dressPin(f, p, (zoneMark and p.plain) and math.max(12, size * 0.7) or size)
+        dressPin(f, p, (zoneMark and p.plain) and size * 0.7 or size)
         f:ClearAllPoints()
         f:SetPoint("CENTER", canvas, "TOPLEFT", x * cw, -y * ch)
         f:Show()

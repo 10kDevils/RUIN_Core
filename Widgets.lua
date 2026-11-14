@@ -6,6 +6,86 @@ local ADDON, ns = ...
 local W = {}
 ns.Widgets = W
 
+---------------------------------------------------------------------------
+-- Tooltips, everywhere in the suite: beside what you're pointing at (on
+-- the side with more room), and only as wide as they need, long lines
+-- broken onto several short ones.
+---------------------------------------------------------------------------
+W.TIP_WIDTH = 42          -- characters per line, about 230 pixels
+
+-- Break text onto lines of about n characters (color codes don't count).
+function W.Wrap(text, n)
+    if type(text) ~= "string" then return text end
+    n = n or W.TIP_WIDTH
+    local out = {}
+    for para in (text .. "\n"):gmatch("(.-)\n") do
+        local line, len = "", 0
+        for word in para:gmatch("%S+") do
+            local seen = #(word:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+            if len > 0 and len + 1 + seen > n then
+                out[#out + 1] = line
+                line, len = word, seen
+            else
+                line = (len > 0) and (line .. " " .. word) or word
+                len = len + (len > 0 and 1 or 0) + seen
+            end
+        end
+        out[#out + 1] = line
+    end
+    return table.concat(out, "\n")
+end
+
+local tipOwner      -- the frame whose tooltip the suite placed
+-- Show the tooltip beside owner: to its right, or its left when it's on the
+-- right half of the screen. Call before adding lines.
+function W.TipOwner(owner, tt)
+    tt = tt or GameTooltip
+    if not (tt and owner) then return end
+    tt:SetOwner(owner, "ANCHOR_NONE")
+    tipOwner = owner
+    if not (tt.ClearAllPoints and tt.SetPoint) then return end
+    tt:ClearAllPoints()
+    local x = owner.GetCenter and owner:GetCenter()
+    local es = (owner.GetEffectiveScale and owner:GetEffectiveScale()) or 1
+    local ui = rawget(_G, "UIParent")
+    local sw = ui and ui.GetWidth and ((ui:GetWidth() or 0) * ((ui.GetEffectiveScale and ui:GetEffectiveScale()) or 1)) or 0
+    if x and sw > 0 and x * es > sw / 2 then
+        tt:SetPoint("TOPRIGHT", owner, "TOPLEFT", -6, 0)
+    else
+        tt:SetPoint("TOPLEFT", owner, "TOPRIGHT", 6, 0)
+    end
+    tipOwner = owner
+end
+
+-- A tooltip the suite placed: break any long line once it's built.
+local rewrapping = false
+local function rewrap(tt)
+    if rewrapping or not tipOwner or not (tt.GetOwner and tt:GetOwner() == tipOwner) then return end
+    if tt.GetItem and select(2, tt:GetItem()) then return end      -- the game's item text: as it comes
+    if tt.GetSpell and tt:GetSpell() then return end
+    local name, changed = tt:GetName(), false
+    for i = 1, (tt.NumLines and tt:NumLines() or 0) do
+        for _, side in ipairs({ "Left", "Right" }) do
+            local fs = name and rawget(_G, name .. "Text" .. side .. i)
+            local text = fs and fs.GetText and fs:GetText()
+            if type(text) == "string" and #text > W.TIP_WIDTH then
+                local wrapped = W.Wrap(text)
+                if wrapped ~= text then fs:SetText(wrapped); changed = true end
+            end
+        end
+    end
+    if changed then
+        rewrapping = true
+        tt:Show()
+        rewrapping = false
+    end
+end
+W.RewrapTip = rewrap
+if GameTooltip and hooksecurefunc then
+    hooksecurefunc(GameTooltip, "Show", rewrap)
+    if GameTooltip.HookScript then GameTooltip:HookScript("OnHide", function() tipOwner = nil end) end
+end
+
 -- The RUIN look: deep navy surfaces in three steps (window, panel, raised),
 -- quiet steel edges, gold for the RUIN mark and headings, and each page's
 -- own color for whatever is selected, hovered or switched on.
@@ -305,7 +385,7 @@ function W.Button(parent, text, width, onClick)
     b:HookScript("OnEnter", function(self)
         self.hover = true; paintButton(self)
         if type(self.tip) == "string" and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            W.TipOwner(self)
             GameTooltip:AddLine(self.tip, 1, 1, 1, true)
             GameTooltip:Show()
         end
@@ -383,7 +463,7 @@ function W.Check(parent, label, getter, setter)
         self.hover = true
         W.SetBorder(self.box, ac)
         if self.tip and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            W.TipOwner(self)
             GameTooltip:AddLine(self.tip, 1, 1, 1, true)
             GameTooltip:Show()
         end
@@ -461,10 +541,8 @@ function W.MarkChoice(b, hint)
     b.chevron = chev
     b:HookScript("OnEnter", function(self)
         if not GameTooltip then return end
-        -- to the left of the button, beside the list that opens under it
-        GameTooltip:SetOwner(self, "ANCHOR_NONE")
-        GameTooltip:ClearAllPoints()
-        GameTooltip:SetPoint("TOPRIGHT", self, "TOPLEFT", -6, 0)
+        -- beside the button, clear of the list that opens under it
+        W.TipOwner(self)
         if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
         GameTooltip:AddLine(hint or "Click to pick from a list.", 0.7, 0.75, 0.8)
         GameTooltip:Show()
@@ -493,7 +571,7 @@ local function rowEnter(r)
     if r.hoverBar then r.hoverBar:Show() end
     tipRow = r
     if (r.link or r.tip) and GameTooltip then
-        GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
+        W.TipOwner(r)
         if r.link then pcall(GameTooltip.SetHyperlink, GameTooltip, r.link) end
         if r.tip then pcall(r.tip, GameTooltip) end
         GameTooltip:Show()
@@ -1233,7 +1311,7 @@ function W.CloseButton(parent, onClick, size)
         W.Skin(self, { 0.62, 0.20, 0.18 }, 0.85, { 0.85, 0.35, 0.30 })
         for _, t in ipairs(bars) do t:SetColorTexture(1, 1, 1, 1) end
         if type(self.tip) == "string" and GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(self.tip, 1, 1, 1, true); GameTooltip:Show()
+            W.TipOwner(self); GameTooltip:AddLine(self.tip, 1, 1, 1, true); GameTooltip:Show()
         end
     end)
     b:SetScript("OnLeave", function(self)

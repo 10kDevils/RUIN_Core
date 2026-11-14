@@ -9,6 +9,8 @@ Versioning: the third number counts the meaningful changes made since the second
 ## 0.7.5 — 2026-11-13
 
 - Map pins on the minimap are back to round-only (Pathfinder no longer offers a square minimap).
+- **Pins on the world map keep their size on screen** at any zoom (they could shrink to a few pixels on a zoomed-out map), so a quest Pathfinder marks shows on the big map as well as the minimap.
+- **Tooltips are compact and sit beside what you point at**: long lines break onto several short ones, and the tooltip opens to the side of the button with more room. This goes for every tooltip in the suite.
 
 ## 0.7.4 — 2026-11-13
 
