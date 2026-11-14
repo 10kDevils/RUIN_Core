@@ -26,7 +26,7 @@ Updates.NOTES = {
     { "0.7.3", {
         "RUIN tells you when a new version is out (in chat, and once in a window): update through CurseForge or GitHub.",
         "RUIN below the org's minimum version hears it from RUIN itself, with the update window; nobody whispers anyone.",
-        "With RUIN Pathfinder: the minimap options work on WoW Forever: the round map no longer goes see-through, the square one stays square without the round border, and Pathfinder's square style has no dark layer over the map.",
+        "With RUIN Pathfinder: the minimap options work on WoW Forever: the map no longer goes see-through.",
     } },
     { "0.7.2", {
         "Security: the org key is signed by the admin, so nobody else can change it, and the admin can't be impersonated by taking a character's old name. Save your admin recovery code (Settings > Org).",
@@ -39,7 +39,7 @@ Updates.NOTES = {
         "With RUIN Finder: the Spec box starts on Auto (your spec from your talents, from Codex when it's installed), lists professions for Professions and the tone for Social.",
         "With RUIN Finder: set your group's size and it stops taking join requests once full (tick Allow Queue to keep taking them); everyone asking to join shows on your listing card with Invite and Decline.",
         "With RUIN Finder: place the guild tag around your target frame (Finder > Where); it starts on the right side.",
-        "With RUIN Pathfinder: the minimap can be square, in the game's own look or Pathfinder's modern one, and the tracker can dock to it (Options > Minimap): it grows up, down or sideways away from the map.",
+        "With RUIN Pathfinder: the minimap can wear the game's own look or Pathfinder's modern one, and the tracker can dock to it (Options > Minimap): it grows up, down or sideways away from the map.",
         "With RUIN Pathfinder: Mark on map opens the world map on the quest's giver, the alert window and tracker match the new look, and the edge arrow sits right on the edge of the waypoint.",
     } },
     { "0.7.0", {

@@ -8,7 +8,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.7.5 — 2026-11-13
 
-- Map pins on a rotating square minimap (Pathfinder) stop at the square you see, not at the bigger frame behind it.
+- Map pins on the minimap are back to round-only (Pathfinder no longer offers a square minimap).
 
 ## 0.7.4 — 2026-11-13
 
