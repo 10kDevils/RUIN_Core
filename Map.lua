@@ -418,12 +418,14 @@ drawMinimap = function()
         -- a square minimap (Pathfinder's option, or another addon's) keeps
         -- pins out to its corners; a round one to its circle
         local square = GetMinimapShape and GetMinimapShape() == "SQUARE"
+        -- a rotating square map (Pathfinder) is bigger than what shows of it
+        local shown = half * (Minimap.ruinViewScale or 1)
         local edge
         if square then
             local m = math.max(math.abs(px), math.abs(py))
-            edge = m > half
+            edge = m > shown
             if edge then
-                local k = (half - 6) / m
+                local k = (shown - 6) / m
                 px, py = px * k, py * k
             end
         else
