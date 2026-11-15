@@ -176,6 +176,54 @@ W.CORE_SCHEME = { accent = P.gold, edge = P.border, panel = P.panel, panelHi = P
                   mark = P.gold, color = P.gold, core = true }
 local schemes = {}
 
+---------------------------------------------------------------------------
+-- The app's window style (Settings > Chat and display > Window style): RUIN's
+-- own navy, or a Blizzard window in WoW Forever's colors (warm near-black,
+-- bronze edges, the game's gold). Each module keeps its color as the accent.
+-- Applied once, before any window is drawn (a change takes a /reload).
+---------------------------------------------------------------------------
+W.APP_STYLE = "ruin"
+local BLIZZARD_PALETTE = {
+    bg      = { 0.043, 0.034, 0.024 },
+    panel   = { 0.072, 0.057, 0.039 },
+    panelHi = { 0.135, 0.105, 0.070 },
+    border  = { 0.520, 0.395, 0.225 },   -- bronze
+    line    = { 0.200, 0.155, 0.095 },
+    glow    = { 0.960, 0.780, 0.300 },
+    gold    = { 1.000, 0.820, 0.000 },   -- the game's own gold
+    text    = { 0.960, 0.945, 0.910 },
+    sub     = { 0.780, 0.700, 0.560 },
+}
+local function setRGB(t, c) t[1], t[2], t[3] = c[1], c[2], c[3] end
+function W.ApplyAppStyle(style)
+    if style ~= "blizzard" or W.APP_STYLE == "blizzard" then return end
+    W.APP_STYLE = "blizzard"
+    for k, c in pairs(BLIZZARD_PALETTE) do if P[k] then setRGB(P[k], c) end end
+    setRGB(BTN_EDGE, mix(P.border, P.text, 0.14))
+    setRGB(BTN_TEXT, mix(P.text, P.sub, 0.10))
+    setRGB(GOLD_FILL, mix(P.panelHi, P.gold, 0.26))
+    W.COLORS.gold, W.COLORS.dim, W.COLORS.accent = "|cffffd100", "|cffc7b38f", "|cfff5c74d"
+    for k in pairs(schemes) do schemes[k] = nil end
+end
+
+-- A Blizzard window's edge: the game's dialog border, in WoW Forever's bronze.
+function W.GameWindowEdge(f)
+    if W.APP_STYLE ~= "blizzard" or not f or f.ruinWindowEdge then return end
+    local ok, e = pcall(CreateFrame, "Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    if not ok or not e then return end
+    e:SetPoint("TOPLEFT", -6, 6)
+    e:SetPoint("BOTTOMRIGHT", 6, -6)
+    if e.EnableMouse then e:EnableMouse(false) end
+    if e.SetFrameLevel then e:SetFrameLevel((f:GetFrameLevel() or 1) + 20) end
+    if e.SetBackdrop then
+        pcall(e.SetBackdrop, e, { edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 26,
+            insets = { left = 8, right = 8, top = 8, bottom = 8 } })
+        if e.SetBackdropBorderColor then pcall(e.SetBackdropBorderColor, e, 0.86, 0.66, 0.38, 1) end
+    end
+    f.ruinWindowEdge = e
+    return e
+end
+
 -- A page's colors from its theme. Core pages (Guild, Settings) keep the
 -- plain navy panels and take only the accent; a module's page is also
 -- tinted, faintly, in its color.

@@ -9,6 +9,7 @@ Versioning: the third number counts the meaningful changes made since the second
 ## 0.7.5 — 2026-11-13
 
 - Map pins on the minimap are back to round-only (Pathfinder no longer offers a square minimap).
+- **The RUIN window can look like a Blizzard window** (Settings > Chat and display > Window style): WoW Forever's colors (warm near-black panels, bronze edges and the game's dialog border, the game's gold for headings), for every module's page, each keeping its own color for its accents. Takes a /reload; it doesn't change Pathfinder's minimap, tracker or map styles.
 - **Drop-down lists can open past the edge of the RUIN window** (and past a scrolling page), instead of being cut off.
 - **Pins on the world map keep their size on screen** at any zoom (they could shrink to a few pixels on a zoomed-out map), so a quest Pathfinder marks shows on the big map as well as the minimap.
 - **Tooltips are compact and sit beside what you point at**: long lines break onto several short ones, and the tooltip opens to the side of the button with more room. This goes for every tooltip in the suite.
