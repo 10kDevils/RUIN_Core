@@ -1032,7 +1032,10 @@ end
 local MENU_ROWS = 14
 function W.AttachMenu(b, spec)
     local width = spec.width or (b.GetWidth and b:GetWidth()) or 160
-    local menu = W.Card(b)
+    -- the list lives on UIParent, so it can spill out of the window (and out
+    -- of any scrolling page) it was opened from; it keeps the page's colors
+    local menu = W.Card(UIParent or b)
+    menu.ruinTheme = W.ThemeOf and W.ThemeOf(b) or nil
     W.Skin(menu, "panel", 1, "glow")
     menu:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
     if menu.SetFrameStrata then menu:SetFrameStrata("DIALOG") end
@@ -1083,6 +1086,13 @@ function W.AttachMenu(b, spec)
         end
     end)
     function b:Open()
+        -- the same size as the button it hangs from
+        local ui = rawget(_G, "UIParent")
+        if menu.SetScale and b.GetEffectiveScale and ui and ui.GetEffectiveScale then
+            local s = (b:GetEffectiveScale() or 1) / ((ui:GetEffectiveScale() or 1))
+            if s > 0 then menu:SetScale(s) end
+        end
+        if menu.SetFrameStrata then menu:SetFrameStrata("FULLSCREEN_DIALOG") end
         local all, cur = list(), spec.current and spec.current()
         menu.offset = 0
         for i, v in ipairs(all) do
