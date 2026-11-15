@@ -6,6 +6,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.8.1 — 2026-11-15
+
+- Goes with RUIN Pathfinder 0.8.1 (quest details readable in every look).
+
 ## 0.8.0 — 2026-11-15
 
 - Map pins on the minimap are back to round-only (Pathfinder no longer offers a square minimap).

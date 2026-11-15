@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.1", {
+        "With RUIN Pathfinder: a quest's details on the world map are readable in every look.",
+    } },
     { "0.8.0", {
         "The RUIN window can look like a Blizzard window (Settings > Options > Window style), every module keeping its color for accents. Options now comes first in Settings.",
         "Every tooltip in the suite is compact and opens beside what you point at. Drop-down lists can open past the window's edge. /ruin errors lists RUIN's own recent errors.",
