@@ -203,6 +203,18 @@ function W.ApplyAppStyle(style)
     setRGB(BTN_TEXT, mix(P.text, P.sub, 0.10))
     setRGB(GOLD_FILL, mix(P.panelHi, P.gold, 0.26))
     W.COLORS.gold, W.COLORS.dim, W.COLORS.accent = "|cffffd100", "|cffc7b38f", "|cfff5c74d"
+    -- each module's color, toned down to sit in a Blizzard window: less
+    -- saturated, a little darker, warmed toward the bronze
+    local seen, bronze = {}, P.border
+    for _, t in pairs(ns.THEMES or {}) do
+        local c = type(t) == "table" and t.color
+        if c and not seen[c] then
+            seen[c] = true
+            local l = c[1] * 0.30 + c[2] * 0.59 + c[3] * 0.11
+            local m = mix(mix(c, { l, l, l }, 0.40), bronze, 0.12)
+            setRGB(c, { m[1] * 0.86, m[2] * 0.86, m[3] * 0.86 })
+        end
+    end
     for k in pairs(schemes) do schemes[k] = nil end
 end
 
