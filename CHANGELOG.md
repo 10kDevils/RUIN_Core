@@ -6,7 +6,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
-## 0.7.5 — 2026-11-13
+## 0.8.0 — 2026-11-15
 
 - Map pins on the minimap are back to round-only (Pathfinder no longer offers a square minimap).
 - **The RUIN window can look like a Blizzard window** (Settings > Chat and display > Window style): WoW Forever's colors (warm near-black panels, bronze edges and the game's dialog border, the game's gold for headings), for every module's page, each keeping its own color for its accents (toned down to sit in a Blizzard window). A Reload now button beside it puts it on; it doesn't change Pathfinder's minimap, tracker or map styles.

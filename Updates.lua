@@ -20,6 +20,16 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.0", {
+        "The RUIN window can look like a Blizzard window (Settings > Options > Window style), every module keeping its color for accents. Options now comes first in Settings.",
+        "Every tooltip in the suite is compact and opens beside what you point at. Drop-down lists can open past the window's edge. /ruin errors lists RUIN's own recent errors.",
+        "With RUIN Pathfinder: a Customization tab with eight looks (Blizzard, RUIN, Ink and each module's color) for the minimap, objective tracker, world map and quest log, tracker and waypoint, with a Background opacity for each, or All styles at once.",
+        "With RUIN Pathfinder: the waypoint's travel time follows your speed (mounted, flying, boosted), it rises over faraway spots, and View Location on the Quests page opens your map on the quest.",
+        "With RUIN Codex: Scarlet Monastery is four wings, bosses stand apart, a loot filter by armor or weapon type, green arrows on upgrades, dungeons sorted by level, and rechecked stat weights.",
+        "With RUIN Finder: Link in chat puts a link to your listing in chat; anyone with Finder can click it to open the board on it.",
+        "With RUIN Muster: posted events go on the Guild Calendar too, Slayers counts kills on WoW Forever, and Wanted is the first tab.",
+        "With RUIN Exchange: the tooltip's AH price is the low end of the last week's prices.",
+    } },
     { "0.7.4", {
         "People: the search box searches what the view groups by: classes, zones, levels (60, or a range like 40-49) or professions. The Roster searches names.",
     } },
