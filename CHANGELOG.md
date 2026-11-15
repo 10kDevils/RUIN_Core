@@ -14,6 +14,7 @@ Versioning: the third number counts the meaningful changes made since the second
 - **Pins on the world map keep their size on screen** at any zoom (they could shrink to a few pixels on a zoomed-out map), so a quest Pathfinder marks shows on the big map as well as the minimap.
 - **Tooltips are compact and sit beside what you point at**: long lines break onto several short ones, and the tooltip opens to the side of the button with more room. This goes for every tooltip in the suite.
 - **Options comes first in Settings**: the sub-tabs are now Options, Org, Feedback.
+- **/ruin errors** lists the suite's own recent Lua errors (with counts), even with Lua errors hidden in the game's options; `/ruin errors clear` empties it.
 
 ## 0.7.4 — 2026-11-13
 

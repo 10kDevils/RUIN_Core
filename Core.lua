@@ -445,6 +445,33 @@ local function handleKey(rest)
     end
 end
 
+-- The suite's own Lua errors, kept so they can be read with /ruin errors
+-- (with Lua errors hidden, the game only shows a popup). The game's error
+-- handling goes on as before.
+do
+    local prev = geterrorhandler and geterrorhandler()
+    local function keep(msg)
+        if type(msg) ~= "string" or (issecretvalue and issecretvalue(msg)) or not msg:find("RUIN_", 1, true) then return end
+        local db = RUIN_DB
+        if type(db) ~= "table" then return end
+        db.errors = type(db.errors) == "table" and db.errors or {}
+        local m = msg:sub(1, 300)
+        for _, e in ipairs(db.errors) do
+            if e.m == m then e.n = (e.n or 1) + 1; e.t = time(); return end
+        end
+        local stack = debugstack and debugstack(4, 8, 0) or ""
+        table.insert(db.errors, { m = m, s = tostring(stack):sub(1, 800), n = 1, t = time() })
+        while #db.errors > 30 do table.remove(db.errors, 1) end
+    end
+    ns.KeepError = keep
+    if seterrorhandler and prev then
+        pcall(seterrorhandler, function(msg, ...)
+            pcall(keep, msg)
+            return prev(msg, ...)
+        end)
+    end
+end
+
 SLASH_RUIN1 = "/ruin"
 SlashCmdList.RUIN = function(input)
     input = ns.Trim(input or "")
@@ -462,6 +489,20 @@ SlashCmdList.RUIN = function(input)
             ns:Print("Tabs are back in their usual order.")
         else
             ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Settings > Options > Tab order, or /ruin tabs reset.")
+        end
+    elseif cmd == "errors" then
+        local list = type(RUIN_DB.errors) == "table" and RUIN_DB.errors or {}
+        if rest:lower() == "clear" then
+            RUIN_DB.errors = {}
+            ns:Print("RUIN's error list is cleared.")
+        elseif #list == 0 then
+            ns:Print("No RUIN errors recorded.")
+        else
+            ns:Print(("%d RUIN error%s (newest last; /ruin errors clear to empty it):"):format(#list, #list == 1 and "" or "s"))
+            for i = math.max(1, #list - 4), #list do
+                local e = list[i]
+                ns:Print(("x%d  %s"):format(e.n or 1, e.m or "?"))
+            end
         end
     elseif cmd == "chat" then
         ns.GuildUI.ToggleChatWindow()
