@@ -15,6 +15,7 @@ Versioning: the third number counts the meaningful changes made since the second
 - **Tooltips are compact and sit beside what you point at**: long lines break onto several short ones, and the tooltip opens to the side of the button with more room. This goes for every tooltip in the suite.
 - **Options comes first in Settings**: the sub-tabs are now Options, Org, Feedback.
 - **/ruin errors** lists the suite's own recent Lua errors (with counts), even with Lua errors hidden in the game's options; `/ruin errors clear` empties it.
+- **Lighter and safer in combat**: map pin positions and facing that Retail 12 hides (instances, combat) are skipped instead of used; minimap pins aren't drawn while the minimap is hidden; the message queue does nothing when there's nothing to send (it checked ten times a second).
 
 ## 0.7.4 — 2026-11-13
 

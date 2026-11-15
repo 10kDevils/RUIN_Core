@@ -218,6 +218,9 @@ local function flush()
         local rate = now < slowUntil and TOKEN_RATE / 2 or TOKEN_RATE
         tokens = math.min(TOKEN_CAP, tokens + rate * TICK)
     end
+    local any = false                       -- nothing waiting (most of the time): done
+    for p = 1, #queues do if queues[p][1] then any = true; break end end
+    if not any then return end
     if tokens >= 1 and othersBusy() then return end
     for p = 1, #queues do
         local queue = queues[p]

@@ -32,6 +32,8 @@ function Map:PlayerPos()
     local pos = C_Map.GetPlayerMapPosition(map, "player")
     if not pos then return nil end
     local x, y = pos:GetXY()
+    -- Retail 12 can hide these (instances, combat): a hidden value can't be used
+    if issecretvalue and (issecretvalue(x) or issecretvalue(y)) then return nil end
     if not x or (x == 0 and y == 0) then return nil end
     return map, x, y
 end
@@ -397,7 +399,7 @@ local function rotating()
 end
 
 drawMinimap = function()
-    if not Minimap then return end
+    if not Minimap or (Minimap.IsVisible and not Minimap:IsVisible()) then return end
     local any = false
     eachPin(function(_, _, p) if p.minimap ~= false then any = true end end)
     if not any then
@@ -412,6 +414,7 @@ drawMinimap = function()
     local radius = minimapRadius()
     local half = (Minimap:GetWidth() or 140) / 2
     local facing = rotating() and GetPlayerFacing and GetPlayerFacing() or 0
+    if type(facing) ~= "number" or (issecretvalue and issecretvalue(facing)) then facing = 0 end
     local cf, sf = math.cos(facing), math.sin(facing)
     local used = 0
     eachPin(function(_, _, p)
