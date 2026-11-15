@@ -1149,7 +1149,7 @@ local function buildSettingsPanel(p)
     local disp = Wd.Card(dispPage)
     disp:SetPoint("TOPLEFT", 0, 0)
     disp:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
-    disp:SetHeight(140)
+    disp:SetHeight(150)
     settings.dispCard = disp
     local dh = Wd.Header(disp, "Chat and display")
     dh:SetPoint("TOPLEFT", 10, -8)
@@ -1172,18 +1172,31 @@ local function buildSettingsPanel(p)
         function(v) s().plannerTab = v; if v then ns.Planner:AddPage() else ns:Print("The Planner page goes away after /reload.") end end)
     settings.checks[7].tip = "Show Ruinous Forever Planner as a page in the RUIN window when it's installed."
     settings.checks[7]:SetPoint("TOPLEFT", settings.checks[5], "BOTTOMLEFT", 0, -2)
-    -- the window's style (a /reload puts it on)
+    -- the window's style, on its own row at the foot of the card; it takes a
+    -- reload, so a Reload button shows while the choice isn't on yet
     local wl = Wd.Label(disp, Wd.COLORS.dim .. "Window style|r", "GameFontHighlightSmall")
-    wl:SetPoint("TOPLEFT", settings.checks[6], "BOTTOMLEFT", 4, -8)
-    settings.appStyle = Wd.Dropdown(disp, 130, { "ruin", "blizzard" }, function() return s().appStyle or "ruin" end, function(v)
-        if (s().appStyle or "ruin") == v then return end
+    wl:SetPoint("BOTTOMLEFT", disp, "BOTTOMLEFT", 12, 14)
+    local function reload() if C_UI and C_UI.Reload then C_UI.Reload() elseif ReloadUI then ReloadUI() end end
+    local pending = Wd.Label(disp, "", "GameFontHighlightSmall")
+    local rb = Wd.Button(disp, "Reload now", 110, reload)
+    rb.tip = "Reload the interface so the RUIN window takes its new style."
+    local function showPending()
+        local want = s().appStyle or "ruin"
+        local on = want ~= (Wd.APP_STYLE or "ruin")
+        pending:SetText(on and (Wd.COLORS.warn .. "Takes effect after a reload.|r") or "")
+        rb:SetShown(on)
+    end
+    settings.appStyle = Wd.Dropdown(disp, 140, { "ruin", "blizzard" }, function() return s().appStyle or "ruin" end, function(v)
         s().appStyle = v
-        UI:ShowConfirm("Window style", "The RUIN window takes its new style after a reload of the interface. Reload now?", function() ReloadUI() end)
+        showPending()
     end)
     settings.appStyle.format = function(v) return v == "blizzard" and "Blizzard" or "RUIN" end
-    settings.appStyle:SetPoint("LEFT", wl, "RIGHT", 8, 0)
-    settings.appStyle.tipTitle = "RUIN's own navy look, or a Blizzard window in WoW Forever's colors (bronze edges, the game's gold). Each module keeps its color for its accents. Takes a /reload."
+    settings.appStyle:SetPoint("LEFT", wl, "RIGHT", 10, 0)
+    settings.appStyle.tipTitle = "RUIN's own navy look, or a Blizzard window in WoW Forever's colors (bronze edges, the game's gold). Each module keeps its color for its accents. Takes a reload."
+    rb:SetPoint("LEFT", settings.appStyle, "RIGHT", 12, 0)
+    pending:SetPoint("LEFT", rb, "RIGHT", 10, 0)
     settings.appStyle:Refresh()
+    showPending()
     settings.checks[6].tip = "In the Guild census, your characters count as one player. RUIN shares a random token only your characters send; nothing else about you."
     settings.checks[6]:SetPoint("TOPLEFT", settings.checks[4], "BOTTOMLEFT", 0, -2)
     settings.news = Wd.Button(disp, "What's new", 100, function() ns.Updates:ShowLetter(nil) end)
@@ -1399,8 +1412,8 @@ refreshSettings = function()
     settings.checks[2]:SetShown(officer)
     settings.checks[5]:ClearAllPoints()
     settings.checks[5]:SetPoint("TOPLEFT", officer and settings.checks[2] or settings.checks[1], "BOTTOMLEFT", 0, -2)
-    -- the card fits its rows: four on the left for officers (officer chat), three otherwise
-    if settings.dispCard then settings.dispCard:SetHeight(officer and 142 or 116) end
+    -- the card fits its rows (four on the left for officers, three otherwise) and the window style
+    if settings.dispCard then settings.dispCard:SetHeight(officer and 176 or 150) end
 
     -- tab order chips, in the order the tabs are now
     local movable = UI:MovableTabs()
