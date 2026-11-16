@@ -227,6 +227,54 @@ function W.GameWindowEdge(f)
     return e
 end
 
+---------------------------------------------------------------------------
+-- The Blizzard window style builds its controls from the game's own
+-- templates (red panel buttons, gold check boxes, input boxes, top tabs,
+-- inset panels, the portrait window), so the app reads as a native window.
+-- Each falls back to RUIN's own control if the template isn't there.
+---------------------------------------------------------------------------
+function W.Blizz() return W.APP_STYLE == "blizzard" end
+local function fromTemplate(kind, parent, template, name)
+    if W.APP_STYLE ~= "blizzard" then return nil end
+    local ok, f = pcall(CreateFrame, kind, name, parent, template)
+    if ok and type(f) == "table" then return f end
+    return nil
+end
+W.FromTemplate = fromTemplate
+-- a template button's own text (or one of ours, if it has none)
+function W.TemplateText(b, font)
+    local t = type(b.Text) == "table" and b.Text or (b.GetFontString and b:GetFontString())
+    if type(t) ~= "table" then
+        t = b:CreateFontString(nil, "OVERLAY", font or "GameFontNormalSmall")
+        t:SetPoint("CENTER", 0, 2)
+        if b.SetFontString then b:SetFontString(t) end
+    end
+    return t
+end
+-- an atlas if the game has it, else a texture file
+function W.SetArt(tex, atlas, file, coords)
+    local has = atlas and C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+    if has and tex.SetAtlas then
+        tex:SetAtlas(atlas)
+    else
+        tex:SetTexture(file)
+        if coords and tex.SetTexCoord then tex:SetTexCoord(unpack(coords)) end
+    end
+    return tex
+end
+-- the game's menu and tooltip box: near-black with a thin bronze-gold edge
+W.GAME_BOX = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+               tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } }
+function W.GameBox(f, hover)
+    if not (f and f.SetBackdrop) then return f end
+    if not f.ruinBoxed then pcall(f.SetBackdrop, f, W.GAME_BOX); f.ruinBoxed = true end
+    if f.SetBackdropColor then f:SetBackdropColor(0.02, 0.02, 0.02, 0.92) end
+    if f.SetBackdropBorderColor then
+        if hover then f:SetBackdropBorderColor(1, 0.82, 0, 1) else f:SetBackdropBorderColor(0.62, 0.52, 0.36, 1) end
+    end
+    return f
+end
+
 -- A page's colors from its theme. Core pages (Guild, Settings) keep the
 -- plain navy panels and take only the accent; a module's page is also
 -- tinted, faintly, in its color.
@@ -354,6 +402,7 @@ function W.Header(parent, text)
     rule:SetColorTexture(a[1], a[2], a[3], 0.9)
     rule:SetSize(28, 2)
     rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
+    if W.APP_STYLE == "blizzard" then rule:Hide() end      -- the game's headings are gold text alone
     fs.rule = rule
     return fs
 end
@@ -375,7 +424,24 @@ W.Sheen = sheen
 -- Raised navy button with a steel edge; the page's color on hover, and a fill
 -- of it when picked. LockHighlight marks a button as selected (pickers made
 -- of buttons). b.flat = true makes it a menu row: no edge, a fill on hover.
+local function paintBlizzPlain(b)
+    -- a plain control in a Blizzard window: the game's box, gold edge on hover;
+    -- a menu row: clear, the game's highlight when picked or under the mouse
+    if b.flat then
+        if b.blizzHL then b.blizzHL:SetShown((b.locked or b.hover) and b:IsEnabled() and true or false) end
+        if b.radio then
+            b.radio:SetTexCoord(b.locked and 0.25 or 0, b.locked and 0.5 or 0.25, 0, 1)
+        end
+        if not b:IsEnabled() then b.label:SetTextColor(0.5, 0.5, 0.5)
+        else b.label:SetTextColor(1, 1, 1) end
+        return
+    end
+    W.GameBox(b, b.hover and b:IsEnabled())
+    if not b:IsEnabled() then b.label:SetTextColor(0.5, 0.5, 0.5) else b.label:SetTextColor(1, 1, 1) end
+end
 local function paintButton(b)
+    if b.blizz then return end                 -- the game's template draws itself
+    if b.blizzPlain then return paintBlizzPlain(b) end
     if not b.skinBg then return end
     local sc = W.SchemeOf(b)
     local ac = sc.accent
@@ -425,7 +491,71 @@ local function paintButton(b)
 end
 W.PaintButton = paintButton
 
-function W.Button(parent, text, width, onClick)
+local function buttonTip(b)
+    b:HookScript("OnEnter", function(self)
+        self.hover = true; paintButton(self)
+        if type(self.tip) == "string" and GameTooltip then
+            W.TipOwner(self)
+            GameTooltip:AddLine(self.tip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    b:HookScript("OnLeave", function(self)
+        self.hover = false; paintButton(self)
+        if type(self.tip) == "string" and GameTooltip then GameTooltip:Hide() end
+    end)
+end
+
+-- plain = a menu row or a dropdown's box (never the red panel button)
+function W.Button(parent, text, width, onClick, plain)
+    if not plain then
+        local t = fromTemplate("Button", parent, "UIPanelButtonTemplate")
+        if t and t.GetFontString then
+            t:SetSize(width or 120, 24)
+            t:SetText(text or "")
+            t.label = t:GetFontString()
+            if not t.label then
+                t.label = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                t:SetFontString(t.label)
+            end
+            t.label:ClearAllPoints()
+            t.label:SetPoint("LEFT", 6, 0)
+            t.label:SetPoint("RIGHT", -6, 0)
+            if t.label.SetWordWrap then t.label:SetWordWrap(false) end
+            t.blizz = true
+            t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            buttonTip(t)
+            local lock, unlock = t.LockHighlight, t.UnlockHighlight
+            t.LockHighlight = function(self) self.locked = true; if lock then lock(self) end end
+            t.UnlockHighlight = function(self) self.locked = false; if unlock then unlock(self) end end
+            if onClick then t:SetScript("OnClick", onClick) end
+            return t
+        end
+    end
+    if plain and W.APP_STYLE == "blizzard" then
+        local okB, bb = pcall(CreateFrame, "Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        if okB and bb then
+            bb:SetSize(width or 120, 24)
+            bb.label = bb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            bb.label:SetPoint("LEFT", 8, 0)
+            bb.label:SetPoint("RIGHT", -8, 0)
+            bb.label:SetJustifyH("LEFT")
+            if bb.label.SetWordWrap then bb.label:SetWordWrap(false) end
+            bb:SetFontString(bb.label)
+            bb:SetText(text or "")
+            bb.blizzPlain = true
+            bb:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            buttonTip(bb)
+            bb:HookScript("OnEnable", paintButton)
+            bb:HookScript("OnDisable", paintButton)
+            local lock, unlock = bb.LockHighlight, bb.UnlockHighlight
+            bb.LockHighlight = function(self) self.locked = true; if lock then lock(self) end; paintButton(self) end
+            bb.UnlockHighlight = function(self) self.locked = false; if unlock then unlock(self) end; paintButton(self) end
+            if onClick then bb:SetScript("OnClick", onClick) end
+            paintButton(bb)
+            return bb
+        end
+    end
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width or 120, 24)
     b.label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -469,9 +599,28 @@ end
 -- A menu row: W.Button without its edge, a bar on the left when it's the
 -- current choice. Used by the lists under dropdowns and the context menu.
 function W.MenuRow(parent, width)
-    local it = W.Button(parent, "", width)
+    local it = W.Button(parent, "", width, nil, true)
     it:SetHeight(20)
     it.flat = true
+    if it.blizzPlain then
+        -- the game's menu row: a radio dot for the current choice and the gold
+        -- highlight under the mouse
+        if it.SetBackdrop then pcall(it.SetBackdrop, it, nil) end
+        it.radio = it:CreateTexture(nil, "ARTWORK")
+        it.radio:SetTexture("Interface\\Buttons\\UI-RadioButton")
+        it.radio:SetSize(14, 14)
+        it.radio:SetPoint("LEFT", 4, 0)
+        it.label:ClearAllPoints()
+        it.label:SetPoint("LEFT", it.radio, "RIGHT", 4, 0)
+        it.label:SetPoint("RIGHT", -6, 0)
+        it.blizzHL = it:CreateTexture(nil, "BACKGROUND")
+        it.blizzHL:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        if it.blizzHL.SetBlendMode then it.blizzHL:SetBlendMode("ADD") end
+        it.blizzHL:SetAllPoints()
+        it.blizzHL:Hide()
+        paintButton(it)
+        return it
+    end
     it.sheen:Hide(); it.sheen = nil
     it.label:SetJustifyH("LEFT")
     it.label:SetPoint("LEFT", 8, 0)
@@ -491,6 +640,29 @@ end
 -- color and shows a check when it's on.
 local MEDIA = "Interface\\AddOns\\RUIN_Core\\Media\\"
 function W.Check(parent, label, getter, setter)
+    local t = fromTemplate("CheckButton", parent, "UICheckButtonTemplate")
+    if t then
+        t:SetSize(26, 26)
+        for _, k in ipairs({ "Text", "text" }) do if type(t[k]) == "table" and t[k].Hide then t[k]:Hide() end end
+        t.label = W.Label(t, label)
+        t.label:SetPoint("LEFT", t, "RIGHT", 1, 0)
+        if t.SetHitRectInsets then t:SetHitRectInsets(0, -((t.label:GetStringWidth() or 60) + 8), 0, 0) end
+        t:SetScript("OnClick", function(self)
+            if PlaySound and SOUNDKIT then pcall(PlaySound, self:GetChecked() and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF) end
+            setter(self:GetChecked() and true or false)
+        end)
+        t:SetScript("OnEnter", function(self)
+            if self.tip and GameTooltip then
+                W.TipOwner(self)
+                GameTooltip:AddLine(self.tip, 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        t:SetScript("OnLeave", function(self) if self.tip and GameTooltip then GameTooltip:Hide() end end)
+        t.Refresh = function(self) self:SetChecked(getter() and true or false) end
+        t:Refresh()
+        return t
+    end
     local c = CreateFrame("CheckButton", nil, parent)
     c:SetSize(24, 24)
     c.box = CreateFrame("Frame", nil, c)
@@ -543,12 +715,18 @@ end
 -- Single-line input; onCommit(text) on Enter or when focus leaves.
 -- placeholder: grey hint shown while the box is empty (also :SetPlaceholder).
 function W.EditBox(parent, width, onCommit, placeholder)
-    local e = CreateFrame("EditBox", nil, parent)
+    local tmpl = fromTemplate("EditBox", parent, "InputBoxTemplate")
+    local e = tmpl or CreateFrame("EditBox", nil, parent)
     e:SetSize(width or 160, 22)
     e:SetAutoFocus(false)
     e:SetFontObject(ChatFontNormal)
-    if e.SetTextInsets then e:SetTextInsets(6, 6, 0, 0) end
-    W.Skin(e, "bg", 1, "border")
+    if tmpl then
+        -- the game's input box: its art sits just outside the box's left edge
+        if e.SetTextInsets then e:SetTextInsets(2, 4, 0, 0) end
+    else
+        if e.SetTextInsets then e:SetTextInsets(6, 6, 0, 0) end
+        W.Skin(e, "bg", 1, "border")
+    end
     e.hint = e:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     e.hint:SetPoint("LEFT", 7, 0)
     e.hint:SetPoint("RIGHT", -6, 0)
@@ -596,10 +774,18 @@ function W.MarkChoice(b, hint)
     b.label:SetPoint("RIGHT", -16, 0)
     local ac = W.SchemeOf(b).accent
     local chev = b:CreateTexture(nil, "OVERLAY")       -- a small down chevron
-    chev:SetTexture(MEDIA .. "Chevron")
-    chev:SetSize(12, 12)
-    chev:SetPoint("RIGHT", b, "RIGHT", -4, 0)
-    chev:SetVertexColor(ac[1], ac[2], ac[3], 0.95)
+    if b.blizzPlain then
+        -- the game's dropdown: a gold arrow button at the right end
+        b.label:SetPoint("RIGHT", -24, 0)
+        W.SetArt(chev, "common-dropdown-a-button", "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+        chev:SetSize(22, 22)
+        chev:SetPoint("RIGHT", b, "RIGHT", -1, 0)
+    else
+        chev:SetTexture(MEDIA .. "Chevron")
+        chev:SetSize(12, 12)
+        chev:SetPoint("RIGHT", b, "RIGHT", -4, 0)
+        chev:SetVertexColor(ac[1], ac[2], ac[3], 0.95)
+    end
     b.chevron = chev
     b:HookScript("OnEnter", function(self)
         if not GameTooltip then return end
@@ -664,6 +850,7 @@ end
 -- thumb in the page's color whose length follows how much there is to
 -- scroll. Safe to call more than once, and on a frame with no bar.
 local function styleScrollBar(sf)
+    if W.APP_STYLE == "blizzard" then return end        -- the game's own scroll bar, arrows and all
     local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
     local ac = W.SchemeOf(sf).accent
     sf.ruinBarColor = ac
@@ -765,7 +952,7 @@ function W.SmoothScroll(sf, step)
 end
 
 function W.ScrollDressing(sf, child, color)
-    if not sf or sf.dressed then return sf end
+    if not sf or sf.dressed or W.APP_STYLE == "blizzard" then return sf end
     sf.dressed = true
     local c = color or W.SchemeOf(sf).accent
     if child then
@@ -890,9 +1077,23 @@ function W.SubTabs(parent, names, onSelect)
     local ac = W.SchemeOf(bar).accent
 
     local obj = { bar = bar, buttons = {}, pages = {}, names = names }
+    -- the game's top tabs, in a Blizzard window
+    local native = W.APP_STYLE == "blizzard" and type(PanelTemplates_SelectTab) == "function"
+    if native then base:Hide() end
+    local function sizeTab(b)
+        if b.native then
+            if not pcall(PanelTemplates_TabResize, b, 0) then b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28)) end
+        else
+            b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28))
+        end
+    end
     local function paint(i)
         local b = obj.buttons[i]
         local on = obj.selected == i
+        if b.native then
+            pcall(on and PanelTemplates_SelectTab or PanelTemplates_DeselectTab, b)
+            return
+        end
         if on then
             b.text:SetTextColor(1, 1, 1)
         elseif b.hover then
@@ -922,11 +1123,28 @@ function W.SubTabs(parent, names, onSelect)
         local b = self.buttons[i]
         if not b then return end
         b.text:SetText(text)
-        b:SetWidth(math.max(78, (b.text:GetStringWidth() or 60) + 28))
+        sizeTab(b)
     end
 
     local prev
     for i, name in ipairs(names) do
+        local nb = native and fromTemplate("Button", bar, "PanelTopTabButtonTemplate") or nil
+        if nb then
+            nb.native = true
+            nb:SetText(name)
+            nb.text = W.TemplateText(nb)
+            sizeTab(nb)
+            if prev then nb:SetPoint("LEFT", prev, "RIGHT", 2, 0) else nb:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 4, -4) end
+            nb:SetScript("OnClick", function() obj:Select(i) end)
+            obj.buttons[i] = nb
+            local page = CreateFrame("Frame", nil, parent)
+            page:SetPoint("TOPLEFT", 0, -W.SUBTAB_HEIGHT)
+            page:SetPoint("BOTTOMRIGHT", 0, 0)
+            page:Hide()
+            obj.pages[i] = page
+            prev = nb
+        end
+        if not nb then
         local b = CreateFrame("Button", nil, bar)
         b:SetHeight(24)
         -- a wash of the page's color rising from the underline, on the open tab
@@ -962,6 +1180,7 @@ function W.SubTabs(parent, names, onSelect)
         page:Hide()
         obj.pages[i] = page
         prev = b
+        end
     end
     -- Show or hide a tab; the others close up. Hiding the open tab opens the first.
     function obj:SetTabShown(i, shown)
@@ -975,7 +1194,7 @@ function W.SubTabs(parent, names, onSelect)
         for j, btn in ipairs(self.buttons) do
             if not self.hidden[j] then
                 btn:ClearAllPoints()
-                if last then btn:SetPoint("LEFT", last, "RIGHT", 2, 0) else btn:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0) end
+                if last then btn:SetPoint("LEFT", last, "RIGHT", 2, 0) else btn:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", btn.native and 4 or 0, btn.native and -4 or 0) end
                 last = btn
             end
         end
@@ -990,6 +1209,11 @@ end
 -- The page's own color also shows as a short accent along the top edge.
 ---------------------------------------------------------------------------
 function W.Card(parent)
+    local inset = fromTemplate("Frame", parent, "InsetFrameTemplate")
+    if inset then
+        inset.blizzInset = true
+        return inset
+    end
     local f = CreateFrame("Frame", nil, parent)
     local t = W.ThemeOf(f) or W.currentTheme
     W.Skin(f, "panel", 0.94, "border")
@@ -1096,9 +1320,16 @@ function W.AttachMenu(b, spec)
     local width = spec.width or (b.GetWidth and b:GetWidth()) or 160
     -- the list lives on UIParent, so it can spill out of the window (and out
     -- of any scrolling page) it was opened from; it keeps the page's colors
-    local menu = W.Card(UIParent or b)
+    local menu
+    if W.APP_STYLE == "blizzard" then
+        local okM, m = pcall(CreateFrame, "Frame", nil, UIParent or b, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        if okM and m then menu = W.GameBox(m) end
+    end
+    if not menu then
+        menu = W.Card(UIParent or b)
+        W.Skin(menu, "panel", 1, "glow")
+    end
     menu.ruinTheme = W.ThemeOf and W.ThemeOf(b) or nil
-    W.Skin(menu, "panel", 1, "glow")
     menu:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
     if menu.SetFrameStrata then menu:SetFrameStrata("DIALOG") end
     menu:EnableMouse(true)
@@ -1178,7 +1409,7 @@ end
 -- gives the shown text; d:Refresh() (or d.Refresh()) after the value changes elsewhere.
 ---------------------------------------------------------------------------
 function W.Dropdown(parent, width, options, getter, setter, prefix)
-    local b = W.Button(parent, "", width)
+    local b = W.Button(parent, "", width, nil, true)
     W.MarkChoice(b, "Click to pick from a list.")
     local function opts() return (type(options) == "function" and options()) or options or {} end
     local function label(v) return tostring(b.format and b.format(v) or v) end

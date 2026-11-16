@@ -1513,6 +1513,10 @@ local function paintTab(t)
     local b = t.button
     if not b then return end
     local on = selectedTab ~= nil and tabs[selectedTab] == t
+    if b.native then
+        pcall(on and PanelTemplates_SelectTab or PanelTemplates_DeselectTab, b)
+        return
+    end
     if on then
         b.text:SetTextColor(1, 1, 1)
     elseif b.hover then
@@ -1528,6 +1532,7 @@ end
 
 -- The content area takes the selected page's edge color and tint.
 local function paintContent(theme)
+    if main and main.native then return end
     local s = Wd.SchemeFor(theme)
     Wd.Skin(content, s.panel, 0.55, s.edge)
 end
@@ -1541,6 +1546,15 @@ local function updateChrome()
     main.stateDot:SetColorTexture(c[1], c[2], c[3], 1)
 end
 
+-- the native window's portrait and title follow the open module
+local function nativeChrome(t)
+    if not (main and main.native and t) then return end
+    local theme = themeForTab(t)
+    local label = tabLabel(t)
+    main.SetNativeTitle(label == "Guild" and "RUIN Gaming Companion App" or ("RUIN " .. label))
+    main.SetNativePortrait(theme.icon or "Interface\\AddOns\\RUIN_Core\\Media\\EmblemIcon")
+end
+
 function UI:SelectTab(index)
     local changed = selectedTab ~= index
     selectedTab = index
@@ -1548,6 +1562,7 @@ function UI:SelectTab(index)
         if i == index then
             local theme = themeForTab(t)
             paintContent(theme)
+            nativeChrome(t)
             if not t.panel then
                 t.panel = CreateFrame("Frame", nil, content)
                 t.panel.ruinTheme = theme
@@ -1573,6 +1588,32 @@ end
 function UI:LayoutTabs()
     if not main then return end
     for i, t in ipairs(tabs) do
+        local nb = (not t.button and main and main.native and type(PanelTemplates_SelectTab) == "function")
+            and Wd.FromTemplate("Button", tabStrip, "PanelTopTabButtonTemplate") or nil
+        if nb then
+            -- the game's top tab, with RUIN's icon (in its module's color) before the name
+            local theme = themeForTab(t)
+            nb.native = true
+            nb.ruinTheme = theme
+            -- the icon rides in the tab's text, so the game's own sizing and
+            -- placement of tab text keep it in place
+            local ic = Wd.SchemeFor(theme).icon or Wd.SchemeFor(theme).accent
+            local mark
+            if theme.glyph then
+                mark = ("|T%s:14:14:0:0:64:64:0:64:0:64:%d:%d:%d|t "):format(theme.glyph,
+                    math.floor(ic[1] * 255), math.floor(ic[2] * 255), math.floor(ic[3] * 255))
+            else
+                mark = ("|T%s:14:14|t "):format(tostring(theme.tabIcon or theme.icon))
+            end
+            nb:SetText(mark .. tabLabel(t))
+            nb.text = Wd.TemplateText(nb)
+            pcall(PanelTemplates_TabResize, nb, 0)
+            nb:HookScript("OnShow", function(self) pcall(PanelTemplates_TabResize, self, 0) end)
+            nb:SetScript("OnClick", function() UI:SelectTab(i) end)
+            nb:HookScript("OnEnter", function(self) self.hover = true; paintTab(t) end)
+            nb:HookScript("OnLeave", function(self) self.hover = false; paintTab(t) end)
+            t.button = nb
+        end
         if not t.button then
             local theme = themeForTab(t)
             local b = CreateFrame("Button", nil, tabStrip)
@@ -1703,7 +1744,64 @@ function UI:OpenTab(which)
     return false
 end
 
+-- The Blizzard window style: the game's own portrait window (its frame,
+-- title bar, close button and portrait), the open module's badge in the
+-- portrait and its name in the title, the game's top tabs and an inset panel.
+local function createNativeMain()
+    local f = Wd.FromTemplate and Wd.FromTemplate("Frame", UIParent, "PortraitFrameTemplate", "RUIN_MainFrame")
+    if not (f and type(f.NineSlice) == "table") then return nil end
+    main = f
+    main.native = true
+    main:SetSize(WINDOW_W, WINDOW_H)
+    local function setTitle(text)
+        if not (main.SetTitle and pcall(main.SetTitle, main, text)) then
+            local tc = type(main.TitleContainer) == "table" and main.TitleContainer or nil
+            local tt = tc and tc.TitleText or main.TitleText
+            if type(tt) == "table" and tt.SetText then tt:SetText(text) end
+        end
+    end
+    local function setPortrait(path)
+        if main.SetPortraitToAsset and pcall(main.SetPortraitToAsset, main, path) then return end
+        local pc = type(main.PortraitContainer) == "table" and main.PortraitContainer or nil
+        local p = pc and pc.portrait or main.portrait
+        if type(p) == "table" and p.SetTexture then
+            if SetPortraitToTexture then pcall(SetPortraitToTexture, p, path) else p:SetTexture(path) end
+        end
+    end
+    main.SetNativeTitle, main.SetNativePortrait = setTitle, setPortrait
+    setTitle("RUIN Gaming Companion App")
+    setPortrait("Interface\\AddOns\\RUIN_Core\\Media\\EmblemIcon")
+    if type(main.CloseButton) == "table" and main.CloseButton.SetScript then
+        main.CloseButton:SetScript("OnClick", function() main:Hide() end)
+    end
+    -- the connection state, quietly under the title bar on the right
+    main.state = main:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    main.state:SetPoint("TOPRIGHT", main, "TOPRIGHT", -14, -32)
+    main.stateDot = main:CreateTexture(nil, "OVERLAY")
+    main.stateDot:SetSize(7, 7)
+    main.stateDot:SetRotation(math.pi / 4)
+    main.stateDot:SetPoint("RIGHT", main.state, "LEFT", -7, 0)
+
+    -- tabs start right of the portrait
+    tabStrip = CreateFrame("Frame", nil, main)
+    tabStrip:SetPoint("TOPLEFT", main, "TOPLEFT", 64, -(TITLE_H - 2))
+    tabStrip:SetPoint("RIGHT", main, "RIGHT", -12, 0)
+    tabStrip:SetHeight(TAB_H)
+    content = CreateFrame("Frame", nil, main)
+    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + TAB_H + TAB_GAP + 2))
+    content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
+    local inset = Wd.FromTemplate("Frame", main, "InsetFrameTemplate")
+    if inset then
+        inset:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
+        inset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 0)
+        inset:SetFrameLevel(math.max(0, (content:GetFrameLevel() or 2) - 1))
+        main.inset = inset
+    end
+    return main
+end
+
 function UI:CreateMain()
+    if not createNativeMain() then
     main = CreateFrame("Frame", "RUIN_MainFrame", UIParent)
     main:SetSize(WINDOW_W, WINDOW_H)
     Wd.Skin(main, "bg", 0.97, "border")
@@ -1782,6 +1880,7 @@ function UI:CreateMain()
     content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + TAB_H + TAB_GAP + 2))
     content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
     Wd.Skin(content, "panel", 0.55, "border")
+    end
 
     main:SetFrameStrata("HIGH")
     if main.SetToplevel then main:SetToplevel(true) end

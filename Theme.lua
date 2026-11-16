@@ -275,6 +275,9 @@ end
 -- band washed in the page's color, the module's badge, a small kicker naming
 -- the app, the page title and tagline, and the page's drawing on the right.
 function W.PageHeader(page, theme)
+    -- a Blizzard window has no page banner: the module's badge sits in the
+    -- window's portrait and its name in the title bar instead
+    if W.APP_STYLE == "blizzard" and page.CreateTexture then return 0 end
     local HEIGHT = 66
     local P = W.PALETTE
     local scheme = W.SchemeFor(theme)
