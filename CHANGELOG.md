@@ -6,6 +6,14 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
+## 0.8.2
+
+- **Fewer frame stutters**:
+  - Long encrypted messages (a guild roster is 30 of them) are sealed one per tick as they go out, not all at once when they're queued.
+  - Your guild's roster is only built and checked when it's actually time to share it again, not on every roster update.
+  - The roster is read once per burst of updates (3 seconds), not after each one.
+- **/ruin perf** lists the addons with the longest frames since login (the game's addon profiler), RUIN's in gold, to find what's stuttering.
+
 ## 0.8.1 — 2026-11-15
 
 - Goes with RUIN Pathfinder 0.8.1 (quest details readable in every look).

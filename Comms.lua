@@ -88,17 +88,13 @@ end
 function Comms:Encrypting() return ns.Org ~= nil and ns.Org.Encrypted ~= nil and ns.Org:Encrypted() end
 
 -- scope: "GUILD" | "ORG" | "OFFICERS" | "PEER" (target = character name) | "PARTY" (your 5-player group)
-function Comms:Send(kind, data, scope, target, priority)
-    local ok, payload = pcall(ns.Serialize, data)
-    if not ok then
-        ns:Debug("could not serialize " .. tostring(kind))
-        return false
-    end
+-- Seal (when the scope is sealed) and cut a payload into framed parts.
+local function frames(kind, payload, scope, target)
     if SEALED[scope] and not Comms.PLAIN[scope][kind] and Comms:Encrypting() then
         local key, r = scopeKey(scope)
         if not key then
             ns:Debug("no data key yet: not sending " .. tostring(kind))
-            return false
+            return nil
         end
         local to = scope == "PEER" and target or scope
         local sealed = C.Seal(key, kind .. "\031" .. payload, sealedFor(scope, ns.playerName, to))
@@ -110,23 +106,63 @@ function Comms:Send(kind, data, scope, target, priority)
     local room = MAX_MSG - header
     if room < 40 then
         ns:Debug("message kind too long: " .. kind)
-        return false
+        return nil
     end
     local total = math.max(1, math.ceil(#payload / room))
     if total > 99 then
         ns:Debug("message too large: " .. kind)
+        return nil
+    end
+    local out = {}
+    for i = 1, total do
+        out[i] = table.concat({ FRAME_VERSION, kind, id, i, total, payload:sub((i - 1) * room + 1, i * room) }, SEP)
+    end
+    return out
+end
+
+-- Sealing is the costly part (the cipher runs in Lua): a long message is
+-- sealed when its turn to go out comes, one per tick, not all at once when
+-- it's queued. Big batches (a guild roster is 30 messages) used to seal in
+-- one go and stall a frame.
+local LAZY_OVER = 400        -- bytes: shorter ones are sealed at once
+function Comms:Send(kind, data, scope, target, priority)
+    local ok, payload = pcall(ns.Serialize, data)
+    if not ok then
+        ns:Debug("could not serialize " .. tostring(kind))
         return false
     end
     local queue = queues[priority or Comms.PRIORITY.NORMAL] or queues[2]
     local now = GetTime()
-    for i = 1, total do
-        local chunk = payload:sub((i - 1) * room + 1, i * room)
-        queue[#queue + 1] = {
-            text = table.concat({ FRAME_VERSION, kind, id, i, total, chunk }, SEP),
-            scope = scope, target = target, t = now,
-        }
+    local sealed = SEALED[scope] and not Comms.PLAIN[scope][kind] and Comms:Encrypting()
+    if sealed and #payload > LAZY_OVER then
+        if not scopeKey(scope) then
+            ns:Debug("no data key yet: not sending " .. tostring(kind))
+            return false
+        end
+        queue[#queue + 1] = { job = true, kind = kind, payload = payload, scope = scope, target = target, t = now }
+        return true
+    end
+    local list = frames(kind, payload, scope, target)
+    if not list then return false end
+    for _, text in ipairs(list) do
+        queue[#queue + 1] = { text = text, scope = scope, target = target, t = now }
     end
     return true
+end
+
+-- A queued long message's turn: seal it and put its parts where it stood.
+local function expand(queue, i)
+    local job = table.remove(queue, i)
+    local list = frames(job.kind, job.payload, job.scope, job.target)
+    if not list then return end
+    for n = #list, 1, -1 do
+        table.insert(queue, i, { text = list[n], scope = job.scope, target = job.target, t = job.t })
+    end
+end
+Comms.PendingJobs = function()
+    local n = 0
+    for _, q in ipairs(queues) do for _, it in ipairs(q) do if it.job then n = n + 1 end end end
+    return n
 end
 
 local function idForName(name)
@@ -222,13 +258,23 @@ local function flush()
     for p = 1, #queues do if queues[p][1] then any = true; break end end
     if not any then return end
     if tokens >= 1 and othersBusy() then return end
+    local expanded = false
     for p = 1, #queues do
         local queue = queues[p]
         local i = 1
         while i <= #queue do
             if tokens < 1 then return end
             local item = queue[i]
-            if now - item.t > QUEUE_MAX_AGE then
+            if item.job and now - item.t <= QUEUE_MAX_AGE then
+                -- one long message sealed per tick at most
+                if expanded then return end
+                expanded = true
+                expand(queue, i)
+                item = queue[i]
+            end
+            if not item then
+                break
+            elseif now - item.t > QUEUE_MAX_AGE then
                 table.remove(queue, i)
             else
                 local chatType, target, reason = resolve(item)

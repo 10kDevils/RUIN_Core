@@ -268,7 +268,7 @@ local rosterScanPending = false
 local function scheduleRosterScan()
     if rosterScanPending then return end
     rosterScanPending = true
-    C_Timer.After(1, function()
+    C_Timer.After(3, function()             -- the roster updates in bursts: read it once per burst
         rosterScanPending = false
         ns:ScanRoster()
     end)
@@ -489,6 +489,28 @@ SlashCmdList.RUIN = function(input)
             ns:Print("Tabs are back in their usual order.")
         else
             ns:Print("Tab order: " .. table.concat(ns.UI:TabLabels(), ", ") .. ". Change it under Settings > Options > Tab order, or /ruin tabs reset.")
+        end
+    elseif cmd == "perf" then
+        -- which addons take the longest frames (the game's own addon profiler)
+        local P, E = C_AddOnProfiler, Enum and Enum.AddOnProfilerMetric
+        if not (P and P.GetAddOnMetric and E and C_AddOns and C_AddOns.GetNumAddOns) then
+            ns:Print("This client has no addon profiler.")
+            return
+        end
+        local rows = {}
+        for i = 1, C_AddOns.GetNumAddOns() do
+            local name = C_AddOns.GetAddOnInfo(i)
+            if name and C_AddOns.IsAddOnLoaded(name) then
+                local function m(k) if not E[k] then return 0 end local ok, v = pcall(P.GetAddOnMetric, name, E[k]); return ok and tonumber(v) or 0 end
+                rows[#rows + 1] = { name = name, peak = m("PeakTime"), avg = m("RecentAverageTime"),
+                                    over = m("CountTimeOver50Ms") + m("CountTimeOver100Ms") }
+            end
+        end
+        table.sort(rows, function(a, b) return a.peak > b.peak end)
+        ns:Print("Addons by their longest frame (ms) since login: peak, recent average, frames over 50 ms")
+        for i = 1, math.min(10, #rows) do
+            local r = rows[i]
+            ns:Print(("%s%s|r  %.1f  ·  %.2f  ·  %d"):format(r.name:find("^RUIN") and "|cffe6b85c" or "|cffffffff", r.name, r.peak, r.avg, r.over))
         end
     elseif cmd == "errors" then
         local list = type(RUIN_DB.errors) == "table" and RUIN_DB.errors or {}

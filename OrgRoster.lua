@@ -105,13 +105,14 @@ end
 function OR:Send(force)
     if not amSender() or not ns.roster or not next(ns.roster) then return false end
     local now = GetTime()
-    local lines = myLines()
-    local sig = ns.Hash(table.concat(lines, "\n"))
-    if not force and sig == lastSig and now - lastSent < REFRESH then return false end
+    -- too soon to send again: say so before building and hashing the whole roster
     if now - lastSent < (force and ANSWER_GAP or MIN_GAP) then
         OR:Schedule(lastSent + MIN_GAP - now + 1)
         return false
     end
+    local lines = myLines()
+    local sig = ns.Hash(table.concat(lines, "\n"))
+    if not force and sig == lastSig and now - lastSent < REFRESH then return false end
     lastSent, lastSig = now, sig
     local id = ns.RandomToken(4)
     local pages = math.max(1, math.ceil(#lines / PAGE))
