@@ -57,7 +57,8 @@ ns.THEMES.Org = ns.THEMES.Guild
 function W.LinkTo(b, addon)
     if not b then return b end
     local t = addon and ns.THEMES[addon]
-    b.linkColor = t and t.color or nil
+    -- a Blizzard window keeps every button the game's own
+    b.linkColor = (W.APP_STYLE ~= "blizzard" and t) and t.color or nil
     if b.hl then
         local c = b.linkColor or W.SchemeOf(b).accent
         b.hl:SetColorTexture(c[1], c[2], c[3], 0.08)
@@ -68,6 +69,7 @@ end
 
 -- "|cffRRGGBB" in an addon's color, for text that leads into that addon.
 function W.AddonHex(addon)
+    if W.APP_STYLE == "blizzard" then return "|cffffd100" end      -- the game's gold
     local t = ns.THEMES[addon]
     local c = t and t.color or { 1, 1, 1 }
     return ("|cff%02x%02x%02x"):format(math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
@@ -274,9 +276,10 @@ end
 -- the app, the page title and tagline, and the page's drawing on the right.
 function W.PageHeader(page, theme)
     local HEIGHT = 66
-    local c = theme.color
     local P = W.PALETTE
     local scheme = W.SchemeFor(theme)
+    local c = scheme.color          -- the band's color (bronze in a Blizzard window); the badge keeps the module's
+    local mc = theme.color
     local ac = scheme.accent
     local h = CreateFrame("Frame", nil, page)
     h:SetPoint("TOPLEFT")
@@ -310,7 +313,7 @@ function W.PageHeader(page, theme)
         badge = h:CreateTexture(nil, "ARTWORK")
         badge:SetSize(46, 46)
         badge:SetPoint("LEFT", 12, 0)
-        badge:SetColorTexture(c[1], c[2], c[3], 1)
+        badge:SetColorTexture(mc[1], mc[2], mc[3], 1)
         pcall(badge.SetMask, badge, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
         local ico = icon(h, theme.icon, 42, "OVERLAY")
         ico:SetPoint("CENTER", badge, "CENTER", 0, 0)
@@ -358,7 +361,8 @@ function W.PageHeader(page, theme)
             local art = box:CreateTexture(nil, "BACKGROUND")
             art:SetAllPoints()
             art:SetTexture(theme.art)
-            art:SetVertexColor(ac[1], ac[2], ac[3], 0.70)
+            local ic = scheme.icon or ac      -- RUIN's drawing keeps the module's color
+            art:SetVertexColor(ic[1], ic[2], ic[3], 0.70)
             h.art = art
         else
             box:SetAlpha(0.75)

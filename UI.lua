@@ -1583,9 +1583,10 @@ function UI:LayoutTabs()
             b.icon:SetSize(15, 15)
             b.icon:SetPoint("LEFT", 7, 0)
             if theme.glyph then
-                -- RUIN's own glyph, in the page's color
+                -- RUIN's own glyph, in the module's color (in either window style)
+                local ic = Wd.SchemeFor(theme).icon or ac
                 b.icon:SetTexture(theme.glyph)
-                b.icon:SetVertexColor(ac[1], ac[2], ac[3], 1)
+                b.icon:SetVertexColor(ic[1], ic[2], ic[3], 1)
             else
                 b.icon:SetTexture(theme.tabIcon or theme.icon)
                 if not (type(theme.tabIcon or theme.icon) == "string" and (theme.tabIcon or theme.icon):find("RUIN_Core", 1, true)) then

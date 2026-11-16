@@ -13,6 +13,7 @@ Versioning: the third number counts the meaningful changes made since the second
   - Your guild's roster is only built and checked when it's actually time to share it again, not on every roster update.
   - The roster is read once per burst of updates (3 seconds), not after each one.
 - **/ruin perf** lists the addons with the longest frames since login (the game's addon profiler), RUIN's in gold, to find what's stuttering.
+- **The Blizzard window style is Blizzard through and through**: every page is in the game's gold and WoW Forever's bronze and near-black, with no module tint on panels, edges, tabs, buttons or page headers (buttons that open another module, and text naming one, are plain too). Only RUIN's own icons and page drawings keep each module's color.
 
 ## 0.8.1 — 2026-11-15
 

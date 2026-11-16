@@ -178,8 +178,9 @@ local schemes = {}
 
 ---------------------------------------------------------------------------
 -- The app's window style (Settings > Chat and display > Window style): RUIN's
--- own navy, or a Blizzard window in WoW Forever's colors (warm near-black,
--- bronze edges, the game's gold). Each module keeps its color as the accent.
+-- own navy, or a Blizzard window through and through in WoW Forever's colors
+-- (warm near-black, bronze edges, the game's gold) on every page alike. Only
+-- RUIN's own icons and drawings keep their module's color.
 -- Applied once, before any window is drawn (a change takes a /reload).
 ---------------------------------------------------------------------------
 W.APP_STYLE = "ruin"
@@ -202,19 +203,9 @@ function W.ApplyAppStyle(style)
     setRGB(BTN_EDGE, mix(P.border, P.text, 0.14))
     setRGB(BTN_TEXT, mix(P.text, P.sub, 0.10))
     setRGB(GOLD_FILL, mix(P.panelHi, P.gold, 0.26))
-    W.COLORS.gold, W.COLORS.dim, W.COLORS.accent = "|cffffd100", "|cffc7b38f", "|cfff5c74d"
-    -- each module's color, toned down to sit in a Blizzard window: less
-    -- saturated, a little darker, warmed toward the bronze
-    local seen, bronze = {}, P.border
-    for _, t in pairs(ns.THEMES or {}) do
-        local c = type(t) == "table" and t.color
-        if c and not seen[c] then
-            seen[c] = true
-            local l = c[1] * 0.30 + c[2] * 0.59 + c[3] * 0.11
-            local m = mix(mix(c, { l, l, l }, 0.40), bronze, 0.12)
-            setRGB(c, { m[1] * 0.86, m[2] * 0.86, m[3] * 0.86 })
-        end
-    end
+    W.COLORS.gold, W.COLORS.dim, W.COLORS.accent = "|cffffd100", "|cffc7b38f", "|cffffd100"
+    -- the game's own controls: gold on hover and when picked, bronze edges
+    setRGB(W.CORE_SCHEME.accent, P.gold)
     for k in pairs(schemes) do schemes[k] = nil end
 end
 
@@ -239,11 +230,21 @@ end
 -- A page's colors from its theme. Core pages (Guild, Settings) keep the
 -- plain navy panels and take only the accent; a module's page is also
 -- tinted, faintly, in its color.
+local BRONZE = { 0.52, 0.395, 0.225 }
 function W.SchemeFor(theme)
     if not theme or not theme.color then return W.CORE_SCHEME end
     local s = schemes[theme]
     if s then return s end
     local c = theme.color
+    -- a Blizzard window: every page in the game's gold and bronze, no tint;
+    -- only RUIN's icons and drawings (s.icon) keep the module's color.
+    -- (Pathfinder's own looks for game frames are themes of their own: theme.look.)
+    if W.APP_STYLE == "blizzard" and not theme.look then
+        s = { color = BRONZE, accent = P.gold, edge = P.border, panel = P.panel, panelHi = P.panelHi, bg = P.bg,
+              mark = P.gold, icon = mix(c, WHITE, 0.24), core = true }
+        schemes[theme] = s
+        return s
+    end
     local core = theme.core and true or false
     s = {
         color   = c,
@@ -253,6 +254,7 @@ function W.SchemeFor(theme)
         panelHi = core and P.panelHi or mix(P.panelHi, c, 0.11),
         bg      = core and P.bg or mix(P.bg, c, 0.03),
         mark    = c,
+        icon    = mix(c, WHITE, 0.24),
         core    = core,
     }
     schemes[theme] = s
