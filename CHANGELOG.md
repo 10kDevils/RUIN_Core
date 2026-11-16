@@ -15,7 +15,8 @@ Versioning: the third number counts the meaningful changes made since the second
 - **/ruin perf** lists the addons with the longest frames since login (the game's addon profiler), RUIN's in gold, to find what's stuttering.
 - **The Blizzard window style is a native WoW window**, built from the game's own parts:
   - The window is the game's portrait window: its frame, title bar and close button. The open module's badge sits in the portrait, and its name is in the title.
-  - The game's top tabs, for the modules (each with its colored icon) and for the pages inside them.
+  - The modules are large tiles across the top, like the Looking for Group window's Dungeons and Battlegrounds buttons: a dark bevelled box edged in bronze, the module's drawing glowing in its color on the right, and its icon and name in gold. The open one is edged in gold. The pages inside a module use the game's top tabs.
+  - The connection state sits in the title bar.
   - The game's red panel buttons, gold check boxes, input boxes and scroll bars, and its inset panels for cards.
   - Dropdowns are the game's dark box with the gold arrow, and their lists are the game's menus, with a radio dot for the current choice and the gold highlight.
   - No module tint anywhere, and no page banner. Only RUIN's own icons keep each module's color.

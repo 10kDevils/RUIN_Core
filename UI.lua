@@ -1513,6 +1513,22 @@ local function paintTab(t)
     local b = t.button
     if not b then return end
     local on = selectedTab ~= nil and tabs[selectedTab] == t
+    if b.tile then
+        -- the open module's tile is lit: a gold edge, its scene brighter,
+        -- its name white; the rest sit back until the mouse is on them
+        local lit = on or b.hover
+        if b.SetBackdropBorderColor then
+            if on then b:SetBackdropBorderColor(1, 0.82, 0, 1)
+            elseif b.hover then b:SetBackdropBorderColor(0.86, 0.70, 0.40, 1)
+            else b:SetBackdropBorderColor(0.50, 0.42, 0.29, 1) end
+        end
+        b.wash:SetAlpha(on and 1 or (b.hover and 0.8 or 0.55))
+        if b.art then b.art:SetAlpha(on and 0.55 or (b.hover and 0.42 or 0.28)) end
+        b.glow:SetShown(on)
+        b.icon:SetAlpha(lit and 1 or 0.8)
+        if on then b.text:SetTextColor(1, 1, 1) else b.text:SetTextColor(1, 0.82, 0) end
+        return
+    end
     if b.native then
         pcall(on and PanelTemplates_SelectTab or PanelTemplates_DeselectTab, b)
         return
@@ -1585,9 +1601,109 @@ function UI:SelectTab(index)
     if changed and main:IsShown() then sound("IG_CHARACTER_INFO_TAB") end
 end
 
+-- The Blizzard window's modules are tiles, like the Looking for Group
+-- window's Dungeons, Quests and Battlegrounds buttons: a dark bevelled box
+-- edged in bronze, the module's drawing glowing in its color on the right,
+-- its icon and name in gold on the left. The open one is edged in gold.
+local TILE_H, TILE_GAP, TILE_PER_ROW = 44, 5, 8
+local function makeTile(t, i)
+    local theme = themeForTab(t)
+    local b = CreateFrame("Button", nil, tabStrip, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    b.tile, b.ruinTheme = true, theme
+    b:SetHeight(TILE_H)
+    if b.SetBackdrop then
+        pcall(b.SetBackdrop, b, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+        if b.SetBackdropColor then b:SetBackdropColor(0.03, 0.025, 0.02, 0.96) end
+    end
+    local s = Wd.SchemeFor(theme)
+    local ic = s.icon or s.accent
+    local c = theme.color or ic
+    -- the scene: the module's color rising from the dark left to the right
+    b.wash = b:CreateTexture(nil, "BACKGROUND", nil, 1)
+    b.wash:SetPoint("TOPLEFT", 4, -4)
+    b.wash:SetPoint("BOTTOMRIGHT", -4, 4)
+    b.wash:SetColorTexture(1, 1, 1, 1)
+    if not (CreateColor and b.wash.SetGradient and pcall(b.wash.SetGradient, b.wash, "HORIZONTAL",
+        CreateColor(c[1] * 0.25, c[2] * 0.25, c[3] * 0.25, 0.25), CreateColor(c[1] * 0.7, c[2] * 0.7, c[3] * 0.7, 0.75))) then
+        b.wash:SetColorTexture(c[1] * 0.5, c[2] * 0.5, c[3] * 0.5, 0.45)
+    end
+    -- and its drawing over that, faint, on the right
+    if theme.art then
+        b.art = b:CreateTexture(nil, "BACKGROUND", nil, 2)
+        b.art:SetPoint("TOPRIGHT", -4, -4)
+        b.art:SetPoint("BOTTOMLEFT", b, "BOTTOM", 0, 4)
+        b.art:SetTexture(theme.art)
+        if b.art.SetTexCoord then b.art:SetTexCoord(0.5, 1, 0, 1) end
+        b.art:SetVertexColor(ic[1], ic[2], ic[3], 1)
+    end
+    -- a gold glow inside the open tile's edge
+    b.glow = b:CreateTexture(nil, "BORDER")
+    b.glow:SetPoint("TOPLEFT", 4, -4)
+    b.glow:SetPoint("BOTTOMRIGHT", -4, 4)
+    b.glow:SetTexture("Interface\\Buttons\\UI-Listbox-Highlight2")
+    b.glow:SetBlendMode("ADD")
+    b.glow:SetVertexColor(1, 0.82, 0.3, 0.30)
+    b.glow:Hide()
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", 4, -4)
+    hl:SetPoint("BOTTOMRIGHT", -4, 4)
+    hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    hl:SetBlendMode("ADD")
+    hl:SetAlpha(0.35)
+    b.icon = b:CreateTexture(nil, "OVERLAY")
+    b.icon:SetSize(20, 20)
+    b.icon:SetPoint("LEFT", 10, 0)
+    if theme.glyph then
+        b.icon:SetTexture(theme.glyph)
+        b.icon:SetVertexColor(ic[1], ic[2], ic[3], 1)
+    else
+        b.icon:SetTexture(theme.tabIcon or theme.icon)
+    end
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    b.text:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
+    b.text:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+    b.text:SetJustifyH("LEFT")
+    if b.text.SetWordWrap then b.text:SetWordWrap(false) end
+    if b.text.SetShadowOffset then b.text:SetShadowOffset(1, -1) end
+    b.text:SetText(tabLabel(t))
+    b:SetScript("OnClick", function() UI:SelectTab(i) end)
+    b:SetScript("OnEnter", function(self) self.hover = true; paintTab(t) end)
+    b:SetScript("OnLeave", function(self) self.hover = false; paintTab(t) end)
+    return b
+end
+
+-- the tiles share the row evenly (a second row past eight); a long name
+-- drops to the smaller font when its tile is narrow
+local function layoutTiles(sorted)
+    local n = #sorted
+    local rows = math.max(1, math.ceil(n / TILE_PER_ROW))
+    local per = math.ceil(n / rows)
+    local width = (tabStrip:GetWidth() or 0)
+    if width < 100 then width = WINDOW_W - 76 end
+    local w = math.floor((width - (per - 1) * TILE_GAP) / per)
+    for k, e in ipairs(sorted) do
+        local b = e.t.button
+        local r, col = math.floor((k - 1) / per), (k - 1) % per
+        b:SetWidth(w)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", tabStrip, "TOPLEFT", col * (w + TILE_GAP), -r * (TILE_H + TILE_GAP))
+        b.text:SetFontObject(GameFontNormal)
+        local sw = b.text.GetUnboundedStringWidth and b.text:GetUnboundedStringWidth() or b.text:GetStringWidth() or 0
+        if sw > w - 42 then b.text:SetFontObject(GameFontNormalSmall) end
+        paintTab(e.t)
+    end
+    local h = rows * (TILE_H + TILE_GAP) - TILE_GAP
+    tabStrip:SetHeight(h)
+    content:ClearAllPoints()
+    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(28 + h + 6))
+    content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
+end
+
 function UI:LayoutTabs()
     if not main then return end
     for i, t in ipairs(tabs) do
+        if not t.button and main.native then t.button = makeTile(t, i) end
         local nb = (not t.button and main and main.native and type(PanelTemplates_SelectTab) == "function")
             and Wd.FromTemplate("Button", tabStrip, "PanelTopTabButtonTemplate") or nil
         if nb then
@@ -1659,6 +1775,11 @@ function UI:LayoutTabs()
     end
     -- Sorted by order; extras wrap onto a second row.
     local sorted = sortedTabs()
+    if main.native then
+        layoutTiles(sorted)
+        if not selectedTab and sorted[1] then UI:SelectTab(sorted[1].i) end
+        return
+    end
     local x, row = 0, 0
     local width = WINDOW_W - 24
     for _, e in ipairs(sorted) do
@@ -1774,21 +1895,21 @@ local function createNativeMain()
     if type(main.CloseButton) == "table" and main.CloseButton.SetScript then
         main.CloseButton:SetScript("OnClick", function() main:Hide() end)
     end
-    -- the connection state, quietly under the title bar on the right
+    -- the connection state, quietly in the title bar on the right
     main.state = main:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    main.state:SetPoint("TOPRIGHT", main, "TOPRIGHT", -14, -32)
+    main.state:SetPoint("TOPRIGHT", main, "TOPRIGHT", -34, -6)
     main.stateDot = main:CreateTexture(nil, "OVERLAY")
     main.stateDot:SetSize(7, 7)
     main.stateDot:SetRotation(math.pi / 4)
     main.stateDot:SetPoint("RIGHT", main.state, "LEFT", -7, 0)
 
-    -- tabs start right of the portrait
+    -- the module tiles fill the band under the title bar, right of the portrait
     tabStrip = CreateFrame("Frame", nil, main)
-    tabStrip:SetPoint("TOPLEFT", main, "TOPLEFT", 64, -(TITLE_H - 2))
-    tabStrip:SetPoint("RIGHT", main, "RIGHT", -12, 0)
-    tabStrip:SetHeight(TAB_H)
+    tabStrip:SetPoint("TOPLEFT", main, "TOPLEFT", 68, -28)
+    tabStrip:SetPoint("RIGHT", main, "RIGHT", -8, 0)
+    tabStrip:SetHeight(TILE_H)
     content = CreateFrame("Frame", nil, main)
-    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(TITLE_H + 8 + TAB_H + TAB_GAP + 2))
+    content:SetPoint("TOPLEFT", main, "TOPLEFT", 10, -(28 + TILE_H + 6))
     content:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -10, 10)
     local inset = Wd.FromTemplate("Frame", main, "InsetFrameTemplate")
     if inset then
