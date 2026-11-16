@@ -1181,18 +1181,18 @@ local function buildSettingsPanel(p)
     local rb = Wd.Button(disp, "Reload now", 110, reload)
     rb.tip = "Reload the interface so the RUIN window takes its new style."
     local function showPending()
-        local want = s().appStyle or "ruin"
+        local want = s().appStyle or "blizzard"
         local on = want ~= (Wd.APP_STYLE or "ruin")
         pending:SetText(on and (Wd.COLORS.warn .. "Takes effect after a reload.|r") or "")
         rb:SetShown(on)
     end
-    settings.appStyle = Wd.Dropdown(disp, 140, { "ruin", "blizzard" }, function() return s().appStyle or "ruin" end, function(v)
+    settings.appStyle = Wd.Dropdown(disp, 140, { "blizzard", "ruin" }, function() return s().appStyle or "blizzard" end, function(v)
         s().appStyle = v
         showPending()
     end)
     settings.appStyle.format = function(v) return v == "blizzard" and "Blizzard" or "RUIN" end
     settings.appStyle:SetPoint("LEFT", wl, "RIGHT", 10, 0)
-    settings.appStyle.tipTitle = "RUIN's own navy look, or a Blizzard window in WoW Forever's colors (bronze edges, the game's gold). Each module keeps its color for its accents. Takes a reload."
+    settings.appStyle.tipTitle = "A Blizzard window, built from the game's own frames, buttons and tabs (the default), or RUIN's own navy look. Takes a reload."
     rb:SetPoint("LEFT", settings.appStyle, "RIGHT", 12, 0)
     pending:SetPoint("LEFT", rb, "RIGHT", 10, 0)
     settings.appStyle:Refresh()

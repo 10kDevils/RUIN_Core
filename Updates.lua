@@ -20,6 +20,11 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.2", {
+        "The RUIN window is a native Blizzard window by default, built from the game's own frame, buttons, check boxes, tabs and menus, with large module buttons across the top. Settings > Options > Window style switches back to RUIN's navy look.",
+        "Fewer frame stutters: long messages, the guild roster and Pathfinder's quest reminders do much less work at once. /ruin perf lists the addons with the longest frames.",
+        "With RUIN Exchange: soulbound items are never sent to the auction house; the tooltip and the bag sweep weigh disenchanting, crafting and the vendor instead.",
+    } },
     { "0.8.1", {
         "With RUIN Pathfinder: a quest's details on the world map are readable in every look.",
     } },

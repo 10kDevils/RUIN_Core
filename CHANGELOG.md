@@ -6,8 +6,9 @@ Versioning: the third number counts the meaningful changes made since the second
 
 (nothing yet)
 
-## 0.8.2
+## 0.8.2 — 2026-11-16
 
+- **The Blizzard window is the default style.** Everyone starts there once with this update; Settings > Options > Window style switches back to RUIN's navy look, and that choice stays.
 - **Fewer frame stutters**:
   - Long encrypted messages (a guild roster is 30 of them) are sealed one per tick as they go out, not all at once when they're queued.
   - Your guild's roster is only built and checked when it's actually time to share it again, not on every roster update.

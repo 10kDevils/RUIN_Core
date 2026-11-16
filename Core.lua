@@ -49,7 +49,7 @@ local DEFAULTS = {
         chatFrame = 1,           -- chat window number that shows RUIN lines
         couchMode = false,       -- larger window for Steam Deck / TV play
         animations = true,       -- ambient motion in page headers
-        appStyle = "ruin",       -- the window's style: RUIN's navy, or a Blizzard window
+        appStyle = "blizzard",   -- the window's style: a Blizzard window, or RUIN's navy
         tabOrder = nil,          -- your own tab order (Settings > Options > Tab order): a list of page titles
         chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
         linkAlts = false,        -- count my characters as one player in the census (shares a random token)
@@ -184,6 +184,10 @@ end
 local function adoptDB()
     if type(RUIN_DB) ~= "table" then RUIN_DB = {} end
     applyDefaults(RUIN_DB, DEFAULTS)
+    -- 0.8.2: the Blizzard window is the default; everyone starts there once,
+    -- and a style picked after that stays
+    local st = RUIN_DB.settings
+    if type(st) == "table" and (tonumber(st.styleV) or 0) < 2 then st.appStyle, st.styleV = "blizzard", 2 end
     -- the window style is set before anything is drawn
     if ns.Widgets and ns.Widgets.ApplyAppStyle and RUIN_DB.settings then ns.Widgets.ApplyAppStyle(RUIN_DB.settings.appStyle) end
     if ns.db ~= RUIN_DB then
