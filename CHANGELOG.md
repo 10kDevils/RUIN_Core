@@ -4,7 +4,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
-(nothing yet)
+## 0.8.3
+
+- **Tooltips read as even blocks.** Long tooltip text is broken onto the fewest lines it needs, each about as long as the others, never with one word left alone on the last line, and the tooltip is made just wide enough that the game doesn't break the lines again.
+- **Pathfinder's looks for the game's frames are the same in either window style.** The Blizzard window style recolors the app, but no longer reaches the game frames: the RUIN look keeps RUIN's softer gold and navy (it turned the game's bright yellow), and every look keeps its own edges and panels.
 
 ## 0.8.2 — 2026-11-16
 

@@ -13,25 +13,65 @@ ns.Widgets = W
 ---------------------------------------------------------------------------
 W.TIP_WIDTH = 42          -- characters per line, about 230 pixels
 
--- Break text onto lines of about n characters (color codes don't count).
+-- Break text onto lines of about n characters (color codes don't count),
+-- as an even block: the fewest lines it needs, each about as long as the
+-- others, and never one word alone on the last line when it can be helped.
+local function seenLen(w) return #(w:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+local function greedy(words, lens, w)
+    local lines, cur, len = {}, {}, 0
+    for k, word in ipairs(words) do
+        local l = lens[k]
+        if len > 0 and len + 1 + l > w then
+            lines[#lines + 1] = { text = table.concat(cur, " "), len = len, n = #cur }
+            cur, len = { word }, l
+        else
+            cur[#cur + 1] = word
+            len = len + (len > 0 and 1 or 0) + l
+        end
+    end
+    lines[#lines + 1] = { text = table.concat(cur, " "), len = len, n = #cur }
+    return lines
+end
+local function balance(para, n)
+    local words, lens, total = {}, {}, -1
+    for word in para:gmatch("%S+") do
+        words[#words + 1] = word
+        lens[#lens + 1] = seenLen(word)
+        total = total + 1 + lens[#lens]
+    end
+    if #words == 0 then return "" end
+    if total <= n then return table.concat(words, " ") end
+    local widest = 0
+    for _, l in ipairs(lens) do widest = math.max(widest, l) end
+    local best, bestScore
+    -- every width from a little under n to a little over: the one whose
+    -- lines come out the most even wins (fewer lines first)
+    for w = math.max(widest, math.floor(n * 0.6)), math.floor(n * 1.25) do
+        local lines = greedy(words, lens, w)
+        local longest, score = 0, 0
+        for _, ln in ipairs(lines) do longest = math.max(longest, ln.len) end
+        for k, ln in ipairs(lines) do
+            local gap = longest - ln.len
+            if k == #lines then
+                -- a short last line is fine; one word alone on it isn't
+                if ln.n == 1 and #lines > 1 then score = score + 400 end
+                if ln.len < longest * 0.4 then score = score + (longest * 0.4 - ln.len) ^ 2 end
+            else
+                score = score + gap * gap
+            end
+        end
+        score = score + #lines * 1000 + math.max(0, longest - n) * 30
+        if not bestScore or score < bestScore then best, bestScore = lines, score end
+    end
+    local out = {}
+    for _, ln in ipairs(best) do out[#out + 1] = ln.text end
+    return table.concat(out, "\n")
+end
 function W.Wrap(text, n)
     if type(text) ~= "string" then return text end
     n = n or W.TIP_WIDTH
     local out = {}
-    for para in (text .. "\n"):gmatch("(.-)\n") do
-        local line, len = "", 0
-        for word in para:gmatch("%S+") do
-            local seen = #(word:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
-            if len > 0 and len + 1 + seen > n then
-                out[#out + 1] = line
-                line, len = word, seen
-            else
-                line = (len > 0) and (line .. " " .. word) or word
-                len = len + (len > 0 and 1 or 0) + seen
-            end
-        end
-        out[#out + 1] = line
-    end
+    for para in (text .. "\n"):gmatch("(.-)\n") do out[#out + 1] = balance(para, n) end
     return table.concat(out, "\n")
 end
 
@@ -63,7 +103,7 @@ local function rewrap(tt)
     if rewrapping or not tipOwner or not (tt.GetOwner and tt:GetOwner() == tipOwner) then return end
     if tt.GetItem and select(2, tt:GetItem()) then return end      -- the game's item text: as it comes
     if tt.GetSpell and tt:GetSpell() then return end
-    local name, changed = tt:GetName(), false
+    local name, changed, widest = tt:GetName(), false, 0
     for i = 1, (tt.NumLines and tt:NumLines() or 0) do
         for _, side in ipairs({ "Left", "Right" }) do
             local fs = name and rawget(_G, name .. "Text" .. side .. i)
@@ -71,8 +111,16 @@ local function rewrap(tt)
             if type(text) == "string" and #text > W.TIP_WIDTH then
                 local wrapped = W.Wrap(text)
                 if wrapped ~= text then fs:SetText(wrapped); changed = true end
+                -- the widest of our lines: the tooltip is made that wide, so
+                -- the game doesn't break them again where it likes
+                widest = math.max(widest, W.LongestLineWidth(fs, wrapped))
             end
         end
+    end
+    if widest > 0 and tt.SetMinimumWidth then
+        tt:SetMinimumWidth(math.ceil(widest) + 22)
+        tt.ruinMinWidth = true
+        changed = true
     end
     if changed then
         rewrapping = true
@@ -81,9 +129,32 @@ local function rewrap(tt)
     end
 end
 W.RewrapTip = rewrap
+-- The pixel width of the longest line of text, in fs's font.
+local measure
+function W.LongestLineWidth(fs, text)
+    local ui = rawget(_G, "UIParent")
+    if not (ui and fs and fs.GetFont) then return 0 end
+    measure = measure or ui:CreateFontString(nil, "OVERLAY")
+    local font, size, flags = fs:GetFont()
+    if not font or not measure.SetFont then return 0 end
+    measure:SetFont(font, size, flags)
+    local w = 0
+    for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do
+        measure:SetText(line)
+        w = math.max(w, tonumber(measure:GetStringWidth()) or 0)
+    end
+    measure:SetText("")
+    return w
+end
 if GameTooltip and hooksecurefunc then
     hooksecurefunc(GameTooltip, "Show", rewrap)
-    if GameTooltip.HookScript then GameTooltip:HookScript("OnHide", function() tipOwner = nil end) end
+    if GameTooltip.HookScript then
+        GameTooltip:HookScript("OnHide", function(self)
+            tipOwner = nil
+            -- the width we set is ours alone: the next tooltip starts over
+            if self.ruinMinWidth and self.SetMinimumWidth then self:SetMinimumWidth(0); self.ruinMinWidth = nil end
+        end)
+    end
 end
 
 -- The RUIN look: deep navy surfaces in three steps (window, panel, raised),
@@ -153,6 +224,11 @@ W.RGB = rgb
 -- Core marked with .ruinTheme, so rows and buttons made later match too.
 ---------------------------------------------------------------------------
 local P = W.PALETTE
+-- RUIN's own palette, kept as it is when the Blizzard window style recolors
+-- W.PALETTE: Pathfinder's looks for the game's frames are the same in either
+-- window style.
+W.RUIN_PALETTE = {}
+for k, v in pairs(P) do W.RUIN_PALETTE[k] = type(v) == "table" and { v[1], v[2], v[3], v[4] } or v end
 local function mix(a, b, t)
     return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t }
 end
@@ -294,13 +370,14 @@ function W.SchemeFor(theme)
         return s
     end
     local core = theme.core and true or false
+    local Q = theme.look and W.RUIN_PALETTE or P   -- a game-frame look is the same in either window style
     s = {
         color   = c,
         accent  = mix(c, WHITE, 0.24),           -- lighter, so lines and marks read on navy
-        edge    = mix(P.border, c, core and 0.16 or 0.40),
-        panel   = core and P.panel or mix(P.panel, c, 0.055),
-        panelHi = core and P.panelHi or mix(P.panelHi, c, 0.11),
-        bg      = core and P.bg or mix(P.bg, c, 0.03),
+        edge    = mix(Q.border, c, core and 0.16 or 0.40),
+        panel   = core and Q.panel or mix(Q.panel, c, 0.055),
+        panelHi = core and Q.panelHi or mix(Q.panelHi, c, 0.11),
+        bg      = core and Q.bg or mix(Q.bg, c, 0.03),
         mark    = c,
         icon    = mix(c, WHITE, 0.24),
         core    = core,
@@ -791,7 +868,7 @@ function W.MarkChoice(b, hint)
         if not GameTooltip then return end
         -- beside the button, clear of the list that opens under it
         W.TipOwner(self)
-        if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1) end
+        if self.tipTitle then GameTooltip:AddLine(self.tipTitle, 1, 1, 1, true) end
         GameTooltip:AddLine(hint or "Click to pick from a list.", 0.7, 0.75, 0.8)
         GameTooltip:Show()
     end)
