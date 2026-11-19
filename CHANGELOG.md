@@ -4,6 +4,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+## 0.8.4
+
+- **The RUIN window is larger.** It opens at 1.15 times its old size (what couch mode used to give), and couch mode now takes it to 1.35. Either way it's never bigger than fits your screen.
+
 ## 0.8.3
 
 - **Tooltips read as even blocks.** Long tooltip text is broken onto the fewest lines it needs, each about as long as the others, never with one word left alone on the last line, and the tooltip is made just wide enough that the game doesn't break the lines again.

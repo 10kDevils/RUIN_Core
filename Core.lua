@@ -343,7 +343,7 @@ local HELP = {
     "/ruin leave - leave the org  |  /ruin disband - end the org for everyone  (org admin)",
     "/ruin bridge on|off - allow relaying for guildmates without RUIN",
     "/ruin chatframe <n> - chat window number for RUIN lines",
-    "/ruin couch - toggle couch mode (larger window)",
+    "/ruin couch - toggle couch mode (an even larger window)",
     "/ruin tabs reset - put the tabs back in their usual order",
     "/ruin debug - toggle debug messages",
     "/ruin overlord - check whether RUIN can see Overlord Forever",

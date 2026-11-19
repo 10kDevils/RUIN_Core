@@ -2041,8 +2041,19 @@ function UI:Refresh()
     refreshSettings()
 end
 
+-- The window opens at 1.15 times its drawn size (what couch mode used to
+-- give), couch mode at 1.35; either way never bigger than fits the screen.
+local BASE_SCALE, COUCH_SCALE = 1.15, 1.35
 function UI:ApplyScale()
-    local scale = (ns.db and ns.db.settings.couchMode) and 1.15 or 1
+    local scale = (ns.db and ns.db.settings.couchMode) and COUCH_SCALE or BASE_SCALE
+    if main and UIParent and UIParent.GetHeight then
+        local sh, sw = UIParent:GetHeight() or 0, UIParent:GetWidth() or 0
+        local h, w = main:GetHeight() or 0, main:GetWidth() or 0
+        if h > 0 and w > 0 and sh > 0 and sw > 0 then
+            scale = math.min(scale, (sh * 0.94) / h, (sw * 0.96) / w)
+        end
+        scale = math.max(scale, 0.75)
+    end
     if main then main:SetScale(scale) end
     if dialog then dialog:SetScale(scale) end
     if confirm then confirm:SetScale(scale) end
