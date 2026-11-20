@@ -4,6 +4,12 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+## 0.8.6
+
+- **Org chat stays on Org.** After `/org <message>`, the chat box keeps "Org:" on the next lines you type, as it does after /g, /p, /1, /2 or /raid, until you switch with another chat command.
+- **Org chat shows full names**, as guild chat does ("Saint Timothy", not just "Saint"). A name a line carries must start with the sender's own character name, so nobody can show up as someone else.
+- **Org chat is the [RUIN] tag's blue** by default. A color you picked in Settings > Options stays.
+
 ## 0.8.5
 
 - **The pop-out guild chat window resizes, locks and fades.** Drag its bottom-right corner to resize it (420×220 up to 1200×900); the size is remembered along with where you put it. **Lock** pins it in place at its size (no moving or resizing) until you click **Unlock**. **Opacity** (100% down to 0%) fades the window's background and edges; the text, buttons and the line to type in stay fully readable.

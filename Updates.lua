@@ -20,6 +20,10 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.6", {
+        "After /org <message>, your chat box stays on Org for the next lines, like /g or /p, until you switch with another chat command.",
+        "Org chat shows players' full names, and is the same blue as the [RUIN] tag.",
+    } },
     { "0.8.5", {
         "The pop-out guild chat (/ruin chat) resizes from its corner, locks in place, and has an Opacity setting for its background.",
         "Org chat: /org <message> talks in a channel only the org's members can see, also in Guild > Chat > Org chat. It's sky blue; Settings > Options picks another color.",

@@ -557,7 +557,7 @@ local function lineText(l)
         local gi = ns.Org:GuildInfo(l.gu)
         tag = ns.Chat:OrgHex() .. "[" .. (l.warn and "Announcement" or "Org") .. "·" .. ns.Escape((gi and gi.tag) or l.gu or "RUIN") .. "]|r"
         return ("%s%s|r %s %s: %s%s|r"):format(GREY, date("%H:%M", l.t or time()), tag,
-            ns.Chat.ColorName and ns.Chat.ColorName(l.a or "?", l.c) or ns.Escape(l.a or "?"), ns.Chat:OrgHex(), ns.Chat.Sanitize(l.text or ""))
+            ns.Chat.ColorName and ns.Chat.ColorName(l.n or l.a or "?", l.c) or ns.Escape(l.n or l.a or "?"), ns.Chat:OrgHex(), ns.Chat.Sanitize(l.text or ""))
     elseif l.own then
         tag = GREEN .. "[Guild]|r"
     else

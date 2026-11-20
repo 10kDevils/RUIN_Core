@@ -88,7 +88,7 @@ function Chat:TogglePin(line)
     for i, p in ipairs(pins) do
         if p.a == line.a and p.text == line.text then table.remove(pins, i); ns:Fire("CHAT_HISTORY"); return false end
     end
-    pins[#pins + 1] = { t = line.t, gu = line.gu, a = line.a, c = line.c, text = line.text, own = line.own, org = line.org, warn = line.warn }
+    pins[#pins + 1] = { t = line.t, gu = line.gu, a = line.a, n = line.n, c = line.c, text = line.text, own = line.own, org = line.org, warn = line.warn }
     while #pins > 10 do table.remove(pins, 1) end
     ns:Fire("CHAT_HISTORY")
     return true
@@ -265,7 +265,7 @@ end)
 -- the org admin sends one; it shows in the middle of every member's screen
 -- with the raid warning sound.
 ---------------------------------------------------------------------------
-Chat.ORG_COLOR = { r = 0.62, g = 0.89, b = 1.0 }      -- sky blue, well lighter than party chat
+Chat.ORG_COLOR = { r = 0x54 / 255, g = 0xb7 / 255, b = 0xd9 / 255 }   -- the [RUIN] tag's blue
 local ORG_BURST, ORG_WINDOW = 5, 10                   -- lines you may send per 10 seconds
 local WARN_GAP = 10                                   -- seconds between your announcements
 local WARN_GAP_IN = 5                                 -- an announcement per sender at most this often on screen
@@ -305,6 +305,26 @@ local function myClass()
     return classFile
 end
 
+-- Your full name as the guild roster has it ("Saint Timothy"), which the game
+-- shows in chat; the character name alone is what it gives addons.
+local function myFullName()
+    local guid = UnitGUID and UnitGUID("player")
+    local e = guid and ns.rosterByGUID and ns.rosterByGUID[guid]
+    return (e and e.name) or ns.playerName
+end
+
+-- The name to show for an org line: the full name it carries, but only one
+-- that starts with the sender's real character name.
+local function orgName(d)
+    local full = type(d.n) == "string" and d.n ~= "" and #d.n <= 64 and d.n or nil
+    if full then
+        local real, shown = ns.NormalizeName(d.a), ns.NormalizeName(full)
+        if real ~= "" and shown:sub(1, #real) == real then return full end
+    end
+    return d.a
+end
+Chat.OrgName = orgName
+
 local function orgLabel(d, warn)
     local gi = ns.Org:GuildInfo(d.gu)
     local tag = (gi and gi.tag) or d.gu
@@ -314,13 +334,13 @@ end
 function Chat:DisplayOrg(d, warn)
     local frame = _G["ChatFrame" .. (ns.db.settings.chatFrame or 1)] or DEFAULT_CHAT_FRAME
     local c = Chat:OrgColor()
-    frame:AddMessage(("[%s] %s: %s"):format(orgLabel(d, warn), colorName(d.a, d.c), sanitize(d.t)), c.r, c.g, c.b)
+    frame:AddMessage(("[%s] %s: %s"):format(orgLabel(d, warn), colorName(orgName(d), d.c), sanitize(d.t)), c.r, c.g, c.b)
 end
 
 -- In the middle of the screen, as a raid warning shows, with its sound.
 function Chat:ShowAnnouncement(d)
     if ns.db.settings.orgWarnings == false then return end
-    local text = Chat:OrgHex() .. ns.ShortName(d.a) .. ":|r " .. sanitize(d.t)
+    local text = Chat:OrgHex() .. ns.ShortName(orgName(d)) .. ":|r " .. sanitize(d.t)
     local c = Chat:OrgColor()
     local frame = rawget(_G, "RaidWarningFrame")
     if frame and RaidNotice_AddMessage then
@@ -333,10 +353,10 @@ function Chat:ShowAnnouncement(d)
 end
 
 local function orgLine(text, warn)
-    local d = { a = ns.playerName, gu = ns.guildName, t = text, c = myClass() }
+    local d = { a = ns.playerName, n = myFullName(), gu = ns.guildName, t = text, c = myClass() }
     ns.Comms:Send(warn and "OANN" or "OSAY", d, "ORG", nil, ns.Comms.PRIORITY.ALERT)
     isDuplicate(dedupKey(ns.NormalizeName(d.a), d.t))
-    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = text, own = true, org = true, warn = warn or nil })
+    record({ t = time(), gu = d.gu, a = d.a, n = orgName(d), c = d.c, text = text, own = true, org = true, warn = warn or nil })
     if warn then Chat:ShowAnnouncement(d) end
     Chat:DisplayOrg(d, warn)
 end
@@ -379,7 +399,8 @@ local function orgSender(d, sender)
     if not ns.Org:GuildInfo(d.gu) then return false end
     local g = ns.Presence:GuildOfName(sender)
     if g ~= nil and g ~= d.gu then return false end
-    if d.gu == ns.guildName and ns.roster and next(ns.roster) and not ns.roster[ns.NormalizeName(sender)] then return false end
+    if d.gu == ns.guildName and ns.roster and next(ns.roster) and not ns.roster[ns.NormalizeName(sender)]
+        and not ns.roster[ns.NormalizeName(orgName(d))] then return false end
     return true
 end
 
@@ -395,7 +416,7 @@ local function onOrgLine(d, sender, scope, warn)
         local n = ns.NormalizeName(sender)
         if GetTime() - (lastWarnIn[n] or -999) < WARN_GAP_IN then warn = false else lastWarnIn[n] = GetTime() end
     end
-    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false, org = true, warn = warn or nil })
+    record({ t = time(), gu = d.gu, a = d.a, n = orgName(d), c = d.c, text = d.t, own = false, org = true, warn = warn or nil })
     if warn then Chat:ShowAnnouncement(d) end
     Chat:DisplayOrg(d, warn)
 end
@@ -403,15 +424,120 @@ end
 ns.Comms:Register("OSAY", function(d, sender, scope) onOrgLine(d, sender, scope, false) end)
 ns.Comms:Register("OANN", function(d, sender, scope) onOrgLine(d, sender, scope, true) end)
 
+---------------------------------------------------------------------------
+-- Sticky org chat: after /org <message>, the chat box stays on Org (its
+-- header reads "Org:"), as it does after /g, /p or /raid, until you switch
+-- to another chat type or slash command. RUIN can't add a real chat type
+-- to the game, so it reads what you type on Enter and sends it to org chat
+-- itself, then leaves the game nothing to send.
+---------------------------------------------------------------------------
+local sticky = {}            -- [editBox] = the game's chat type underneath when Org stuck
+local typed = {}             -- [editBox] = what was in the box before the game read it
+local hookedBoxes = {}
+
+local function boxAPI(box, method, global)
+    if box and type(box[method]) == "function" then return function(...) return box[method](box, ...) end end
+    local f = rawget(_G, global)
+    if f then return function(...) return f(box, ...) end end
+end
+
+local function activeBox()
+    local CF = rawget(_G, "ChatFrameUtil")
+    local get = (CF and CF.GetActiveWindow) or rawget(_G, "ChatEdit_GetActiveWindow")
+    local box = get and get()
+    if not box then
+        local last = (CF and CF.GetLastActiveWindow) or rawget(_G, "ChatEdit_GetLastActiveWindow")
+        box = last and last()
+    end
+    return box
+end
+
+function Chat:IsOrgSticky(box) return box ~= nil and sticky[box] ~= nil end
+
+local function paintHeader(box)
+    if not sticky[box] then return end
+    local header = box.header or (box.GetName and box:GetName() and _G[box:GetName() .. "Header"])
+    if not header then return end
+    local c = Chat:OrgColor()
+    header:SetText("Org: ")
+    header:SetTextColor(c.r, c.g, c.b)
+    local suffix = box.headerSuffix or (box.GetName and box:GetName() and _G[box:GetName() .. "HeaderSuffix"])
+    if suffix and suffix.Hide then suffix:Hide() end
+    if box.SetTextInsets and header.GetWidth then pcall(box.SetTextInsets, box, 15 + (header:GetWidth() or 30), 13, 0, 0) end
+    if box.SetTextColor then box:SetTextColor(c.r, c.g, c.b) end
+end
+
+function Chat:SetOrgSticky(box, on)
+    if not box then return end
+    if on then sticky[box] = box.GetAttribute and box:GetAttribute("chatType") or "SAY"
+    elseif sticky[box] then
+        sticky[box] = nil
+        local update = boxAPI(box, "UpdateHeader", "ChatEdit_UpdateHeader")
+        if update then pcall(update) end
+        return
+    end
+    paintHeader(box)
+end
+
+-- after the game reads the box: on Enter, an org line goes to org chat
+local function afterParse(box, send)
+    if not sticky[box] then return end
+    local raw = typed[box] or ""
+    local now = box.GetAttribute and box:GetAttribute("chatType")
+    -- you switched chat type (/g, /p, /1 ...): Org lets go
+    if now ~= sticky[box] or (raw:find("^/") and not raw:lower():find("^/org[%s]") and (send == 1 or box:GetText() ~= raw)) then
+        if not raw:lower():find("^/org[%s]") then Chat:SetOrgSticky(box, false) end
+        return
+    end
+    if send ~= 1 then return end
+    local text = box:GetText() or ""
+    if text == "" or text:find("^/") then return end
+    if box.AddHistoryLine then pcall(box.AddHistoryLine, box, "/org " .. text) end
+    box:SetText("")
+    Chat:SendOrg(text)
+end
+
+function Chat:HookChatBoxes()
+    for i = 1, (NUM_CHAT_WINDOWS or 10) do
+        local box = _G["ChatFrame" .. i .. "EditBox"]
+        if box and not hookedBoxes[box] then
+            hookedBoxes[box] = true
+            box:HookScript("OnTextChanged", function(self, userInput) if userInput then typed[self] = self:GetText() end end)
+            box:HookScript("OnShow", function(self) typed[self] = nil; paintHeader(self) end)
+            if type(box.ParseText) == "function" then
+                hooksecurefunc(box, "ParseText", function(self, send) afterParse(self, send) end)
+            end
+            if type(box.UpdateHeader) == "function" then
+                hooksecurefunc(box, "UpdateHeader", function(self) paintHeader(self) end)
+            end
+        end
+    end
+    if not hookedBoxes.globals then
+        hookedBoxes.globals = true
+        if rawget(_G, "ChatEdit_ParseText") then
+            hooksecurefunc("ChatEdit_ParseText", function(box, send) if box and type(box.ParseText) ~= "function" then afterParse(box, send) end end)
+        end
+        if rawget(_G, "ChatEdit_UpdateHeader") then
+            hooksecurefunc("ChatEdit_UpdateHeader", function(box) if box and type(box.UpdateHeader) ~= "function" then paintHeader(box) end end)
+        end
+    end
+end
+
+ns:Subscribe("LOGIN", function() pcall(Chat.HookChatBoxes, Chat) end)
+
 SLASH_RUINORG1 = "/org"
-SlashCmdList.RUINORG = function(input)
+SlashCmdList.RUINORG = function(input, box)
     input = ns.Trim(input or "")
     if input == "" then
         ns.db.settings.chatScope = "orgchat"
         ns.UI:OpenGuildTab("Chat")
         return
     end
-    Chat:SendOrg(input)
+    box = box or activeBox()
+    if Chat:SendOrg(input) and box then
+        pcall(Chat.HookChatBoxes, Chat)
+        Chat:SetOrgSticky(box, true)
+    end
 end
 
 SLASH_RUINORGWARN1 = "/orgwarn"
