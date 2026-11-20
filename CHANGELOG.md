@@ -4,6 +4,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+## 0.8.5
+
+- **Map pins show on the world map with OpenMap.** OpenMap's stitched world map drew its zone art over RUIN's pins (Mark on Map, waypoints), so only the minimap pin was visible. Pins are now placed by OpenMap's own coordinates, including zones next to the one you're viewing, sit above its art, and redraw when it pans or switches between its map and Blizzard's.
+
 ## 0.8.4
 
 - **The RUIN window is larger.** It opens at 1.15 times its old size (what couch mode used to give), and couch mode now takes it to 1.35. Either way it's never bigger than fits your screen.

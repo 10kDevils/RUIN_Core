@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.5", {
+        "Map pins show on the world map again with OpenMap's stitched map, placed where they belong and drawn above its map art.",
+    } },
     { "0.8.4", {
         "The RUIN window is larger: it opens at the size couch mode used to give, and couch mode makes it larger still (never bigger than your screen).",
         "With RUIN Codex: a Best in Slot tab, first in Codex, shows your character with the best piece you can wear at your level for every slot, and after a class trainer a prompt puts the new ranks you learned on your action bars.",

@@ -298,6 +298,46 @@ local function worldCanvas()
     return WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.Child
 end
 
+-- OpenMap (an addon) stitches every zone into one world map on the game's own
+-- map. While it does, the map underneath follows the view, a pin can be off
+-- that map's edges and still in view, and its art covers the canvas up to a
+-- frame level it tells: its API places pins and lifts them over the art.
+local function openMap()
+    local OM = rawget(_G, "OpenMapAPI")
+    if type(OM) == "table" and type(OM.IsStitched) == "function" then
+        local ok, on = pcall(OM.IsStitched)
+        if ok and on then return OM end
+    end
+end
+
+-- Where a pin sits on the canvas of the map shown (0..1 is that map's own
+-- rectangle), or nil when it isn't on it.
+function Map.CanvasSpot(p, shown)
+    local OM = openMap()
+    if OM and OM.WorldFromMap and OM.MapFromWorld then
+        local ok, u, v = pcall(OM.WorldFromMap, p.map, p.x, p.y)
+        if ok and u then
+            local ok2, x, y = pcall(OM.MapFromWorld, shown, u, v)
+            -- the stitched view shows well past the map underneath
+            if ok2 and x and x > -4 and x < 5 and y > -4 and y < 5 then return x, y end
+        end
+    end
+    local x, y = Map:Translate(p.map, p.x, p.y, shown)
+    if not x or x < 0 or x > 1 or y < 0 or y > 1 then return nil end
+    return x, y
+end
+
+-- The frame level for pins on the canvas: over the map, and over OpenMap's art.
+function Map.PinLevel(canvas)
+    local level = (canvas:GetFrameLevel() or 1) + 2000
+    local OM = openMap()
+    if OM and OM.ArtTopLevel then
+        local ok, top = pcall(OM.ArtTopLevel)
+        if ok and type(top) == "number" and top + 20 > level then level = top + 20 end
+    end
+    return math.min(level, 9000)
+end
+
 drawWorld = function()
     local canvas = worldCanvas()
     if not canvas or not WorldMapFrame:IsShown() then
@@ -343,8 +383,8 @@ drawWorld = function()
             f:Show()
             return
         end
-        local x, y = Map:Translate(p.map, p.x, p.y, shown)
-        if not x or x < 0 or x > 1 or y < 0 or y > 1 then return end
+        local x, y = Map.CanvasSpot(p, shown)
+        if not x then return end
         used = used + 1
         local f = worldPins[used]
         if not f then
@@ -352,7 +392,7 @@ drawWorld = function()
             worldPins[used] = f
         end
         f:SetParent(canvas)
-        f:SetFrameLevel((canvas:GetFrameLevel() or 1) + 2000)
+        pcall(f.SetFrameLevel, f, Map.PinLevel(canvas))
         -- a zone mark seen from a continent or the world: smaller, and a way into the zone
         local zoneMark = p.corner and p.map ~= shown
         f.zoomTo = zoneMark and p.map or nil
@@ -376,6 +416,13 @@ local function hookWorldMap()
     end)
     if WorldMapFrame.OnMapChanged then
         pcall(hooksecurefunc, WorldMapFrame, "OnMapChanged", function() drawWorld() end)
+    end
+    -- OpenMap: redraw when its stitched map comes or goes, and as its view moves
+    local OM = rawget(_G, "OpenMapAPI")
+    if type(OM) == "table" and type(OM.RegisterCallback) == "function" then
+        local me = {}
+        pcall(OM.RegisterCallback, me, "OpenMap_StitchedChanged", function() scheduleRedraw() end)
+        pcall(OM.RegisterCallback, me, "OpenMap_ViewChanged", function() scheduleRedraw() end)
     end
 end
 
