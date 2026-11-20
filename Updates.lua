@@ -21,6 +21,7 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
     { "0.8.5", {
+        "The pop-out guild chat (/ruin chat) resizes from its corner, locks in place, and has an Opacity setting for its background.",
         "Org chat: /org <message> talks in a channel only the org's members can see, also in Guild > Chat > Org chat. It's sky blue; Settings > Options picks another color.",
         "Org announcements: officers and the org admin can put a message on every member's screen with the raid warning sound (/orgwarn or /ow, or Announce in Org chat).",
         "Map pins show on the world map again with OpenMap's stitched map, placed where they belong and drawn above its map art.",

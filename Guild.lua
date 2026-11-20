@@ -753,21 +753,127 @@ end
 ns:Subscribe("CHAT_HISTORY", function() GUI.RefreshChat() end)
 
 ---------------------------------------------------------------------------
--- The pop-out chat window: movable, remembers where you put it, Escape closes it.
+-- The pop-out chat window: movable and resizable (drag the corner), both
+-- remembered; Lock pins it in place at its size; Opacity fades its
+-- background (the text stays fully readable). Escape closes it.
 ---------------------------------------------------------------------------
+GUI.CHAT_MIN_W, GUI.CHAT_MIN_H = 420, 220
+GUI.CHAT_MAX_W, GUI.CHAT_MAX_H = 1200, 900
+GUI.CHAT_OPACITIES = { 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0 }
+
+local function chatSettings() return ns.db.settings end
+
+function GUI.ChatOpacity()
+    local a = tonumber(chatSettings().chatAlpha)
+    if not a then return 0.9 end
+    return math.max(0, math.min(1, a))
+end
+
+-- background and edges at the chosen opacity; text, buttons and the line to type in stay as they are
+function GUI.ApplyChatOpacity()
+    local w = GUI.window
+    if not w then return end
+    local a = GUI.ChatOpacity()
+    if w.skinBg then w.skinBg:SetAlpha(a) end
+    if w.sheen and w.sheen.SetAlpha then w.sheen:SetAlpha(a) end
+    if w.band then w.band:SetAlpha(a) end
+    for _, e in pairs(w.skinEdges or {}) do e:SetAlpha(a) end
+    local box = w.view and w.view.box
+    if box then
+        if box.skinBg then box.skinBg:SetAlpha(a) end
+        for _, e in pairs(box.skinEdges or {}) do e:SetAlpha(a) end
+    end
+end
+
+function GUI.ChatLocked() return chatSettings().chatLocked and true or false end
+
+function GUI.SetChatLocked(on)
+    chatSettings().chatLocked = on and true or false
+    local w = GUI.window
+    if not w then return end
+    w.lockBtn:SetText(on and "Unlock" or "Lock")
+    if on then w.grip:Hide() else w.grip:Show() end
+end
+
+local function saveChatSize(w)
+    local width, height = w:GetWidth(), w:GetHeight()
+    if width and height then
+        chatSettings().chatSize = { w = math.floor(width + 0.5), h = math.floor(height + 0.5) }
+    end
+end
+
+local function clampSize(width, height)
+    width = math.max(GUI.CHAT_MIN_W, math.min(GUI.CHAT_MAX_W, tonumber(width) or 460))
+    height = math.max(GUI.CHAT_MIN_H, math.min(GUI.CHAT_MAX_H, tonumber(height) or 320))
+    return width, height
+end
+
 function GUI.ToggleChatWindow(show)
     if not GUI.window then
         local w = Wd.HudFrame("RUIN_GuildChatWindow", "Guild", ns.db.settings, "chatPos", { "LEFT", UIParent, "LEFT", 40, 0 })
-        w:SetSize(460, 320)
+        local sz = chatSettings().chatSize
+        w:SetSize(clampSize(type(sz) == "table" and sz.w, type(sz) == "table" and sz.h))
         w:SetFrameStrata("HIGH")
+        -- moving: not while locked
+        w:SetScript("OnMouseDown", function(self, button)
+            if button == "LeftButton" and not GUI.ChatLocked() then self.StartMove(self) end
+        end)
+        -- resizing: drag the bottom-right corner
+        if w.SetResizable then w:SetResizable(true) end
+        if w.SetResizeBounds then
+            w:SetResizeBounds(GUI.CHAT_MIN_W, GUI.CHAT_MIN_H, GUI.CHAT_MAX_W, GUI.CHAT_MAX_H)
+        elseif w.SetMinResize then
+            w:SetMinResize(GUI.CHAT_MIN_W, GUI.CHAT_MIN_H)
+            if w.SetMaxResize then w:SetMaxResize(GUI.CHAT_MAX_W, GUI.CHAT_MAX_H) end
+        end
+        local grip = CreateFrame("Button", nil, w)
+        grip:SetSize(16, 16)
+        grip:SetPoint("BOTTOMRIGHT", -2, 2)
+        grip:SetFrameLevel((w:GetFrameLevel() or 1) + 10)
+        if grip.SetNormalTexture then
+            grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+            grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+            grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+        end
+        grip:SetScript("OnMouseDown", function(_, button)
+            if button == "LeftButton" and not GUI.ChatLocked() then w.sizing = true; w:StartSizing("BOTTOMRIGHT") end
+        end)
+        grip:SetScript("OnMouseUp", function()
+            if not w.sizing then return end
+            w.sizing = false
+            w:StopMovingOrSizing()
+            w:SetSize(clampSize(w:GetWidth(), w:GetHeight()))
+            saveChatSize(w)
+            -- sizing from the corner can re-anchor the window: keep its spot
+            local pt, _, rel, px, py = w:GetPoint()
+            chatSettings().chatPos = { point = pt, rel = rel, x = px, y = py }
+            GUI.RefreshChat()
+        end)
+        grip.tip = "Drag to resize."
+        w.grip = grip
+        w:SetScript("OnSizeChanged", function() if w:IsShown() then GUI.RefreshChat() end end)
+
         local title = Wd.Label(w, C.gold .. "RUIN|r  Guild chat", "GameFontNormal")
         title:SetPoint("TOPLEFT", 10, -8)
         local close = Wd.Button(w, "X", 24, function() w:Hide() end)
         close:SetPoint("TOPRIGHT", -4, -4)
+        w.lockBtn = Wd.Button(w, "Lock", 64, function() GUI.SetChatLocked(not GUI.ChatLocked()) end)
+        w.lockBtn:SetPoint("RIGHT", close, "LEFT", -4, 0)
+        w.lockBtn.tip = "Lock the window where it is, at its size. Unlock to move or resize it again."
+        w.opacity = Wd.Dropdown(w, 64, GUI.CHAT_OPACITIES, GUI.ChatOpacity, function(v)
+            chatSettings().chatAlpha = v
+            GUI.ApplyChatOpacity()
+        end)
+        w.opacity.format = function(v) return math.floor(v * 100 + 0.5) .. "%" end
+        w.opacity:SetPoint("RIGHT", w.lockBtn, "LEFT", -4, 0)
+        w.opacity.tipTitle = "Opacity: how solid the window's background is. The text stays fully readable."
+        w.opacity:Refresh()
         GUI.window = w
-        GUI.BuildChatView(w, true)
+        w.view = GUI.BuildChatView(w, true)
         w:SetScript("OnShow", function() GUI.RefreshChat() end)
         if UISpecialFrames then tinsert(UISpecialFrames, "RUIN_GuildChatWindow") end
+        GUI.ApplyChatOpacity()
+        GUI.SetChatLocked(GUI.ChatLocked())
         w:Hide()
     end
     if show == nil then show = not GUI.window:IsShown() end
