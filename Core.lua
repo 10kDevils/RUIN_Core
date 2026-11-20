@@ -51,7 +51,9 @@ local DEFAULTS = {
         animations = true,       -- ambient motion in page headers
         appStyle = "blizzard",   -- the window's style: a Blizzard window, or RUIN's navy
         tabOrder = nil,          -- your own tab order (Settings > Options > Tab order): a list of page titles
-        chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild) or "guild"
+        chatScope = "org",       -- Guild > Chat and the pop-out: "org" (every RUIN guild), "guild" or "orgchat" (/org)
+        orgWarnings = true,      -- org announcements in the middle of the screen, with the raid warning sound
+        orgChatColor = nil,      -- your own color for org chat ({ r, g, b }); nil is RUIN's sky blue
         linkAlts = false,        -- count my characters as one player in the census (shares a random token)
         leaderAwayDays = 3,      -- tell officers when their guild master has been away this many days
         partySignal = true,      -- share which dungeons your planner wants with your party
@@ -329,6 +331,8 @@ local HELP = {
     "/ruin guild | settings - open the Guild or Settings page",
     "/ruin roster | census | people | watch | bank - open that part of the Guild page",
     "/ruin chat - pop out guild chat  |  /ruin report [name] - report a player to the Watch",
+    "/org <message> - talk in org chat (only the org's members see it)  |  /org - open org chat",
+    "/orgwarn <message> or /ow - an org announcement on every member's screen  (officers, org admin)",
     "/ruin news - what's new in this version",
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",

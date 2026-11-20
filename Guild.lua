@@ -553,7 +553,12 @@ local function scope() return (ns.db and ns.db.settings.chatScope) or "org" end
 
 local function lineText(l)
     local tag
-    if l.own then
+    if l.org then
+        local gi = ns.Org:GuildInfo(l.gu)
+        tag = ns.Chat:OrgHex() .. "[" .. (l.warn and "Announcement" or "Org") .. "·" .. ns.Escape((gi and gi.tag) or l.gu or "RUIN") .. "]|r"
+        return ("%s%s|r %s %s: %s%s|r"):format(GREY, date("%H:%M", l.t or time()), tag,
+            ns.Chat.ColorName and ns.Chat.ColorName(l.a or "?", l.c) or ns.Escape(l.a or "?"), ns.Chat:OrgHex(), ns.Chat.Sanitize(l.text or ""))
+    elseif l.own then
         tag = GREEN .. "[Guild]|r"
     else
         local gi = ns.Org:GuildInfo(l.gu)
@@ -570,10 +575,11 @@ local function visibleLines(v)
         for _, l in ipairs(ns.Chat:Pins()) do out[#out + 1] = l end
         return out
     end
-    local own = scope() == "guild"
+    local s = scope()
+    local own, org = s == "guild", s == "orgchat"
     local q = v and v.query and ns.Trim(v.query):lower() or ""
     for _, l in ipairs(ns.Chat.history) do
-        if (l.own or not own) and not ns.Chat:Hidden(l.a, l.text)
+        if (l.org and true or false) == org and (l.own or not own) and not ns.Chat:Hidden(l.a, l.text)
             and (q == "" or tostring(l.text):lower():find(q, 1, true) or tostring(l.a):lower():find(q, 1, true)) then
             out[#out + 1] = l
         end
@@ -625,7 +631,10 @@ function GUI.BuildChatView(parent, popout)
     v.orgBtn:SetPoint("TOPLEFT", popout and 8 or 0, popout and -26 or -2)
     v.guildBtn = Wd.Button(parent, "My guild", 84, function() ns.db.settings.chatScope = "guild"; v.offset = 0; GUI.RefreshChat() end)
     v.guildBtn:SetPoint("LEFT", v.orgBtn, "RIGHT", 4, 0)
-    v.orgBtn.tip, v.guildBtn.tip = "Your guild and every other RUIN guild", "Just your own guild's chat"
+    v.orgChatBtn = Wd.Button(parent, "Org chat", 84, function() ns.db.settings.chatScope = "orgchat"; v.offset = 0; GUI.RefreshChat() end)
+    v.orgChatBtn:SetPoint("LEFT", v.guildBtn, "RIGHT", 4, 0)
+    v.orgBtn.tip, v.guildBtn.tip = "Guild chat from your guild and every other RUIN guild", "Just your own guild's chat"
+    v.orgChatBtn.tip = "The org's own channel (/org): only the org's members see it. Officers can send an announcement to everyone's screen."
     if not popout then
         v.pop = Wd.Button(parent, "Pop out", 80, function() GUI.ToggleChatWindow(true) end)
         v.pop:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, -2)
@@ -637,7 +646,7 @@ function GUI.BuildChatView(parent, popout)
         v.search:SetScript("OnTextChanged", function(self) v.query = self:GetText() or ""; v.offset = 0; GUI.RefreshChat() end)
     end
     v.pinsBtn = Wd.Button(parent, "Pins", 64, function() v.pins = not v.pins; v.offset = 0; GUI.RefreshChat() end)
-    v.pinsBtn:SetPoint("LEFT", v.guildBtn, "RIGHT", 4, 0)
+    v.pinsBtn:SetPoint("LEFT", v.orgChatBtn, "RIGHT", 4, 0)
     v.pinsBtn.tip = "Lines you pinned (click a line to pin it)."
     v.info = Wd.Label(parent, "", "GameFontHighlightSmall")
     v.info:SetPoint("LEFT", v.pinsBtn, "RIGHT", 10, 0)
@@ -662,23 +671,43 @@ function GUI.BuildChatView(parent, popout)
     v.input:SetPoint("BOTTOMLEFT", popout and 8 or 0, popout and 8 or 2)
     v.input:SetPoint("RIGHT", parent, "RIGHT", popout and -84 or -76, 0)
     local function send()
-        if ns.Chat:SendGuild(v.input:GetText()) then v.input:SetText(""); v.offset = 0 end
+        local ok
+        if scope() == "orgchat" then ok = ns.Chat:SendOrg(v.input:GetText()) else ok = ns.Chat:SendGuild(v.input:GetText()) end
+        if ok then v.input:SetText(""); v.offset = 0 end
     end
     v.input:SetScript("OnEnterPressed", function(self) send(); self:ClearFocus() end)
     v.send = Wd.Button(parent, "Send", 70, send)
     v.send:SetPoint("LEFT", v.input, "RIGHT", 6, 0)
+    v.announce = Wd.Button(parent, "Announce", 84, function()
+        if ns.Chat:Announce(v.input:GetText()) then v.input:SetText(""); v.offset = 0 end
+    end)
+    v.announce.tip = "Send it to the middle of every org member's screen, with the raid warning sound (/orgwarn or /ow)."
+    v.announce:Hide()
     views[#views + 1] = v
     return v
 end
 
 local function refreshView(v)
     local s = scope()
-    if s == "org" then v.orgBtn:LockHighlight(); v.guildBtn:UnlockHighlight() else v.guildBtn:LockHighlight(); v.orgBtn:UnlockHighlight() end
+    for key, b in pairs({ org = v.orgBtn, guild = v.guildBtn, orgchat = v.orgChatBtn }) do
+        if key == s then b:LockHighlight() else b:UnlockHighlight() end
+    end
+    local orgChat = s == "orgchat"
+    local canWarn = orgChat and ns.Chat:CanAnnounce()
+    v.announce:SetShown(canWarn and true or false)
+    -- the line to type in, then Announce (officers, in org chat), then Send
+    v.input:SetPoint("RIGHT", v.box:GetParent(), "RIGHT", (v.popout and -84 or -76) - (canWarn and 90 or 0), 0)
+    v.announce:ClearAllPoints()
+    v.announce:SetPoint("LEFT", v.input, "RIGHT", 6, 0)
+    v.send:ClearAllPoints()
+    v.send:SetPoint("LEFT", canWarn and v.announce or v.input, "RIGHT", 6, 0)
+    if v.input.SetPlaceholder then v.input:SetPlaceholder(orgChat and "Type to org chat, Enter to send" or "Type to your guild, Enter to send") end
     if v.pins then v.pinsBtn:LockHighlight() else v.pinsBtn:UnlockHighlight() end
     v.pinsBtn:SetText("Pins" .. (#ns.Chat:Pins() > 0 and (" (" .. #ns.Chat:Pins() .. ")") or ""))
     local lines = visibleLines(v)
     local k = ns.Org:Get()
-    v.info:SetText(GREY .. (v.pins and "Pinned lines (kept on this computer)" or (v.query or "") ~= "" and ("%d lines match"):format(#lines) or s == "org" and (k and ("%s: every RUIN guild"):format(ns.Escape(k.org)) or "No org key: your guild only")
+    v.info:SetText(GREY .. (v.pins and "Pinned lines (kept on this computer)" or (v.query or "") ~= "" and ("%d lines match"):format(#lines) or s == "orgchat" and (k and (ns.Chat:OrgHex() .. "%s org chat|r"):format(ns.Escape(k.org)) or "No org key: no org chat")
+        or s == "org" and (k and ("%s: every RUIN guild"):format(ns.Escape(k.org)) or "No org key: your guild only")
         or ns.Escape(ns.guildName or "No guild")) .. (v.offset > 0 and ("  ·  scrolled back " .. v.offset) or "") .. "|r")
     -- newest at the bottom, filling upward until the box is full
     local width = math.max(100, (v.box:GetWidth() or 400) - 16)
@@ -710,8 +739,8 @@ local function refreshView(v)
         y = y + h + 2
     end
     for i = shown + 1, #v.rows do v.rows[i]:Hide() end
-    v.empty:SetText(#lines == 0 and v.pins and "No pinned lines. Click a chat line to pin it." or #lines == 0 and (v.query or "") ~= "" and "Nothing matches." or #lines == 0 and ((s == "org" and "Guild chat from every RUIN guild shows here" or "Your guild's chat shows here") .. " while you're online.") or "")
-    v.send:SetEnabled(IsInGuild() and true or false)
+    v.empty:SetText(#lines == 0 and v.pins and "No pinned lines. Click a chat line to pin it." or #lines == 0 and (v.query or "") ~= "" and "Nothing matches." or #lines == 0 and ((s == "orgchat" and "Org chat shows here: /org <message> talks in it" or s == "org" and "Guild chat from every RUIN guild shows here" or "Your guild's chat shows here") .. " while you're online.") or "")
+    v.send:SetEnabled((orgChat and ns.Chat:OrgProblem() == nil or not orgChat and IsInGuild()) and true or false)
 end
 
 function GUI.RefreshChat()

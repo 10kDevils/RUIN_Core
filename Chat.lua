@@ -88,7 +88,7 @@ function Chat:TogglePin(line)
     for i, p in ipairs(pins) do
         if p.a == line.a and p.text == line.text then table.remove(pins, i); ns:Fire("CHAT_HISTORY"); return false end
     end
-    pins[#pins + 1] = { t = line.t, gu = line.gu, a = line.a, c = line.c, text = line.text, own = line.own }
+    pins[#pins + 1] = { t = line.t, gu = line.gu, a = line.a, c = line.c, text = line.text, own = line.own, org = line.org, warn = line.warn }
     while #pins > 10 do table.remove(pins, 1) end
     ns:Fire("CHAT_HISTORY")
     return true
@@ -254,6 +254,169 @@ ns.Comms:Register("OCHAT", function(d, sender, scope)
     if not ns.db.settings.showOfficerChat then return end
     Chat:Display(true, d, via)
 end)
+
+---------------------------------------------------------------------------
+-- Org chat (/org): the org's own channel. Only members of the org's guilds
+-- who run RUIN see it or talk in it: it travels on the org's hidden channel
+-- (sealed with the org's data key once the org encrypts), and every line is
+-- the sender's own (no relays, so the game vouches for who wrote it).
+--
+-- Org announcements (/orgwarn, /ow): the org's raid warning. An officer or
+-- the org admin sends one; it shows in the middle of every member's screen
+-- with the raid warning sound.
+---------------------------------------------------------------------------
+Chat.ORG_COLOR = { r = 0.62, g = 0.89, b = 1.0 }      -- sky blue, well lighter than party chat
+local ORG_BURST, ORG_WINDOW = 5, 10                   -- lines you may send per 10 seconds
+local WARN_GAP = 10                                   -- seconds between your announcements
+local WARN_GAP_IN = 5                                 -- an announcement per sender at most this often on screen
+local sentAt, lastWarnOut, lastWarnIn = {}, -999, {}
+
+function Chat:OrgColor()
+    local c = ns.db and ns.db.settings.orgChatColor
+    if type(c) == "table" and tonumber(c.r) and tonumber(c.g) and tonumber(c.b) then return c end
+    return Chat.ORG_COLOR
+end
+
+function Chat:OrgHex()
+    local c = Chat:OrgColor()
+    return ("|cff%02x%02x%02x"):format(math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5))
+end
+
+function Chat:SetOrgColor(r, g, b)
+    if r == nil then ns.db.settings.orgChatColor = nil
+    else ns.db.settings.orgChatColor = { r = r, g = g, b = b } end
+    ns:Fire("CHAT_HISTORY")
+end
+
+-- nil when you can talk in org chat, or why not.
+function Chat:OrgProblem()
+    if not ns.Org:Get() then return "You're not in a RUIN org (no org key)." end
+    if not ns.Org:MyGuildInOrg() then return "Your guild isn't one of the org's guilds." end
+    if not ns.Comms:HasChannel("ORG") then return "RUIN hasn't joined the org channel yet." end
+    return nil
+end
+
+function Chat:CanAnnounce()
+    return ns.Org:IsAdmin() or (ns.Org:MyGuildInOrg() and ns.Org:AmOfficer())
+end
+
+local function myClass()
+    local _, classFile = UnitClass("player")
+    return classFile
+end
+
+local function orgLabel(d, warn)
+    local gi = ns.Org:GuildInfo(d.gu)
+    local tag = (gi and gi.tag) or d.gu
+    return (warn and "Org Announcement·" or "Org·") .. tostring(tag)
+end
+
+function Chat:DisplayOrg(d, warn)
+    local frame = _G["ChatFrame" .. (ns.db.settings.chatFrame or 1)] or DEFAULT_CHAT_FRAME
+    local c = Chat:OrgColor()
+    frame:AddMessage(("[%s] %s: %s"):format(orgLabel(d, warn), colorName(d.a, d.c), sanitize(d.t)), c.r, c.g, c.b)
+end
+
+-- In the middle of the screen, as a raid warning shows, with its sound.
+function Chat:ShowAnnouncement(d)
+    if ns.db.settings.orgWarnings == false then return end
+    local text = Chat:OrgHex() .. ns.ShortName(d.a) .. ":|r " .. sanitize(d.t)
+    local c = Chat:OrgColor()
+    local frame = rawget(_G, "RaidWarningFrame")
+    if frame and RaidNotice_AddMessage then
+        pcall(RaidNotice_AddMessage, frame, text, { r = c.r, g = c.g, b = c.b }, 8)
+    elseif UIErrorsFrame then
+        UIErrorsFrame:AddMessage(text, c.r, c.g, c.b)
+    end
+    local kit = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
+    if PlaySound then pcall(PlaySound, kit, "Master") end
+end
+
+local function orgLine(text, warn)
+    local d = { a = ns.playerName, gu = ns.guildName, t = text, c = myClass() }
+    ns.Comms:Send(warn and "OANN" or "OSAY", d, "ORG", nil, ns.Comms.PRIORITY.ALERT)
+    isDuplicate(dedupKey(ns.NormalizeName(d.a), d.t))
+    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = text, own = true, org = true, warn = warn or nil })
+    if warn then Chat:ShowAnnouncement(d) end
+    Chat:DisplayOrg(d, warn)
+end
+
+-- Send a line to org chat. Returns true when it went.
+function Chat:SendOrg(text)
+    text = ns.Trim(text or ""):gsub("[\r\n]+", " "):sub(1, 255)
+    if text == "" then return false end
+    local why = Chat:OrgProblem()
+    if why then ns:Print(why); return false end
+    if ns.Watch and ns.Watch:IsMuted(ns.playerName) then ns:Print("You're muted in RUIN chat."); return false end
+    local now = GetTime()
+    for i = #sentAt, 1, -1 do if now - sentAt[i] > ORG_WINDOW then table.remove(sentAt, i) end end
+    if #sentAt >= ORG_BURST then ns:Print("Slow down: org chat takes a few lines every ten seconds."); return false end
+    sentAt[#sentAt + 1] = now
+    orgLine(text, false)
+    return true
+end
+
+-- Send an org announcement (officers and the org admin).
+function Chat:Announce(text)
+    text = ns.Trim(text or ""):gsub("[\r\n]+", " "):sub(1, 200)
+    if text == "" then ns:Print("Usage: /orgwarn <message>  (or /ow)"); return false end
+    local why = Chat:OrgProblem()
+    if why then ns:Print(why); return false end
+    if not Chat:CanAnnounce() then ns:Print("Org announcements are for officers and the org admin. /org talks in org chat."); return false end
+    if GetTime() - lastWarnOut < WARN_GAP then
+        ns:Print(("One org announcement every %d seconds."):format(WARN_GAP)); return false
+    end
+    lastWarnOut = GetTime()
+    orgLine(text, true)
+    return true
+end
+
+-- An org member's own line: the author is the sender, from one of the org's
+-- guilds, and from your own guild only if they're on your roster.
+local function orgSender(d, sender)
+    if not validLine(d) then return false end
+    if ns.NormalizeName(d.a) ~= ns.NormalizeName(sender) then return false end
+    if not ns.Org:GuildInfo(d.gu) then return false end
+    local g = ns.Presence:GuildOfName(sender)
+    if g ~= nil and g ~= d.gu then return false end
+    if d.gu == ns.guildName and ns.roster and next(ns.roster) and not ns.roster[ns.NormalizeName(sender)] then return false end
+    return true
+end
+
+local function onOrgLine(d, sender, scope, warn)
+    if scope ~= "ORG" or not orgSender(d, sender) then return end
+    if not ns.Org:MyGuildInOrg() then return end
+    if isDuplicate(dedupKey(ns.NormalizeName(d.a), d.t)) then return end
+    if Chat:Hidden(d.a, d.t) then return end
+    -- an announcement counts only from an officer or the org admin RUIN can
+    -- vouch for; anyone else's shows as a plain org line
+    if warn and not (ns.Presence:IsOfficerName(sender) or ns.Org:IsAdminName(sender)) then warn = false end
+    if warn then
+        local n = ns.NormalizeName(sender)
+        if GetTime() - (lastWarnIn[n] or -999) < WARN_GAP_IN then warn = false else lastWarnIn[n] = GetTime() end
+    end
+    record({ t = time(), gu = d.gu, a = d.a, c = d.c, text = d.t, own = false, org = true, warn = warn or nil })
+    if warn then Chat:ShowAnnouncement(d) end
+    Chat:DisplayOrg(d, warn)
+end
+
+ns.Comms:Register("OSAY", function(d, sender, scope) onOrgLine(d, sender, scope, false) end)
+ns.Comms:Register("OANN", function(d, sender, scope) onOrgLine(d, sender, scope, true) end)
+
+SLASH_RUINORG1 = "/org"
+SlashCmdList.RUINORG = function(input)
+    input = ns.Trim(input or "")
+    if input == "" then
+        ns.db.settings.chatScope = "orgchat"
+        ns.UI:OpenGuildTab("Chat")
+        return
+    end
+    Chat:SendOrg(input)
+end
+
+SLASH_RUINORGWARN1 = "/orgwarn"
+SLASH_RUINORGWARN2 = "/ow"
+SlashCmdList.RUINORGWARN = function(input) Chat:Announce(input) end
 
 ---------------------------------------------------------------------------
 -- Upkeep

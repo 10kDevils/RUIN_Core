@@ -1149,7 +1149,7 @@ local function buildSettingsPanel(p)
     local disp = Wd.Card(dispPage)
     disp:SetPoint("TOPLEFT", 0, 0)
     disp:SetPoint("RIGHT", dispPage, "RIGHT", 0, 0)
-    disp:SetHeight(150)
+    disp:SetHeight(176)
     settings.dispCard = disp
     local dh = Wd.Header(disp, "Chat and display")
     dh:SetPoint("TOPLEFT", 10, -8)
@@ -1199,6 +1199,41 @@ local function buildSettingsPanel(p)
     showPending()
     settings.checks[6].tip = "In the Guild census, your characters count as one player. RUIN shares a random token only your characters send; nothing else about you."
     settings.checks[6]:SetPoint("TOPLEFT", settings.checks[4], "BOTTOMLEFT", 0, -2)
+    settings.checks[8] = Wd.Check(disp, "Org announcements on screen, with sound", function() return s().orgWarnings ~= false end,
+        function(v) s().orgWarnings = v end)
+    settings.checks[8].tip = "Officers' org announcements (/orgwarn) show in the middle of your screen with the raid warning sound. Off: they still show in chat."
+    settings.checks[8]:SetPoint("TOPLEFT", settings.checks[6], "BOTTOMLEFT", 0, -2)
+    -- org chat's color, at the foot of the card on the right
+    local sw, paint
+    local function pickColor(_, button)
+        if button == "RightButton" then ns.Chat:SetOrgColor(nil); paint(); return end
+        local c = ns.Chat:OrgColor()
+        local old = { r = c.r, g = c.g, b = c.b }
+        local function apply()
+            local r, g, b = ColorPickerFrame:GetColorRGB()
+            ns.Chat:SetOrgColor(r, g, b); paint()
+        end
+        local function cancel() ns.Chat:SetOrgColor(old.r, old.g, old.b); paint() end
+        if ColorPickerFrame and ColorPickerFrame.SetupColorPickerAndShow then
+            ColorPickerFrame:SetupColorPickerAndShow({ r = c.r, g = c.g, b = c.b, hasOpacity = false,
+                swatchFunc = apply, cancelFunc = cancel })
+        elseif ColorPickerFrame then
+            ColorPickerFrame.func, ColorPickerFrame.cancelFunc, ColorPickerFrame.hasOpacity = apply, cancel, false
+            ColorPickerFrame:SetColorRGB(c.r, c.g, c.b)
+            ColorPickerFrame:Show()
+        end
+    end
+    local swatch = Wd.Button(disp, "", 30, pickColor)
+    swatch:SetHeight(20)
+    swatch:SetPoint("BOTTOMRIGHT", disp, "BOTTOMRIGHT", -12, 12)
+    sw = swatch:CreateTexture(nil, "OVERLAY")
+    sw:SetPoint("TOPLEFT", 5, -4)
+    sw:SetPoint("BOTTOMRIGHT", -5, 4)
+    paint = function() local c = ns.Chat:OrgColor(); sw:SetColorTexture(c.r, c.g, c.b) end
+    paint()
+    local swl = Wd.Label(disp, Wd.COLORS.dim .. "Org chat color|r", "GameFontHighlightSmall")
+    swl:SetPoint("RIGHT", swatch, "LEFT", -8, 0)
+    swatch.tip = "Click to pick org chat's color. Right-click: back to RUIN's sky blue."
     settings.news = Wd.Button(disp, "What's new", 100, function() ns.Updates:ShowLetter(nil) end)
     settings.news:SetPoint("TOPRIGHT", -8, -6)
     settings.checks[1].tip = "Show guild chat from the other RUIN guilds in your guild chat."
@@ -1416,8 +1451,8 @@ refreshSettings = function()
     settings.checks[2]:SetShown(officer)
     settings.checks[5]:ClearAllPoints()
     settings.checks[5]:SetPoint("TOPLEFT", officer and settings.checks[2] or settings.checks[1], "BOTTOMLEFT", 0, -2)
-    -- the card fits its rows (four on the left for officers, three otherwise) and the window style
-    if settings.dispCard then settings.dispCard:SetHeight(officer and 176 or 150) end
+    -- the card fits its rows (four in each column) and the window style
+    if settings.dispCard then settings.dispCard:SetHeight(176) end
 
     -- tab order chips, in the order the tabs are now
     local movable = UI:MovableTabs()

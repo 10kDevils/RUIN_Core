@@ -6,6 +6,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.8.5
 
+- **Org chat.** `/org <message>` talks in the org's own channel, which only members of the org's guilds who run RUIN can see or talk in. `/org` on its own opens it in Guild > Chat, which has a new **Org chat** view beside All RUIN guilds and My guild, with its own line to type in. Lines show as `[Org·Tag] Name: text` in sky blue (well lighter than party chat); Settings > Options > Org chat color picks another (right-click for the default). Every line is the sender's own: one in someone else's name, or claiming another guild, is dropped. Block words, Watch mutes and line deletes apply as in guild chat.
+- **Org announcements.** Officers and the org admin can send an org-wide raid warning with `/orgwarn <message>` (or `/ow`), or the Announce button in Org chat. It shows in the middle of every member's screen with the raid warning sound, and in chat. At most one every 10 seconds; an announcement from anyone RUIN can't vouch for as an officer shows as a plain org line. Settings > Options > "Org announcements on screen, with sound" turns the screen and sound off (they still show in chat).
 - **Map pins show on the world map with OpenMap.** OpenMap's stitched world map drew its zone art over RUIN's pins (Mark on Map, waypoints), so only the minimap pin was visible. Pins are now placed by OpenMap's own coordinates, including zones next to the one you're viewing, sit above its art, and redraw when it pans or switches between its map and Blizzard's.
 
 ## 0.8.4
