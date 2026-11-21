@@ -21,7 +21,8 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
     { "0.8.7", {
-        "RUIN's map marks (org member counts, Mark on Map) keep their size while you zoom, and stay on their zones on OpenMap's map.",
+        "RUIN's map marks (org member counts, Mark on Map) keep their size while you zoom, shadow included, and stay on their zones on OpenMap's map.",
+        "Right-click a quest or waypoint mark on the map to clear it, or /ruin clearmap to clear them all.",
     } },
     { "0.8.6", {
         "After /org <message>, your chat box stays on Org for the next lines, like /g or /p, until you switch with another chat command.",

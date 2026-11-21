@@ -6,6 +6,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.8.7
 
+- **Clear map marks easily.** Right-click one of RUIN's quest or waypoint marks (on the world map or the minimap) to clear it, or type `/ruin clearmap` to clear them all; the tooltip says so. Marks that show where org members are or where an event rallies aren't cleared.
+- **The shadow under a mark stays its size.** It sat a fixed few units outside the mark, which on a map zoomed far in (OpenMap's) became a huge dark disc; it's a share of the mark's size now, as is the colored ring.
 - **Map marks behave on OpenMap's map.** RUIN's marks (the org member counts on each zone, Mark on Map, waypoints) sit on the map's canvas, which zooming scales; they were only resized on the next redraw, so they grew with OpenMap's smooth zoom. They're redrawn as soon as the map's scale moves now, keeping their size on screen. On OpenMap's stitched map a zone's member count stays on its zone (the map under it turns into the zone as you zoom in, which used to send the count to the corner, under OpenMap's art); on Blizzard's own map it's in the corner of the zone's map as before.
 
 ## 0.8.6

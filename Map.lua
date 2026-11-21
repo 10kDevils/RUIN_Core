@@ -163,8 +163,33 @@ function Map:SetPin(owner, id, data)
         return
     end
     self.owners[owner] = self.owners[owner] or {}
+    data.owner, data.id = owner, id
     self.owners[owner][id] = data
     scheduleRedraw()
+end
+
+-- Clear one mark you can clear (clearable = true): it goes, and its owner
+-- hears of it (onClear) so it doesn't put it straight back.
+function Map:ClearMark(p)
+    if not (p and p.clearable and p.owner and p.id) then return false end
+    local pins = self.owners[p.owner]
+    if not pins or pins[p.id] ~= p then return false end
+    pins[p.id] = nil
+    if type(p.onClear) == "function" then pcall(p.onClear, p) end
+    scheduleRedraw()
+    if drawMinimap then pcall(drawMinimap) end
+    return true
+end
+
+-- Clear every mark you can clear. Returns how many went.
+function Map:ClearMarks()
+    local list = {}
+    for _, pins in pairs(self.owners) do
+        for _, p in pairs(pins) do if p.clearable then list[#list + 1] = p end end
+    end
+    local n = 0
+    for _, p in ipairs(list) do if self:ClearMark(p) then n = n + 1 end end
+    return n
 end
 
 function Map:RemovePin(owner, id)
@@ -230,12 +255,20 @@ local function makePin(parent)
             local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(self.zoomTo)
             GameTooltip:AddLine("Click to open " .. ((info and info.name) or "the zone") .. "'s map.", 0.6, 0.8, 1)
         end
+        if p.clearable then GameTooltip:AddLine("Right-click to clear this mark.  /ruin clearmap clears them all.", 0.6, 0.8, 1, true) end
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     -- a zone mark on a continent or world map clicks through into the zone;
     -- right-click zooms out, as it does anywhere on the map
     f:SetScript("OnMouseUp", function(self, button)
+        -- right-click a mark you can clear: it goes
+        if button == "RightButton" and self.pin and self.pin.clearable then
+            if GameTooltip then GameTooltip:Hide() end
+            Map:ClearMark(self.pin)
+            self:Hide()
+            return
+        end
         local wmf = rawget(_G, "WorldMapFrame")
         if not wmf or not self.zoomTo and button ~= "RightButton" then return end
         if button == "RightButton" then
@@ -256,6 +289,15 @@ end
 local function dressPin(f, p, size, withLabel)
     f.pin = p
     local c = p.color or { 1, 0.82, 0 }
+    -- the shadow and ring sit a little outside the pin: a share of its size, so
+    -- they stay in step on a canvas zoomed far in (where a pin is a few units across)
+    local k = size / 24
+    f.shade:ClearAllPoints()
+    f.shade:SetPoint("TOPLEFT", -3 * k, 2 * k)
+    f.shade:SetPoint("BOTTOMRIGHT", 3 * k, -4 * k)
+    f.ring:ClearAllPoints()
+    f.ring:SetPoint("TOPLEFT", -2 * k, 2 * k)
+    f.ring:SetPoint("BOTTOMRIGHT", 2 * k, -2 * k)
     if p.plain then
         f:SetSize(size * (p.aspect or 1), size)
         f.ring:Hide(); f.icon:Hide()

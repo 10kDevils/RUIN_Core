@@ -331,6 +331,7 @@ local HELP = {
     "/ruin guild | settings - open the Guild or Settings page",
     "/ruin roster | census | people | watch | bank - open that part of the Guild page",
     "/ruin chat - pop out guild chat  |  /ruin report [name] - report a player to the Watch",
+    "/ruin clearmap - clear RUIN's quest and waypoint marks from your maps (or right-click one)",
     "/org <message> - talk in org chat (only the org's members see it)  |  /org - open org chat",
     "/orgwarn <message> or /ow - an org announcement on every member's screen  (officers, org admin)",
     "/ruin news - what's new in this version",
@@ -534,6 +535,9 @@ SlashCmdList.RUIN = function(input)
                 ns:Print(("x%d  %s"):format(e.n or 1, e.m or "?"))
             end
         end
+    elseif cmd == "clearmap" or cmd == "clearmarks" then
+        local n = ns.Map:ClearMarks()
+        ns:Print(n > 0 and ("Cleared %d map mark%s."):format(n, n == 1 and "" or "s") or "No map marks to clear.")
     elseif cmd == "chat" then
         ns.GuildUI.ToggleChatWindow()
     elseif cmd == "roster" then
