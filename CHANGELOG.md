@@ -4,6 +4,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+## 0.8.7
+
+- **Map marks behave on OpenMap's map.** RUIN's marks (the org member counts on each zone, Mark on Map, waypoints) sit on the map's canvas, which zooming scales; they were only resized on the next redraw, so they grew with OpenMap's smooth zoom. They're redrawn as soon as the map's scale moves now, keeping their size on screen. On OpenMap's stitched map a zone's member count stays on its zone (the map under it turns into the zone as you zoom in, which used to send the count to the corner, under OpenMap's art); on Blizzard's own map it's in the corner of the zone's map as before.
+
 ## 0.8.6
 
 - **Org chat stays on Org.** After `/org <message>`, the chat box keeps "Org:" on the next lines you type, as it does after /g, /p, /1, /2 or /raid, until you switch with another chat command.

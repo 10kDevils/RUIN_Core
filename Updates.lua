@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.7", {
+        "RUIN's map marks (org member counts, Mark on Map) keep their size while you zoom, and stay on their zones on OpenMap's map.",
+    } },
     { "0.8.6", {
         "After /org <message>, your chat box stays on Org for the next lines, like /g or /p, until you switch with another chat command.",
         "Org chat shows players' full names, and is the same blue as the [RUIN] tag.",

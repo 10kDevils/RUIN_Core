@@ -359,11 +359,16 @@ drawWorld = function()
         size = math.max(14, math.min(28, cw / 45))
     end
     local used, corners = 0, 0
+    -- OpenMap's stitched map shows every zone at once, and the map under it
+    -- turns into the zone you zoom into: a zone's mark stays on its zone
+    -- there instead of jumping to the corner
+    local stitched = openMap() ~= nil
+    Map.drawnScale = ces
     local view = WorldMapFrame.ScrollContainer
     if type(view) ~= "table" then view = canvas end
     eachPin(function(_, _, p)
         if p.worldmap == false then return end
-        if p.corner and p.map == shown then
+        if p.corner and p.map == shown and not stitched then
             -- the zone's own map: a reference in the corner of what you see
             corners = corners + 1
             local f = cornerPins[corners]
@@ -372,7 +377,7 @@ drawWorld = function()
                 cornerPins[corners] = f
             end
             f:SetParent(view)
-            f:SetFrameLevel((view:GetFrameLevel() or 1) + 2100)
+            f:SetFrameLevel(math.max((view:GetFrameLevel() or 1) + 2100, Map.PinLevel(canvas) + 10))
             f.zoomTo = nil
             dressPin(f, p, 28, true)
             -- bottom-right corner, the count to its left; more marks stack upward
@@ -405,12 +410,29 @@ drawWorld = function()
     for i = corners + 1, #cornerPins do cornerPins[i]:Hide() end
 end
 
+-- Pins sit on the map's canvas, which zooming scales: while the map is open,
+-- they're redrawn as soon as its scale moves, so they keep their size on
+-- screen through a zoom (Blizzard's steps, or OpenMap's smooth glide).
+local scaleWatch = CreateFrame("Frame")
+scaleWatch:Hide()
+scaleWatch:SetScript("OnUpdate", function()
+    local canvas = worldCanvas()
+    if not canvas or not WorldMapFrame:IsShown() then return end
+    local ces = canvas.GetEffectiveScale and canvas:GetEffectiveScale()
+    local last = Map.drawnScale
+    if type(ces) == "number" and type(last) == "number" and last > 0 and math.abs(ces - last) > last * 0.004 then
+        drawWorld()
+    end
+end)
+Map.scaleWatch = scaleWatch
+
 local hooked = false
 local function hookWorldMap()
     if hooked or not WorldMapFrame then return end
     hooked = true
-    WorldMapFrame:HookScript("OnShow", function() drawWorld() end)
+    WorldMapFrame:HookScript("OnShow", function() drawWorld(); scaleWatch:Show() end)
     WorldMapFrame:HookScript("OnHide", function()
+        scaleWatch:Hide()
         for _, f in ipairs(worldPins) do f:Hide() end
         for _, f in ipairs(cornerPins) do f:Hide() end
     end)
