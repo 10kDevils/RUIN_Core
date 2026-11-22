@@ -22,7 +22,7 @@ ns.OrgSecure = Sec
 
 local GRACE = 900                 -- the previous data key still opens messages this long
 local ROTATE_WEEK = 7 * 86400
-local ROTATE_GAP = 1800           -- departures rotate the data key at most this often
+local ROTATE_GAP = 6 * 3600       -- departures rotate the data key at most this often (kept across logins)
 local ATTEST_FOR = 7 * 86400
 local ROSTER_TRUST = 6 * 3600     -- an org roster copy vouches for its members this long
 
@@ -239,35 +239,49 @@ end)
 
 ---------------------------------------------------------------------------
 -- New data keys: weekly, and when members leave a guild (officers' rosters
--- show it; the admin's client changes the key, at most every half hour)
+-- show it; the admin's client changes the key, at most every six hours:
+-- departures in between wait and go together, across logins and reloads)
 ---------------------------------------------------------------------------
-local lastRotate, rotatePending = -999, false
+local rotatePending = false
+local function lastRotate() return tonumber(ns.db and ns.db.orgLastRotate) or 0 end
+
 function Org:RotateDataKey()
     local k = Org:Get()
     if not (k and Org:IsAdmin() and Org.MySeed(k)) then return false, "Only the org admin can change the data key." end
     Org.NewDataKey(k)
     k.rev = Org.NextRev(k)
-    lastRotate = GetTime()
+    ns.db.orgLastRotate = now()
     Org.PublishEdit(k)
     return true
 end
 
-local departed = 0
-function Org:NoteDepartures(n)
-    if not Org:IsAdmin() then return end
-    departed = departed + (tonumber(n) or 0)
-    if rotatePending then return end
+local function departed() return tonumber(ns.db and ns.db.orgDeparted) or 0 end
+
+local function scheduleRotate()
+    if rotatePending or departed() <= 0 or not Org:IsAdmin() then return end
     rotatePending = true
-    local wait = math.max(120, lastRotate + ROTATE_GAP - GetTime())
+    local wait = math.max(120, lastRotate() + ROTATE_GAP - now())
     C_Timer.After(wait, function()
         rotatePending = false
-        if departed > 0 and Org:IsAdmin() then
-            ns:Print(("%d player%s left an org guild: new data key, so they can't read org traffic any more."):format(departed, departed == 1 and "" or "s"))
-            departed = 0
-            Org:RotateDataKey()
-        end
+        if departed() <= 0 or not Org:IsAdmin() then return end
+        -- (a reload can't have moved the time on: check again)
+        if now() - lastRotate() < ROTATE_GAP - 5 then scheduleRotate(); return end
+        local n = departed()
+        ns:Print(("%d player%s left an org guild: new data key, so they can't read org traffic any more."):format(n, n == 1 and "" or "s"))
+        ns.db.orgDeparted = 0
+        Org:RotateDataKey()
     end)
 end
+Org.ScheduleRotate = scheduleRotate
+
+function Org:NoteDepartures(n)
+    if not Org:IsAdmin() then return end
+    ns.db.orgDeparted = departed() + (tonumber(n) or 0)
+    scheduleRotate()
+end
+
+-- departures noted before a logout still get their new key
+ns:Subscribe("LOGIN", function() C_Timer.After(30, scheduleRotate) end)
 
 ns.Comms:Register("MLEFT", function(d, sender, scope)
     if scope ~= "OFFICERS" or not Org:IsAdmin() then return end
