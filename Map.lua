@@ -408,6 +408,12 @@ drawWorld = function()
     Map.drawnScale = ces
     local view = WorldMapFrame.ScrollContainer
     if type(view) ~= "table" then view = canvas end
+    -- marks go on the window above the canvas where there is one; k turns
+    -- canvas units into the window's
+    local ves = view.GetEffectiveScale and view:GetEffectiveScale()
+    local onView = view ~= canvas and type(ves) == "number" and ves > 0 and type(ces) == "number" and ces > 0 and type(wes) == "number"
+    local k = onView and ces / ves or 1
+    local onViewSize = onView and 24 * wes / ves or size
     eachPin(function(_, _, p)
         if p.worldmap == false then return end
         if p.corner and p.map == shown and not stitched then
@@ -435,26 +441,56 @@ drawWorld = function()
         used = used + 1
         local f = worldPins[used]
         if not f then
-            f = makePin(canvas)
+            f = makePin(onView and view or canvas)
             worldPins[used] = f
         end
-        f:SetParent(canvas)
-        pcall(f.SetFrameLevel, f, Map.PinLevel(canvas))
         -- a zone mark seen from a continent or the world: smaller, and a way into the zone
         local zoneMark = p.corner and p.map ~= shown
         f.zoomTo = zoneMark and p.map or nil
-        dressPin(f, p, (zoneMark and p.plain) and size * 0.7 or size)
         f:ClearAllPoints()
-        f:SetPoint("CENTER", canvas, "TOPLEFT", x * cw, -y * ch)
+        f.onView = onView
+        if onView then
+            -- on the map's window, not its canvas: the canvas's zoom (and
+            -- OpenMap swapping the map under it) never touches its size; it's
+            -- placed at its spot on the canvas, in the window's units
+            f:SetParent(view)
+            pcall(f.SetFrameLevel, f, math.max((view:GetFrameLevel() or 1) + 2000, Map.PinLevel(canvas)))
+            dressPin(f, p, (zoneMark and p.plain) and onViewSize * 0.7 or onViewSize)
+            f:SetPoint("CENTER", canvas, "TOPLEFT", x * cw * k, -y * ch * k)
+        else
+            f:SetParent(canvas)
+            pcall(f.SetFrameLevel, f, Map.PinLevel(canvas))
+            dressPin(f, p, (zoneMark and p.plain) and size * 0.7 or size)
+            f:SetPoint("CENTER", canvas, "TOPLEFT", x * cw, -y * ch)
+        end
         f:Show()
     end)
     for i = used + 1, #worldPins do worldPins[i]:Hide() end
+    Map.drawnWidth = cw
+    Map.CullWorldPins()
     for i = corners + 1, #cornerPins do cornerPins[i]:Hide() end
 end
 
--- Pins sit on the map's canvas, which zooming scales: while the map is open,
--- they're redrawn as soon as its scale moves, so they keep their size on
--- screen through a zoom (Blizzard's steps, or OpenMap's smooth glide).
+-- Marks on the map's window: only those inside it show (the canvas under it
+-- is clipped to the window; the window's own children aren't)
+function Map.CullWorldPins()
+    local view = rawget(_G, "WorldMapFrame") and WorldMapFrame.ScrollContainer
+    if type(view) ~= "table" or not view.GetLeft then return end
+    local l, r, t, b = view:GetLeft(), view:GetRight(), view:GetTop(), view:GetBottom()
+    if not (l and r and t and b) then return end
+    for _, f in ipairs(worldPins) do
+        if f.pin and f.onView then
+            local cx, cy = f:GetCenter()
+            local inside = cx and cy and cx >= l and cx <= r and cy >= b and cy <= t
+            f:SetAlpha(inside and (f.pin.alpha or 1) or 0)
+            if f.EnableMouse then f:EnableMouse(inside and true or false) end
+        end
+    end
+end
+
+-- While the map is open: redrawn as soon as its zoom moves (the marks' spots
+-- are in canvas units, scaled), or OpenMap changes the map under it; and
+-- every frame, marks panned out of the window are hidden
 local scaleWatch = CreateFrame("Frame")
 scaleWatch:Hide()
 scaleWatch:SetScript("OnUpdate", function()
@@ -462,8 +498,12 @@ scaleWatch:SetScript("OnUpdate", function()
     if not canvas or not WorldMapFrame:IsShown() then return end
     local ces = canvas.GetEffectiveScale and canvas:GetEffectiveScale()
     local last = Map.drawnScale
-    if type(ces) == "number" and type(last) == "number" and last > 0 and math.abs(ces - last) > last * 0.004 then
+    local cw = canvas.GetWidth and canvas:GetWidth()
+    if (type(ces) == "number" and type(last) == "number" and last > 0 and math.abs(ces - last) > last * 0.004)
+        or (type(cw) == "number" and Map.drawnWidth and math.abs(cw - Map.drawnWidth) > 0.5) then
         drawWorld()
+    else
+        Map.CullWorldPins()
     end
 end)
 Map.scaleWatch = scaleWatch

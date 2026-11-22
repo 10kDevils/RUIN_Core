@@ -6,6 +6,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## 0.8.7
 
+- **Map marks keep one size on OpenMap's map, for real.** Marks drawn on the map's canvas took on its zoom, and OpenMap rescales that canvas (and swaps the map under it) as you zoom, so a mark kept changing size, then vanished zoomed in. Marks now sit on the map's window above the canvas, at a fixed size on screen, placed at their spot on the canvas and moved with it; marks panned out of the window are hidden.
 - **New data keys for leavers far less often.** When players leave an org guild, the admin's client changes the org's data key at most every six hours (it was every half hour, and a login or reload reset even that, so in practice it changed almost every session). Leavers in between are counted and covered by one new key, and the count and the time of the last change are kept across logouts. The weekly new key is unchanged.
 - **Clear map marks easily.** Right-click one of RUIN's quest or waypoint marks (on the world map or the minimap) to clear it, or type `/ruin clearmap` to clear them all; the tooltip says so. Marks that show where org members are or where an event rallies aren't cleared.
 - **The shadow under a mark stays its size.** It sat a fixed few units outside the mark, which on a map zoomed far in (OpenMap's) became a huge dark disc; it's a share of the mark's size now, as is the colored ring.
