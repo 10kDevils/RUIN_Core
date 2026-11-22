@@ -320,6 +320,7 @@ end
 -- The People tab
 ---------------------------------------------------------------------------
 local ui = { mode = "Hierarchy", days = 7, query = "" }
+People.ui = ui
 local MODES = { "Hierarchy", "Offices", "Inactive", "By class", "By zone", "By level", "By profession" }
 local removeCooldown = 0
 
@@ -470,17 +471,19 @@ function ns.GuildUI.BuildPeople(page)
         local send = ChatFrame_SendTell or (ChatFrameUtil and ChatFrameUtil.SendTell)
         if send then send(e.name) end
     end))
+    -- removing is protected in the game: the first click arms the button
+    -- (Confirm, five seconds), the second runs the game's /gremove
     ui.remove = Wd.Button(card, "Remove from guild", 140, go(function(e)
         if GetTime() < removeCooldown then return ns:Print("One at a time: wait a few seconds.") end
         local ok, why = ns.Guild:CanOn("remove", e)
         if not ok then return ns:Print(why) end
-        ns.UI:ShowConfirm("Remove from guild", ("Remove %s (%s, away %d days) from %s?\n\nThey would need a new invite to come back.")
-            :format(ns.Escape(ns.ShortName(e.name)), ns.Escape(e.rankName or ""), e.days or 0, ns.Escape(ns.guildName or "the guild")), function()
-            removeCooldown = GetTime() + 3
-            ns.Guild:Remove(e.name)
-            ns:Print("Removed " .. ns.ShortName(e.name) .. " from the guild.")
-        end)
+        ns.Guild.ArmRemove(ui.remove, e, "Remove from guild")
     end))
+    ns.Guild.SecureOverlay(ui.remove, "/gremove")
+    ui.remove.afterSecure = function()
+        removeCooldown = GetTime() + 3
+        ns.Guild.DisarmRemove(ui.remove, "Remove from guild")
+    end
     ui.appoint = Wd.Button(card, "Appoint office", 120, function()
         ns.UI:ShowText("Appoint an office", "Office title, then the member's name. Example:  Raid leader, Grimlock\nTitles people use: " .. table.concat(People.TITLES, ", ") .. ".", "", function(text)
             local title, name = (text or ""):match("^%s*([^,]+),%s*(.-)%s*$")
@@ -512,10 +515,19 @@ function People:Refresh()
     ui.modeBtn:Refresh(); ui.daysBtn:Refresh(); ui.online:Refresh()
     local n = 0
     for _, e in ipairs(ui.rows) do if not e.header then n = n + 1 end end
+    -- how many characters the view (and your search) shows, always first
+    local q = ns.Trim(ui.query or "")
+    local count
+    if ui.mode:find("^By") and q ~= "" then
+        count = ('%d character%s match "%s"'):format(n, n == 1 and "" or "s", ns.Escape(q))
+    else
+        count = ("%d character%s shown"):format(n, n == 1 and "" or "s")
+    end
+    if ui.mode:find("^By") and ui.onlineOnly then count = count .. ", online" end
     local info = ({ Hierarchy = "Guild masters, officers and office holders. Red: away " .. People:AwayDays() .. "+ days.",
                     Offices = "Offices each guild master appoints.",
-                    Inactive = ("%d members of %s"):format(n, ns.guildName or "your guild") })[ui.mode] or (n .. " members")
-    ui.info:SetText(GREY .. info .. "|r")
+                    Inactive = ("away %d+ days from %s"):format(ui.days, ns.guildName or "your guild") })[ui.mode]
+    ui.info:SetText("|cffffffff" .. count .. "|r" .. (info and (GREY .. "  ·  " .. info .. "|r") or ""))
     ui.list:SetEmptyText(ui.mode == "Inactive" and "Nobody that long away." or (ui.mode == "Offices" and "No offices yet. Your guild master appoints them with Appoint office." or "Nobody to show yet."))
     ui.list:SetItems(ui.rows)
     local e = selected()
@@ -525,6 +537,9 @@ function People:Refresh()
     ui.whisper:SetEnabled(e ~= nil and e.online == true)
     ui.remove:SetShown(ui.mode == "Inactive" and ns.Guild:Can("remove"))
     ui.remove:SetEnabled(e ~= nil and (ns.Guild:CanOn("remove", e)))
+    if not ns.Guild.RemoveArmedFor(ui.remove, e) then
+        if ui.remove.armedFor then ns.Guild.DisarmRemove(ui.remove, "Remove from guild") else ns.Guild.AimSecure(ui.remove, nil, false) end
+    end
     ui.appoint:SetShown(ui.mode == "Offices" and People:CanAppoint())
     ui.dismiss:SetShown(ui.mode == "Offices" and People:CanAppoint())
     ui.dismiss:SetEnabled(e ~= nil and e.office == true and e.guild == ns.guildName)

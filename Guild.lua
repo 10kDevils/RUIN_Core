@@ -220,6 +220,7 @@ end
 -- Roster tab
 ---------------------------------------------------------------------------
 local roster = { sort = "rank", showOffline = true, query = "", guild = "*" }
+GUI.roster = roster
 local STATUS = { [1] = { "Away", "warn" }, [2] = { "Busy", "bad" } }
 
 local function lastSeen(e)
@@ -267,6 +268,7 @@ local SORTS = {
 }
 
 local function keyOf(e) return (e.guild or "") .. "\t" .. ns.NormalizeName(e.name) end
+GUI.RosterKey = keyOf
 
 -- Rows for the roster: every guild in the org, or one; returns rows, online, total.
 function GUI.RosterRows()
@@ -318,6 +320,67 @@ local function actionButton(parent, text, width, what, onClick)
     end)
     b:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     return b
+end
+
+-- Promoting, demoting and removing are protected: only the game's own UI
+-- may call them. A secure button laid over RUIN's runs the game's own slash
+-- command (/gpromote, /gdemote, /gremove) on your click instead.
+local function secureOverlay(b, slash)
+    if not (CreateFrame and SecureCmdOptionParse ~= false) then return end
+    local ok, s = pcall(CreateFrame, "Button", nil, b, "SecureActionButtonTemplate")
+    if not ok or not s then return end
+    s:SetAllPoints(b)
+    s:SetFrameLevel((b:GetFrameLevel() or 1) + 5)
+    if s.RegisterForClicks then s:RegisterForClicks("AnyUp", "AnyDown") end
+    s:SetAttribute("type", "macro")
+    s:SetScript("OnEnter", function() if b.LockHighlight then b:LockHighlight() end; local f = b:GetScript("OnEnter"); if f then f(b) end end)
+    s:SetScript("OnLeave", function() if b.UnlockHighlight then b:UnlockHighlight() end; local f = b:GetScript("OnLeave"); if f then f(b) end end)
+    s:SetScript("PostClick", function() C_Timer.After(1, function() ns:RequestRoster() end); if b.afterSecure then b.afterSecure() end end)
+    s:Hide()
+    s.slash = slash
+    b.secure = s
+end
+G.SecureOverlay = secureOverlay
+
+-- point an overlay at a member (out of combat: secure buttons can't change in it)
+local function aimSecure(b, e, on)
+    local s = b.secure
+    if not s or (InCombatLockdown and InCombatLockdown()) then return end
+    if on and e and e.name then
+        s.macro = s.slash .. " " .. e.name
+        s:SetAttribute("macrotext", s.macro)
+        s:Show()
+    else
+        s.macro = nil
+        s:SetAttribute("macrotext", nil)
+        s:Hide()
+    end
+end
+
+G.AimSecure = aimSecure
+
+-- Two clicks to remove (Roster's Remove, People's Remove from guild): the
+-- first turns the button to Confirm, aimed at them, for five seconds; the
+-- second, on the secure button, removes them.
+function G.ArmRemove(b, e, normal)
+    if InCombatLockdown and InCombatLockdown() then ns:Print("Not in combat."); return end
+    b.armedFor = e and (e.guild or "") .. "\t" .. ns.NormalizeName(e.name)
+    b:SetText("Confirm")
+    b.tip = ("Click again to remove %s from %s. They'd need a new invite."):format(ns.ShortName(e.name), ns.guildName or "the guild")
+    aimSecure(b, e, true)
+    local armed = b.armedFor
+    C_Timer.After(5, function() if b.armedFor == armed then G.DisarmRemove(b, normal) end end)
+end
+
+function G.DisarmRemove(b, normal)
+    b.armedFor = nil
+    b:SetText(normal or "Remove")
+    b.tip = nil
+    aimSecure(b, nil, false)
+end
+
+function G.RemoveArmedFor(b, e)
+    return e ~= nil and b.armedFor == (e.guild or "") .. "\t" .. ns.NormalizeName(e.name)
 end
 
 local function editNote(e)
@@ -434,12 +497,12 @@ function GUI.BuildRoster(page)
     card:SetHeight(68)
     roster.selName = Wd.Label(card, "", "GameFontNormal")
     roster.selName:SetPoint("TOPLEFT", 10, -8)
-    roster.selName:SetPoint("RIGHT", card, "RIGHT", -230, 0)
+    roster.selName:SetPoint("RIGHT", card, "RIGHT", -330, 0)
     roster.selName:SetWordWrap(false)
     roster.count = Wd.Label(card, "", "GameFontHighlightSmall")
     roster.count:SetPoint("TOPRIGHT", -10, -10)
     roster.count:SetJustifyH("RIGHT")
-    roster.count:SetWidth(220)
+    roster.count:SetWidth(320)
     roster.count:SetWordWrap(false)
     local function go(fn) return function() local e = selected(); if e then fn(e) end end end
     roster.whisper = actionButton(card, "Whisper", 72, nil, go(function(e)
@@ -452,10 +515,14 @@ function GUI.BuildRoster(page)
     end))
     roster.promote = actionButton(card, "Promote", 74, "promote", go(function(e) G:Promote(e.name) end))
     roster.demote = actionButton(card, "Demote", 70, "demote", go(function(e) G:Demote(e.name) end))
-    roster.remove = actionButton(card, "Remove", 70, "remove", go(function(e)
-        ns.UI:ShowConfirm("Remove from guild", ("Remove %s from %s? This can't be undone from RUIN; they would need a new invite.")
-            :format(ns.Escape(ns.ShortName(e.name)), ns.Escape(ns.guildName or "the guild")), function() G:Remove(e.name) end)
-    end))
+    -- Remove asks first: the first click turns it to Confirm for five
+    -- seconds, and only then does the click remove them (a confirm window
+    -- can't run the game's protected removal)
+    roster.remove = actionButton(card, "Remove", 70, "remove", go(function(e) G.ArmRemove(roster.remove, e, "Remove") end))
+    secureOverlay(roster.promote, "/gpromote")
+    secureOverlay(roster.demote, "/gdemote")
+    secureOverlay(roster.remove, "/gremove")
+    roster.remove.afterSecure = function() G.DisarmRemove(roster.remove, "Remove") end
     roster.note = actionButton(card, "Note", 56, "publicNote", go(editNote))
     roster.onote = actionButton(card, "Officer note", 100, "officerNote", go(function(e)
         ns.UI:ShowText("Officer note", "The note only ranks allowed to see officer notes can read (up to 31 characters).", e.officerNote or "", function(t)
@@ -497,7 +564,12 @@ function GUI.RefreshRoster()
             end
         end
     end
-    roster.count:SetText(GREY .. ("%d/%d online  ·  %s|r"):format(online, total, where))
+    -- how many characters your search, the guild and Show offline leave
+    local shown = #(roster.rows or {})
+    local q = ns.Trim(roster.query or "")
+    local lead = (q ~= "" or not roster.showOffline or roster.guild ~= "*")
+        and ("|cffffffff%d shown|r" .. GREY .. "  ·  "):format(shown) or ""
+    roster.count:SetText(lead .. GREY .. ("%d/%d online  ·  %s|r"):format(online, total, where))
     roster.offline:Refresh()
     roster.guildBtn:Refresh()
     roster.invite:SetShown(G:Can("invite"))
@@ -529,6 +601,13 @@ function GUI.RefreshRoster()
     local own = e == nil or e.own == true
     local any = own and (G:Can("promote") or G:Can("demote") or G:Can("remove"))
     roster.promote:SetShown(any); roster.demote:SetShown(any); roster.remove:SetShown(any)
+    -- the secure buttons over Promote and Demote follow the member picked;
+    -- Remove's only once you've clicked it to confirm
+    aimSecure(roster.promote, e, any and (G:CanOn("promote", e)) and true or false)
+    aimSecure(roster.demote, e, any and (G:CanOn("demote", e)) and true or false)
+    if not (G.RemoveArmedFor(roster.remove, e) and (G:CanOn("remove", e))) then
+        if roster.remove.armedFor then G.DisarmRemove(roster.remove, "Remove") else aimSecure(roster.remove, nil, false) end
+    end
     roster.onote:SetShown(own and G:Can("officerNote"))
     roster.note:SetShown(own and (G:Can("publicNote") or isMe(e)))
     roster.note:SetText(isMe(e) and "My note" or "Note")
