@@ -20,9 +20,13 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
-    { "0.8.7", {
+    { "0.8.9", {
         "RUIN's map marks (org member counts, Mark on Map) keep their size while you zoom, shadow included, and stay on their zones on OpenMap's map.",
         "Right-click a quest or waypoint mark on the map to clear it, or /ruin clearmap to clear them all.",
+        "Promote, Demote and Remove work again (Remove takes two clicks), and Roster and People say how many characters your search shows.",
+        "With RUIN Codex: a slider on the Best in Slot tab previews your best gear at higher levels, and a piece that's still best at 60 gets a gold check.",
+        "With RUIN Exchange: the auction house is scanned the whole time it's open, crafting reagents first, and every price goes to the org.",
+        "With RUIN Pathfinder: routes drop quests more than 3 levels above them, and the minimap N keeps working in dungeons.",
     } },
     { "0.8.6", {
         "After /org <message>, your chat box stays on Org for the next lines, like /g or /p, until you switch with another chat command.",
