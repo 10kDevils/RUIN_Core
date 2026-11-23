@@ -20,6 +20,9 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.8.10", {
+        "With RUIN Exchange: the auction house tooltip no longer bounces or grows a moment after it shows.",
+    } },
     { "0.8.9", {
         "RUIN's map marks (org member counts, Mark on Map) keep their size while you zoom, shadow included, and stay on their zones on OpenMap's map.",
         "Right-click a quest or waypoint mark on the map to clear it, or /ruin clearmap to clear them all.",

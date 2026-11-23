@@ -4,6 +4,10 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+## 0.8.10
+
+- Version matched to the rest of the RUIN suite; no changes.
+
 ## 0.8.9
 
 - **Promote, Demote and Remove work again.** The game now lets only its own UI call promoting, demoting and removing, so RUIN's buttons were blocked ("RUIN_Core has been blocked from an action..."). Secure buttons laid over them now run the game's own /gpromote, /gdemote and /gremove for the member you picked. Removing takes two clicks (a confirm window can't run the protected removal): the first turns the button to Confirm for five seconds, the second removes them, in Roster and in People's Inactive view.
