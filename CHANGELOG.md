@@ -4,6 +4,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+- **Setup guide for guild leaders.** A guild leader with RUIN and no org key gets a short guide a moment after logging in (once): start a new org (name it, add each guild with its officer rank and tag, send the key to each guild's leader) or join one (ask the admin for the key, or type the key phrase). Each step says why if it can't be done. `/ruin setup` or Settings > *Setup guide* opens it any time; *Don't show again* hides it.
+
 - **Chat scope line has room to read**: the line that says which chat you're seeing (e.g. *every RUIN guild*, *org chat*) now sits on its own row under the chat buttons, on the Guild > Chat page and in the pop-out, so it is no longer cut to "RUIN: ...".
 
 ## 0.8.10

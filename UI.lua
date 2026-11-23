@@ -1236,6 +1236,9 @@ local function buildSettingsPanel(p)
     swatch.tip = "Click to pick org chat's color. Right-click: back to RUIN's sky blue."
     settings.news = Wd.Button(disp, "What's new", 100, function() ns.Updates:ShowLetter(nil) end)
     settings.news:SetPoint("TOPRIGHT", -8, -6)
+    settings.setup = Wd.Button(disp, "Setup guide", 100, function() ns.Setup.Open() end)
+    settings.setup:SetPoint("RIGHT", settings.news, "LEFT", -6, 0)
+    settings.setup.tip = "Start an org or join one, step by step (for guild leaders)."
     settings.checks[1].tip = "Show guild chat from the other RUIN guilds in your guild chat."
     settings.checks[2].tip = "Show officer chat from the other RUIN guilds in your officer chat."
     settings.checks[3].tip = "Guildmates who don't run RUIN can't send to the other guilds. When this is on, one RUIN member online passes their guild chat along."

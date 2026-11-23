@@ -338,6 +338,7 @@ local HELP = {
     "/ruin status - print connection status",
     "/ruin versions - list RUIN versions seen online",
     "/ruin key import | join <key phrase> | send [name] | forget  |  export (org admin)",
+    "/ruin setup  (a guide for guild leaders: start an org or join one)",
     "/ruin key create <org name>  (guild master who runs the org)",
     "/ruin key addguild <guild>, <officer rank>[, <tag>]  (org admin)",
     "/ruin key editguild <guild>, <new name>, <officer rank>[, <tag>]  (org admin)",
@@ -552,6 +553,8 @@ SlashCmdList.RUIN = function(input)
         ns.PartyPlan:Command(rest)
     elseif cmd == "news" then
         ns.Updates:ShowLetter(nil)
+    elseif cmd == "setup" then
+        ns.Setup.Open()
     elseif cmd == "toofast" then
         ns.Throttle.Show()
     elseif cmd == "status" then
