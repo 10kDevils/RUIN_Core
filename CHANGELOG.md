@@ -4,6 +4,8 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+- **Chat scope line has room to read**: the line that says which chat you're seeing (e.g. *every RUIN guild*, *org chat*) now sits on its own row under the chat buttons, on the Guild > Chat page and in the pop-out, so it is no longer cut to "RUIN: ...".
+
 ## 0.8.10
 
 - Version matched to the rest of the RUIN suite; no changes.

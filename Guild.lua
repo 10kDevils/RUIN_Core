@@ -728,12 +728,13 @@ function GUI.BuildChatView(parent, popout)
     v.pinsBtn:SetPoint("LEFT", v.orgChatBtn, "RIGHT", 4, 0)
     v.pinsBtn.tip = "Lines you pinned (click a line to pin it)."
     v.info = Wd.Label(parent, "", "GameFontHighlightSmall")
-    v.info:SetPoint("LEFT", v.pinsBtn, "RIGHT", 10, 0)
-    if v.search then v.info:SetPoint("RIGHT", v.search, "LEFT", -8, 0) elseif popout then v.info:SetPoint("RIGHT", parent, "RIGHT", -8, 0) end
+    -- the scope line gets its own row under the buttons, the full width of the view
+    v.info:SetPoint("TOPLEFT", parent, "TOPLEFT", popout and 10 or 2, popout and -54 or -30)
+    v.info:SetPoint("TOPRIGHT", parent, "TOPRIGHT", popout and -8 or 0, popout and -54 or -30)
     v.info:SetWordWrap(false)
 
     local box = CreateFrame("Frame", nil, parent)
-    box:SetPoint("TOPLEFT", popout and 8 or 0, popout and -54 or -30)
+    box:SetPoint("TOPLEFT", popout and 8 or 0, popout and -68 or -44)
     box:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", popout and -8 or 0, popout and 36 or 30)
     Wd.Skin(box, "bg", 0.85, "border")
     if box.SetClipsChildren then box:SetClipsChildren(true) end
