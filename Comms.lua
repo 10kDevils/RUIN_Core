@@ -125,11 +125,22 @@ end
 -- it's queued. Big batches (a guild roster is 30 messages) used to seal in
 -- one go and stall a frame.
 local LAZY_OVER = 400        -- bytes: shorter ones are sealed at once
-function Comms:Send(kind, data, scope, target, priority)
+-- opts (optional): { player = true } for a whisper the player chose to send
+-- (a key offer, an admin hand-over, a join request they clicked). It always
+-- goes out, even to someone RUIN holds as offline, and the game's
+-- "No player named ..." line about it is shown (see "Whispering someone who
+-- isn't online", below).
+function Comms:Send(kind, data, scope, target, priority, opts)
     local ok, payload = pcall(ns.Serialize, data)
     if not ok then
         ns:Debug("could not serialize " .. tostring(kind))
         return false
+    end
+    local player = type(opts) == "table" and opts.player and true or nil
+    -- the player asked for this one: try them again now
+    if player and scope == "PEER" and target then
+        Comms:PeerSeen(target)
+        Comms:ForgetPlayerWhisper(target)   -- a new send: its first "No player named" line shows
     end
     local queue = queues[priority or Comms.PRIORITY.NORMAL] or queues[2]
     local now = GetTime()
@@ -139,13 +150,13 @@ function Comms:Send(kind, data, scope, target, priority)
             ns:Debug("no data key yet: not sending " .. tostring(kind))
             return false
         end
-        queue[#queue + 1] = { job = true, kind = kind, payload = payload, scope = scope, target = target, t = now }
+        queue[#queue + 1] = { job = true, kind = kind, payload = payload, scope = scope, target = target, t = now, player = player }
         return true
     end
     local list = frames(kind, payload, scope, target)
     if not list then return false end
     for _, text in ipairs(list) do
-        queue[#queue + 1] = { text = text, scope = scope, target = target, t = now }
+        queue[#queue + 1] = { text = text, scope = scope, target = target, t = now, player = player }
     end
     return true
 end
@@ -156,7 +167,7 @@ local function expand(queue, i)
     local list = frames(job.kind, job.payload, job.scope, job.target)
     if not list then return end
     for n = #list, 1, -1 do
-        table.insert(queue, i, { text = list[n], scope = job.scope, target = job.target, t = job.t })
+        table.insert(queue, i, { text = list[n], scope = job.scope, target = job.target, t = job.t, player = job.player })
     end
 end
 Comms.PendingJobs = function()
@@ -193,7 +204,8 @@ local function resolve(item)
         return "CHANNEL", id
     elseif scope == "PEER" then
         if not item.target then return nil, nil, "drop" end
-        if Comms:PeerOffline(item.target) then return nil, nil, "drop" end
+        -- held as offline: background traffic is dropped, the player's own sends still go
+        if not item.player and Comms:PeerOffline(item.target) then return nil, nil, "drop" end
         return "WHISPER", item.target
     elseif scope == "PARTY" then
         -- a party only: never a raid, and never when not grouped
@@ -289,7 +301,7 @@ local function flush()
                     local T = ns.Throttle
                     if T then T.selfSending = true end
                     local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, chatType, target)
-                    if chatType == "WHISPER" then Comms:NoteWhisper(target) end
+                    if chatType == "WHISPER" then Comms:NoteWhisper(target, item.player) end
                     if T then T.selfSending = false end
                     if isThrottled(result) then
                         Comms:Backoff()
@@ -317,11 +329,26 @@ end
 -- RUIN hides that line when it's about a player RUIN whispered a moment ago,
 -- drops what's still queued for them and holds further whispers to them for
 -- a few minutes (they're told what they missed when they log in).
+-- A whisper the player chose to send is different: the line is the only sign
+-- it didn't arrive, so it is shown (once, not once per part).
 ---------------------------------------------------------------------------
 local whispered, offlineUntil = {}, {}
+local playerWhispered = {}   -- name -> { t = time, shown = true once the line was shown }
 local OFFLINE_HOLD = 300
-function Comms:NoteWhisper(target)
-    if target then whispered[ns.NormalizeName(target)] = GetTime() end
+local LINE_WINDOW = 15       -- seconds: the game's line comes right after the whisper
+function Comms:NoteWhisper(target, player)
+    if not target then return end
+    local n = ns.NormalizeName(target)
+    if player then
+        local p = playerWhispered[n]
+        if not p or GetTime() - p.t > LINE_WINDOW then playerWhispered[n] = { t = GetTime() } else p.t = GetTime() end
+    else
+        whispered[n] = GetTime()
+    end
+end
+-- the player sends again: start over, so this send's line is shown too
+function Comms:ForgetPlayerWhisper(target)
+    if target then playerWhispered[ns.NormalizeName(target)] = nil end
 end
 function Comms:PeerOffline(target)
     local u = target and offlineUntil[ns.NormalizeName(target)]
@@ -348,19 +375,28 @@ function Comms:OnSystemMessage(msg)
     if not name then return false end
     local n = ns.NormalizeName(name)
     local t = whispered[n]
-    if not t or GetTime() - t > 15 then return false end    -- not ours: leave it alone
+    local p = playerWhispered[n]
+    local mine = p and GetTime() - p.t <= LINE_WINDOW
+    if not mine and (not t or GetTime() - t > LINE_WINDOW) then return false end    -- not ours: leave it alone
     offlineUntil[n] = GetTime() + OFFLINE_HOLD
     for _, queue in ipairs(queues) do
         for i = #queue, 1, -1 do
             local it = queue[i]
-            if it.scope == "PEER" and it.target and ns.NormalizeName(it.target) == n then table.remove(queue, i) end
+            if it.scope == "PEER" and not it.player and it.target and ns.NormalizeName(it.target) == n then table.remove(queue, i) end
         end
+    end
+    if mine then
+        -- the player's own send: show the game's line the first time, hide the repeats
+        if p.shown then return true end
+        p.shown = true
+        return false
     end
     return true
 end
 
-if ChatFrame_AddMessageEventFilter then
-    ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, msg)
+local addSystemFilter = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
+if addSystemFilter then
+    addSystemFilter("CHAT_MSG_SYSTEM", function(_, _, msg)
         if Comms:OnSystemMessage(msg) then return true end
         return false
     end)

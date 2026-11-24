@@ -5,6 +5,7 @@ Versioning: the third number counts the meaningful changes made since the second
 ## Unreleased
 
 - **No more "No player named ... is currently playing" spam.** When the org key changed, RUIN whispered the new key to every officer in your guild roster, online or not, and the game answered each part of that message for every offline officer. It now goes to online officers only (the others get it when they log in, as before). And if RUIN whispers someone who has just logged off, it hides the game's line about it, drops the rest of that message and holds further whispers to them until they're back.
+- **Key offers you send always go out.** Sending the org key, handing over the admin, asking for a group invite or a version check now always reaches the player, even right after RUIN found them offline, and if they aren't online you see the game's "No player named ..." line once for each send (a quick retry too) instead of nothing.
 
 - **Setup guide for guild leaders.** A guild leader with RUIN and no org key gets a short guide a moment after logging in (once): start a new org (name it, add each guild with its officer rank and tag, send the key to each guild's leader) or join one (ask the admin for the key, or type the key phrase). Each step says why if it can't be done. `/ruin setup` or Settings > *Setup guide* opens it any time; *Don't show again* hides it.
 

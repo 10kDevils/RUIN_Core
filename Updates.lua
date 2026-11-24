@@ -310,7 +310,7 @@ function Updates:Check(name)
     local n = ns.NormalizeName(name or "")
     if asked[n] and GetTime() - asked[n] < 120 then return false, "Asked a moment ago." end
     asked[n] = GetTime()
-    ns.Comms:Send("VREQ", {}, "PEER", name, ns.Comms.PRIORITY.NORMAL)
+    ns.Comms:Send("VREQ", {}, "PEER", name, ns.Comms.PRIORITY.NORMAL, { player = true })
     C_Timer.After(10, function()
         if not known[n] or known[n].t < GetTime() - 15 then ns:Print(ns.ShortName(name) .. " didn't answer: no RUIN, an older one, or they're busy.") end
     end)

@@ -853,7 +853,7 @@ function Org:OfferAdmin(name)
         return false, "That character is already the org admin."
     end
     adminOffer = { name = ns.NormalizeName(name), untilT = GetTime() + OFFER_WAIT }
-    ns.Comms:Send("ADMINOFFER", { org = k.org, rev = k.rev }, "PEER", name, ns.Comms.PRIORITY.ALERT)
+    ns.Comms:Send("ADMINOFFER", { org = k.org, rev = k.rev }, "PEER", name, ns.Comms.PRIORITY.ALERT, { player = true })
     return true
 end
 
@@ -1310,7 +1310,7 @@ function Org:SendFullKey(target)
         local hex, r = Org:DataKeyHex()
         if hex then m.dk = { r = r, k = hex } end
     end
-    ns.Comms:Send("FULLKEY", m, "PEER", target, ns.Comms.PRIORITY.ALERT)
+    ns.Comms:Send("FULLKEY", m, "PEER", target, ns.Comms.PRIORITY.ALERT, { player = true })
     return true
 end
 

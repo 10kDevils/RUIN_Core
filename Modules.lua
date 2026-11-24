@@ -36,8 +36,9 @@ local modules, ordered = {}, {}
 local Module = {}
 Module.__index = Module
 
-function Module:Send(kind, data, scope, target, priority)
-    return ns.Comms:Send(self.name .. ":" .. kind, data, scope, target, priority)
+-- opts: { player = true } for a whisper the player chose to send (see Comms:Send)
+function Module:Send(kind, data, scope, target, priority, opts)
+    return ns.Comms:Send(self.name .. ":" .. kind, data, scope, target, priority, opts)
 end
 
 -- Who may reach a module at all (level 12). Messages on the org, officer and
@@ -80,8 +81,8 @@ end
 
 -- Send under a full kind name, e.g. "Muster:TIMER" (level 11). Lets a module
 -- take over a feature from another and keep talking to that one's old versions.
-function Module:SendRaw(fullKind, data, scope, target, priority)
-    return ns.Comms:Send(fullKind, data, scope, target, priority)
+function Module:SendRaw(fullKind, data, scope, target, priority, opts)
+    return ns.Comms:Send(fullKind, data, scope, target, priority, opts)
 end
 
 -- opts (level 4): { order = n, label = "Tab text" }; by default the tab's

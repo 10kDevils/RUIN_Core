@@ -94,7 +94,7 @@ function Recruit:Ask(member, guild, message)
     if message == "" then message = Recruit.DefaultMessage(guild) end
     SendChatMessage(message, "WHISPER", nil, member)
     local _, class = UnitClass("player")
-    ns.Comms:Send("JOINASK", { m = message, c = class, l = UnitLevel("player"), gu = guild }, "PEER", member, ns.Comms.PRIORITY.ALERT)
+    ns.Comms:Send("JOINASK", { m = message, c = class, l = UnitLevel("player"), gu = guild }, "PEER", member, ns.Comms.PRIORITY.ALERT, { player = true })
     return true
 end
 
