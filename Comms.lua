@@ -193,6 +193,7 @@ local function resolve(item)
         return "CHANNEL", id
     elseif scope == "PEER" then
         if not item.target then return nil, nil, "drop" end
+        if Comms:PeerOffline(item.target) then return nil, nil, "drop" end
         return "WHISPER", item.target
     elseif scope == "PARTY" then
         -- a party only: never a raid, and never when not grouped
@@ -288,6 +289,7 @@ local function flush()
                     local T = ns.Throttle
                     if T then T.selfSending = true end
                     local result = C_ChatInfo.SendAddonMessage(ns.PREFIX, item.text, chatType, target)
+                    if chatType == "WHISPER" then Comms:NoteWhisper(target) end
                     if T then T.selfSending = false end
                     if isThrottled(result) then
                         Comms:Backoff()
@@ -306,6 +308,62 @@ local function flush()
             end
         end
     end
+end
+
+---------------------------------------------------------------------------
+-- Whispering someone who isn't online
+-- The game answers an addon whisper to an offline player with a system line,
+-- "No player named 'X' is currently playing.", once per part of the message.
+-- RUIN hides that line when it's about a player RUIN whispered a moment ago,
+-- drops what's still queued for them and holds further whispers to them for
+-- a few minutes (they're told what they missed when they log in).
+---------------------------------------------------------------------------
+local whispered, offlineUntil = {}, {}
+local OFFLINE_HOLD = 300
+function Comms:NoteWhisper(target)
+    if target then whispered[ns.NormalizeName(target)] = GetTime() end
+end
+function Comms:PeerOffline(target)
+    local u = target and offlineUntil[ns.NormalizeName(target)]
+    return u ~= nil and GetTime() < u
+end
+-- someone just came online (a hello, a message from them): whisper them again
+function Comms:PeerSeen(target)
+    if target then offlineUntil[ns.NormalizeName(target)] = nil end
+end
+
+local notFoundPattern
+local function notFoundName(msg)
+    if not notFoundPattern then
+        local fmt = ERR_CHAT_PLAYER_NOT_FOUND_S or "No player named '%s' is currently playing."
+        local escaped = fmt:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
+        notFoundPattern = "^" .. escaped:gsub("%%s", "(.+)") .. "$"
+    end
+    return type(msg) == "string" and msg:match(notFoundPattern) or nil
+end
+Comms.NotFoundName = notFoundName
+
+function Comms:OnSystemMessage(msg)
+    local name = notFoundName(msg)
+    if not name then return false end
+    local n = ns.NormalizeName(name)
+    local t = whispered[n]
+    if not t or GetTime() - t > 15 then return false end    -- not ours: leave it alone
+    offlineUntil[n] = GetTime() + OFFLINE_HOLD
+    for _, queue in ipairs(queues) do
+        for i = #queue, 1, -1 do
+            local it = queue[i]
+            if it.scope == "PEER" and it.target and ns.NormalizeName(it.target) == n then table.remove(queue, i) end
+        end
+    end
+    return true
+end
+
+if ChatFrame_AddMessageEventFilter then
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, msg)
+        if Comms:OnSystemMessage(msg) then return true end
+        return false
+    end)
 end
 
 ---------------------------------------------------------------------------
@@ -343,6 +401,7 @@ function Comms:OnAddonMessage(prefix, text, chatType, sender, target, zoneChanne
     local secret = rawget(_G, "issecretvalue")
     if secret and (secret(prefix) or secret(text) or secret(sender) or secret(chatType)) then return end
     if prefix ~= ns.PREFIX or type(text) ~= "string" then return end
+    if sender then Comms:PeerSeen(sender) end
     if ns.playerNorm and ns.NormalizeName(sender) == ns.playerNorm then return end
 
     local scope

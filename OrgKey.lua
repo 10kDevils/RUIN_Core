@@ -525,7 +525,9 @@ local function deliverOfficerChannel(k, exclude, removedGuild)
     for _, o in ipairs(ns.Presence:KnownOfficers()) do
         local n = ns.NormalizeName(o.name)
         local guildOk = not o.guild or (k.guilds[o.guild] and o.guild ~= removedGuild)
-        if guildOk and not exclude[n] and n ~= ns.playerNorm and (o.online or o.roster) then
+        -- online only: an offline officer gets the new key when they log in (guild share, OKEY and
+        -- DKREQ); whispering them now only fills chat with "No player named ... is currently playing."
+        if guildOk and not exclude[n] and n ~= ns.playerNorm and o.online then
             ns.Comms:Send("ORGKEY", officerMessage(k), "PEER", o.name, ns.Comms.PRIORITY.ALERT)
             sent = sent + 1
         end
