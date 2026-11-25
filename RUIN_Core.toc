@@ -4,6 +4,7 @@
 ## Author: RUIN
 ## Version: 0.8.10
 ## SavedVariables: RUIN_DB
+## SavedVariablesPerCharacter: RUIN_CoreCharDB
 ## OptionalDeps: RuinousForeverPlanner
 ## IconTexture: Interface\AddOns\RUIN_Core\Media\BadgeGuild
 ## AddonCompartmentFunc: RUIN_OnAddonCompartmentClick
@@ -37,4 +38,9 @@ Setup.lua
 Release.lua
 Planner.lua
 PartyPlan.lua
+Looks.lua
+Minimap.lua
+ObjectiveTracker.lua
+WorldMap.lua
+Customize.lua
 UI.lua

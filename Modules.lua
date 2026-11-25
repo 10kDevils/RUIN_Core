@@ -20,7 +20,7 @@ local API = {}
 RUIN_API = API
 API.version = ns.VERSION
 API.protocol = ns.PROTOCOL
-API.apiLevel = 14              -- modules check this to know which API they can use
+API.apiLevel = 15              -- modules check this to know which API they can use
 API.PRIORITY = ns.Comms.PRIORITY
 API.Widgets = ns.Widgets      -- shared widget kit (Button, Check, EditBox, Cycle, List, SubTabs, HudFrame, Toast,
                               -- from level 4 Pill, TagText, Progress, Skin, PALETTE, MARKERS, and from
@@ -156,6 +156,11 @@ function API:RegisterModule(name, info)
 end
 
 ns:Subscribe("LOGIN", function()
+    -- the game frames' looks first, so modules find them ready (Customize.lua)
+    if ns.Customize then
+        local ok, err = pcall(ns.Customize.Init)
+        if not ok then ns.ReportError(err) end
+    end
     for _, m in ipairs(ordered) do enable(m) end
 end)
 

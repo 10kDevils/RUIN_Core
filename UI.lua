@@ -1043,8 +1043,10 @@ local function buildSettingsPanel(p)
     settings.page = p
     -- Org (key and, for the admin, the guild list), Display (chat, window and
     -- tab order) and About.
-    settings.tabs = Wd.SubTabs(p, { "Options", "Org", "Feedback" }, function() refreshSettings() end)
-    local dispPage, orgPage, fbPage = settings.tabs.pages[1], settings.tabs.pages[2], settings.tabs.pages[3]
+    settings.tabs = Wd.SubTabs(p, { "Options", "Customization", "Org", "Feedback" }, function() refreshSettings() end)
+    local dispPage, orgPage, fbPage = settings.tabs.pages[1], settings.tabs.pages[3], settings.tabs.pages[4]
+    -- the game frames' looks and the modules' sections (Customize.lua)
+    if ns.Customize then ns.Customize.Build(settings.tabs.pages[2]) end
     local keyCard = Wd.Card(orgPage)
     keyCard:SetPoint("TOPLEFT", 0, 0)
     keyCard:SetPoint("RIGHT", orgPage, "RIGHT", 0, 0)
@@ -1329,9 +1331,9 @@ local function buildSettingsPanel(p)
     UI:Refresh()
 end
 
--- i: 1 Options, 2 Org, 3 Feedback (or the tab's name)
+-- i: 1 Options, 2 Customization, 3 Org, 4 Feedback (or the tab's name)
 function UI:SelectSettingsTab(i)
-    if type(i) == "string" then i = ({ Options = 1, Org = 2, Feedback = 3 })[i] end
+    if type(i) == "string" then i = ({ Options = 1, Customization = 2, Org = 3, Feedback = 4 })[i] end
     if settings.tabs and i then settings.tabs:Select(i) end
 end
 UI.settings = settings   -- for tests
