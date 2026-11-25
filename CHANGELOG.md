@@ -4,6 +4,7 @@ Versioning: the third number counts the meaningful changes made since the second
 
 ## Unreleased
 
+- **Distances say "here" when you're there.** Within 5 yards a distance reads "here" instead of "0 yd N" (Muster rally points and other places that show how far something is).
 - **Settings > Customization.** The Customization tab moved here from Pathfinder, after Options: the looks for the minimap, the objective tracker, the world map and quest log (Style and Background for each, All styles at once, and where addons' minimap buttons sit), with Pathfinder's Tracker and Waypoint sections when Pathfinder is installed. The looks now come with Core, so they work without Pathfinder; your settings carry over, still per character.
 - **No more "No player named ... is currently playing" spam.** When the org key changed, RUIN whispered the new key to every officer in your guild roster, online or not, and the game answered each part of that message for every offline officer. It now goes to online officers only (the others get it when they log in, as before). And if RUIN whispers someone who has just logged off, it hides the game's line about it, drops the rest of that message and holds further whispers to them until they're back.
 - **Key offers you send always go out.** Sending the org key, handing over the admin, asking for a group invite or a version check now always reaches the player, even right after RUIN found them offline, and if they aren't online you see the game's "No player named ..." line once for each send (a quick retry too) instead of nothing.

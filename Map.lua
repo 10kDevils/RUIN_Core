@@ -112,6 +112,7 @@ local DIRS = { "N", "NW", "W", "SW", "S", "SE", "E", "NE" }
 function Map:DistanceText(map, x, y)
     local east, north, dist = self:Offset(map, x, y)
     if not dist then return nil end
+    if dist < 5 then return "here", dist end           -- standing on it: no direction to point
     local angle = math.atan2(-east, north)          -- counter-clockwise from north
     local dir = DIRS[math.floor(angle / (2 * math.pi) * 8 + 0.5) % 8 + 1]
     return ("%d yd %s"):format(dist, dir), dist
