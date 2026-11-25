@@ -27,7 +27,22 @@ local ATTEST_FOR = 7 * 86400
 local ROSTER_TRUST = 6 * 3600     -- an org roster copy vouches for its members this long
 
 local function now() return ns.Now() end
-local function dkHash(hex) return C.SHA256Hex("RUIN dk|" .. hex):sub(1, 16) end
+-- The data key's check value. Asked on every message sent or received (to
+-- tell whether the stored data key is the real one), and the SHA-256 runs in
+-- Lua, so each key's value is worked out once and kept. A player only ever
+-- sees a few data keys; the list starts over if it ever grows past a dozen.
+local dkHash
+do
+    local known, count = {}, 0
+    dkHash = function(hex)
+        local v = known[hex]
+        if v then return v end
+        v = C.SHA256Hex("RUIN dk|" .. hex):sub(1, 16)
+        if count >= 12 then known, count = {}, 0 end
+        known[hex], count = v, count + 1
+        return v
+    end
+end
 Sec.DkHash = dkHash
 
 ---------------------------------------------------------------------------

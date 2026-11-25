@@ -1537,9 +1537,10 @@ end
 
 local function sortedTabs()
     local sorted = {}
-    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i } end
+    -- each tab's place worked out once, not twice per comparison
+    for i, t in ipairs(tabs) do sorted[#sorted + 1] = { t = t, i = i, o = tabOrder(t) } end
     table.sort(sorted, function(a, b)
-        local oa, ob = tabOrder(a.t), tabOrder(b.t)
+        local oa, ob = a.o, b.o
         if oa ~= ob then return oa < ob end
         return a.i < b.i
     end)

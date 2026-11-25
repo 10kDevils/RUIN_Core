@@ -133,17 +133,29 @@ function Crypto.SHA256(msg)
     return concat(out)
 end
 
-local HEXD = "0123456789abcdef"
-function Crypto.Hex(s)
-    return (s:gsub(".", function(c)
-        local v = byte(c)
+-- Byte <-> hex pair lookups: gsub with a table does no work per byte beyond
+-- the lookup (these run for every key check, hash and signature).
+-- HEX[byte char] = "3f", built once; UNHEX["3f"] = byte char, filled in as
+-- pairs turn up (any mix of cases).
+local HEX, UNHEX = {}, {}
+do
+    local HEXD = "0123456789abcdef"
+    for v = 0, 255 do
         local hi, lo = floor(v / 16), v % 16
-        return HEXD:sub(hi + 1, hi + 1) .. HEXD:sub(lo + 1, lo + 1)
-    end))
+        HEX[char(v)] = HEXD:sub(hi + 1, hi + 1) .. HEXD:sub(lo + 1, lo + 1)
+    end
+    setmetatable(UNHEX, { __index = function(t, p)
+        local c = char(tonumber(p, 16))
+        t[p] = c
+        return c
+    end })
+end
+function Crypto.Hex(s)
+    return (s:gsub(".", HEX))
 end
 function Crypto.Unhex(h)
     if type(h) ~= "string" or #h % 2 ~= 0 or h:find("[^%x]") then return nil end
-    return (h:gsub("%x%x", function(p) return char(tonumber(p, 16)) end))
+    return (h:gsub("%x%x", UNHEX))
 end
 
 function Crypto.SHA256Hex(msg) return Crypto.Hex(Crypto.SHA256(msg)) end

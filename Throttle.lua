@@ -87,10 +87,18 @@ function Throttle.Recent(now)
 end
 
 -- addon messages other addons sent in the last `window` seconds
+-- (Asked on every send-queue tick while something waits. The calls are kept
+-- in order, newest at head, so it walks back from the newest and stops at
+-- the first one older than the window instead of reading all 400.)
 function Throttle.OthersSending(window)
     local now, n = GetTime(), 0
-    for _, c in pairs(calls) do
-        if now - c.t <= window and c.api:find("SendAddonMessage", 1, true) and not tostring(c.who):find("^RUIN") then n = n + 1 end
+    local i = head
+    for _ = 1, KEEP do
+        local c = calls[i]
+        if not c or now - c.t > window then break end
+        if c.api:find("SendAddonMessage", 1, true) and not tostring(c.who):find("^RUIN") then n = n + 1 end
+        i = i - 1
+        if i < 1 then i = KEEP end
     end
     return n
 end

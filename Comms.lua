@@ -41,12 +41,16 @@ local C = ns.Crypto
 local handlers = {}                       -- kind -> { fn, ... }
 local queues = { {}, {}, {} }             -- by priority
 local tokens = TOKEN_CAP
+local wakeFlush                           -- starts the send queue's clock (see Init)
 local sessionTag = ns.RandomToken(2)
 local counter = 0
 local partials = {}                       -- sender..id -> partial message
 local channels = { ORG = {}, OFFICERS = {} }   -- scope -> { name, password, joined }
 local warnedPassword = {}
 local knownNames = {}   -- every channel name used this session (lowercase), for hiding notices
+-- isOurChannel's answer for each text it was asked about (true or false); a
+-- new known name clears it, and it starts over past 200 texts
+local ourText = { list = {}, count = 0 }
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -66,18 +70,34 @@ local function nextId()
 end
 
 -- The key a scope's messages are sealed with (data key generation r, or the current one).
-local function scopeKey(scope, r)
-    local Org = ns.Org
-    if not Org then return nil end
-    local raw, cur
-    if r then raw, cur = Org:DataKeyFor(r), r else raw, cur = Org:DataKey() end
-    if not raw then return nil end
-    if scope == "ORG" then return C.HMAC(raw, "RUIN org"), cur end
-    if scope == "PEER" then return C.HMAC(raw, "RUIN peer"), cur end
-    if scope == "OFFICERS" then
-        local k = Org:Get()
-        if not (k and k.oc and type(k.oc.p) == "string") then return nil end
-        return C.HMAC(raw, "RUIN off|" .. k.oc.p), cur
+-- Each scope's key is worked out from the data key on every message sent or
+-- received; the cipher runs in Lua, so a worked-out key is kept (a player
+-- only ever has a few; the list starts over past a dozen).
+local scopeKey
+do
+    local derived, count = {}, 0
+    local function derive(raw, label)
+        local id = label .. "\0" .. raw
+        local v = derived[id]
+        if v then return v end
+        v = C.HMAC(raw, label)
+        if count >= 12 then derived, count = {}, 0 end
+        derived[id], count = v, count + 1
+        return v
+    end
+    scopeKey = function(scope, r)
+        local Org = ns.Org
+        if not Org then return nil end
+        local raw, cur
+        if r then raw, cur = Org:DataKeyFor(r), r else raw, cur = Org:DataKey() end
+        if not raw then return nil end
+        if scope == "ORG" then return derive(raw, "RUIN org"), cur end
+        if scope == "PEER" then return derive(raw, "RUIN peer"), cur end
+        if scope == "OFFICERS" then
+            local k = Org:Get()
+            if not (k and k.oc and type(k.oc.p) == "string") then return nil end
+            return derive(raw, "RUIN off|" .. k.oc.p), cur
+        end
     end
 end
 -- What a sealed message is bound to: who sent it, and to whom (a whisper
@@ -151,6 +171,7 @@ function Comms:Send(kind, data, scope, target, priority, opts)
             return false
         end
         queue[#queue + 1] = { job = true, kind = kind, payload = payload, scope = scope, target = target, t = now, player = player }
+        wakeFlush()
         return true
     end
     local list = frames(kind, payload, scope, target)
@@ -158,6 +179,7 @@ function Comms:Send(kind, data, scope, target, priority, opts)
     for _, text in ipairs(list) do
         queue[#queue + 1] = { text = text, scope = scope, target = target, t = now, player = player }
     end
+    wakeFlush()
     return true
 end
 
@@ -249,6 +271,7 @@ function Comms:Backoff()
     tokens = 0
     pauseUntil = now + BACKOFF_PAUSE
     slowUntil = now + BACKOFF_FOR
+    wakeFlush()                             -- the allowance fills up again on the clock
 end
 function Comms:Pace()
     local now = GetTime()
@@ -601,17 +624,33 @@ function Comms:SetChannel(scope, name, password)
         C_Timer.After(15, leaveOld)
     end
     ch.name, ch.password, ch.joined = name, password, false
-    if name then knownNames[name:lower()] = true end
+    if name and not knownNames[name:lower()] then
+        knownNames[name:lower()] = true
+        ourText.list, ourText.count = {}, 0      -- a "no" may be a "yes" now
+    end
     warnedPassword[scope] = nil
     if name then Comms:JoinChannel(scope) end
     ns:Fire("CHANNELS_CHANGED")
 end
 
+-- Runs for every channel chat line (the chat filter) and every channel in the
+-- 5-second upkeep, always about the same few channel names, so each text is
+-- checked once and the answer kept (ourText).
 local function isOurChannel(...)
-    for lname in pairs(knownNames) do
-        for i = 1, select("#", ...) do
-            local v = select(i, ...)
-            if type(v) == "string" and v:lower():find(lname, 1, true) then return true end
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if type(v) == "string" then
+            local hit = ourText.list[v]
+            if hit == nil then
+                hit = false
+                local lv = v:lower()
+                for lname in pairs(knownNames) do
+                    if lv:find(lname, 1, true) then hit = true; break end
+                end
+                if ourText.count >= 200 then ourText.list, ourText.count = {}, 0 end
+                ourText.list[v], ourText.count = hit, ourText.count + 1
+            end
+            if hit then return true end
         end
     end
     return false
@@ -625,6 +664,7 @@ Comms.IsOurChannel = isOurChannel
 -- channels and then moves its own to the end, one swap at a time, keeping
 -- the other channels in their order. Nothing happens in combat.
 ---------------------------------------------------------------------------
+local function byChannelId(a, b) return a.id < b.id end
 local function channelList()
     local out = {}
     if not GetChannelList then return out end
@@ -633,7 +673,7 @@ local function channelList()
     for i = 1, #t, step do
         if tonumber(t[i]) and type(t[i + 1]) == "string" then out[#out + 1] = { id = tonumber(t[i]), name = t[i + 1] } end
     end
-    table.sort(out, function(a, b) return a.id < b.id end)
+    table.sort(out, byChannelId)
     return out
 end
 Comms.ChannelList = channelList
@@ -743,5 +783,22 @@ if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
     C_ChatInfo.RegisterAddonMessagePrefix(ns.PREFIX)
 end
 ns:RegisterEvent("CHAT_MSG_ADDON", function(_, ...) Comms:OnAddonMessage(...) end)
-C_Timer.NewTicker(TICK, flush)
+-- The send queue runs ten times a second while something is queued or the
+-- allowance is still filling up, and stops when there's nothing left to do
+-- (most of the time); a new message or a back-off starts it again.
+do
+    local ticker
+    local function tick()
+        flush()
+        if tokens >= TOKEN_CAP and GetTime() >= pauseUntil
+           and not queues[1][1] and not queues[2][1] and not queues[3][1] then
+            if ticker then ticker:Cancel() end
+            ticker = nil
+        end
+    end
+    wakeFlush = function()
+        if not ticker then ticker = C_Timer.NewTicker(TICK, tick) end
+    end
+end
+wakeFlush()
 C_Timer.NewTicker(5, upkeep)

@@ -18,11 +18,21 @@ end
 
 -- WoW Forever names are "First Last" and APIs disagree on spaces and realm
 -- suffixes, so compare names only in this normalized form (and prefer GUIDs).
-function ns.NormalizeName(name)
-    if type(name) ~= "string" then return "" end
-    name = name:gsub("%-.*$", "")
-    name = name:gsub("%s+", "")
-    return name:lower()
+-- It runs for every message received and every roster row, mostly on the same
+-- few hundred names, so each answer is kept (the list starts over past 500).
+do
+    local normal, count = {}, 0
+    function ns.NormalizeName(name)
+        if type(name) ~= "string" then return "" end
+        local hit = normal[name]
+        if hit then return hit end
+        local out = name:gsub("%-.*$", "")
+        out = out:gsub("%s+", "")
+        out = out:lower()
+        if count >= 500 then normal, count = {}, 0 end
+        normal[name], count = out, count + 1
+        return out
+    end
 end
 
 function ns.ShortName(name)
@@ -46,18 +56,29 @@ end
 ---------------------------------------------------------------------------
 -- Versions: "0.1.10" > "0.1.9"
 ---------------------------------------------------------------------------
-function ns.CompareVersions(a, b)
-    local function parts(v)
-        local t = {}
-        for num in tostring(v):gmatch("%d+") do t[#t + 1] = tonumber(num) end
+-- Asked for every message received (is the sender's version one the org
+-- takes?), always about the same few versions, so each version's numbers are
+-- worked out once and kept (the list starts over past 64). Read only.
+do
+    local versionParts = { list = {}, count = 0 }
+    function versionParts.of(v)
+        local s = tostring(v)
+        local t = versionParts.list[s]
+        if t then return t end
+        t = {}
+        for num in s:gmatch("%d+") do t[#t + 1] = tonumber(num) end
+        if versionParts.count >= 64 then versionParts.list, versionParts.count = {}, 0 end
+        versionParts.list[s], versionParts.count = t, versionParts.count + 1
         return t
     end
-    local pa, pb = parts(a), parts(b)
-    for i = 1, math.max(#pa, #pb) do
-        local x, y = pa[i] or 0, pb[i] or 0
-        if x ~= y then return x < y and -1 or 1 end
+    function ns.CompareVersions(a, b)
+        local pa, pb = versionParts.of(a), versionParts.of(b)
+        for i = 1, math.max(#pa, #pb) do
+            local x, y = pa[i] or 0, pb[i] or 0
+            if x ~= y then return x < y and -1 or 1 end
+        end
+        return 0
     end
-    return 0
 end
 
 ---------------------------------------------------------------------------
@@ -128,9 +149,11 @@ function ns.Serialize(v)
     return table.concat(out)
 end
 
+-- The tag is read as a byte (no one-letter string made for each value):
+-- s = 115, n = 110, T = 84, F = 70, N = 78, { = 123, } = 125.
 local function readValue(s, pos, depth)
-    local c = s:sub(pos, pos)
-    if c == "s" then
+    local c = s:byte(pos)
+    if c == 115 then
         local colon = s:find(":", pos + 1, true)
         if not colon then return nil, nil, "bad string" end
         local len = tonumber(s:sub(pos + 1, colon - 1))
@@ -138,7 +161,7 @@ local function readValue(s, pos, depth)
         local last = colon + len
         if last > #s then return nil, nil, "truncated string" end
         return s:sub(colon + 1, last), last + 1
-    elseif c == "n" then
+    elseif c == 110 then
         local semi = s:find(";", pos + 1, true)
         if not semi then return nil, nil, "bad number" end
         local num = tonumber(s:sub(pos + 1, semi - 1))
@@ -146,19 +169,19 @@ local function readValue(s, pos, depth)
         -- breaks every "newest wins" comparison.
         if not num or num ~= num or num == math.huge or num == -math.huge then return nil, nil, "bad number" end
         return num, semi + 1
-    elseif c == "T" then
+    elseif c == 84 then
         return true, pos + 1
-    elseif c == "F" then
+    elseif c == 70 then
         return false, pos + 1
-    elseif c == "N" then
+    elseif c == 78 then
         return nil, pos + 1
-    elseif c == "{" then
+    elseif c == 123 then
         if depth >= MAX_DEPTH then return nil, nil, "too deep" end
         local tbl = {}
         pos = pos + 1
         while true do
             if pos > #s then return nil, nil, "unterminated table" end
-            if s:sub(pos, pos) == "}" then return tbl, pos + 1 end
+            if s:byte(pos) == 125 then return tbl, pos + 1 end
             local k, afterKey, err = readValue(s, pos, depth + 1)
             if err then return nil, nil, err end
             local val, afterVal, err2 = readValue(s, afterKey, depth + 1)
