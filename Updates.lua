@@ -20,6 +20,15 @@ Updates.DOWNLOAD = "github.com/10kDevils/RUIN_Suite/releases/latest"
 
 -- What changed, newest first. Short, in players' words.
 Updates.NOTES = {
+    { "0.9.0", {
+        "New: Settings > Customization holds the looks for the minimap, objective tracker, world map and quest log (moved from Pathfinder, so they work without it), plus Pathfinder's tracker and waypoint.",
+        "New: a setup guide for guild leaders starting an org. No more \"No player named ... is currently playing\" spam when keys change, and RUIN does less work for each org message.",
+        "With RUIN Pathfinder: new Alliance 1-60 levelling routes planned for the most experience an hour, Suggested for you, session time, class quests, a Group button and Follow my party leader. Route names start with their levels; quests from dropped items mark where the item drops.",
+        "With RUIN Finder: Join replaces Layers. Ask a member to invite you to reach their layer, or ask anyone in your zone.",
+        "With RUIN Muster: Attendance for each player, reminders before events you signed up for, and the rally point always shows on event rows.",
+        "With RUIN Codex: the best quest reward for you is marked when a quest offers a choice.",
+        "With RUIN Exchange: a Watch list for items you want to buy, and Waylaid Crates list each bundle with its auction house price.",
+    } },
     { "0.8.10", {
         "With RUIN Exchange: the auction house tooltip no longer bounces or grows a moment after it shows.",
     } },

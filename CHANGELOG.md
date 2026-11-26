@@ -2,7 +2,7 @@
 
 Versioning: the third number counts the meaningful changes made since the second number last went up.
 
-## Unreleased
+## 0.9.0
 
 - **Lighter while RUIN talks to the org.** Encrypted org messages no longer redo the same key checks for every message sent or received (these sometimes stalled a frame for a moment with the RUIN window open), and the send queue rests when there's nothing to send.
 - **Distances say "here" when you're there.** Within 5 yards a distance reads "here" instead of "0 yd N" (Muster rally points and other places that show how far something is).
